@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read", "Write", "Edit",
+      "Bash(npm run *)", "Bash(mvn *)",
+      "Bash(git status *)", "Bash(git add *)", "Bash(git commit *)", "Bash(git log *)",
+      "Bash(ls *)", "Bash(cat *)", "Bash(find *)", "Bash(grep *)",
+      "Bash(vima *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)", "Bash(sudo *)", "Bash(curl *)", "Bash(wget *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/guard-shared.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/post-write.sh" }
+        ]
+      }
+    ]
+  }
+}

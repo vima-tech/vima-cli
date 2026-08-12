@@ -1,0 +1,474 @@
+// F 单测：lib/model/*.mjs 与 lib/util/fs.mjs —— mkdtemp 临时夹具，不依赖 tests/fixtures/golden
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { VimaError, EXIT } from '../../lib/util/errors.mjs';
+import {
+  ensureDir, fileExists, atomicWriteFile, stableStringify, sha256, sha256File, walkFiles,
+} from '../../lib/util/fs.mjs';
+import { loadTasks, saveTaskFrontmatter } from '../../lib/model/tasks.mjs';
+import { defaultLifecycle, loadLifecycle, saveLifecycle } from '../../lib/model/lifecycle.mjs';
+import { loadSpec } from '../../lib/model/spec.mjs';
+import { loadContracts, apiKey } from '../../lib/model/contracts.mjs';
+import { loadManifest, saveManifest } from '../../lib/model/manifest.mjs';
+import {
+  templatesRoot, listTemplates, loadTemplate, readProjectTemplateId,
+} from '../../lib/model/template.mjs';
+
+/** 建临时项目根，测试完自动清理。 */
+async function tempRoot(t) {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-f-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  return root;
+}
+
+function taskDoc(overrides = {}, extraLines = []) {
+  const fm = {
+    taskId: 'device-list-fe',
+    title: '设备管理列表页（前端）',
+    status: 'pending',
+    layer: 'business',
+    side: 'frontend',
+    dependsOn: '[shared-base, device-api-be]',
+    retryCount: '0',
+    contract: 'docs/contracts/device-api.md',
+    updatedAt: '2026-08-12T10:00:00Z',
+    ...overrides,
+  };
+  const lines = ['---'];
+  for (const [k, v] of Object.entries(fm)) {
+    if (v !== undefined) lines.push(`${k}: ${v}`);
+  }
+  lines.push(...extraLines, '---', '', '# 设备管理列表页', '', '## 验收清单', '', '- [ ] 列表可分页', '');
+  return lines.join('\n');
+}
+
+async function writeTask(root, name, content) {
+  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true });
+  await writeFile(path.join(root, 'docs', 'tasks', name), content);
+}
+
+async function expectVimaError(fn, { code, exitCode, messageRe }) {
+  let err = null;
+  try {
+    await fn();
+  } catch (e) {
+    err = e;
+  }
+  assert.ok(err !== null, '应抛出错误');
+  assert.ok(err instanceof VimaError, `应抛 VimaError，实际 ${err.constructor.name}: ${err.message}`);
+  if (code) assert.equal(err.code, code);
+  if (exitCode !== undefined) assert.equal(err.exitCode, exitCode);
+  if (messageRe) assert.match(err.message, messageRe);
+  return err;
+}
+
+// ---------------------------------------------------------------------------
+// lib/util/fs.mjs
+// ---------------------------------------------------------------------------
+
+test('fs：atomicWriteFile 自动建目录且无临时文件残留', async (t) => {
+  const root = await tempRoot(t);
+  const target = path.join(root, 'a', 'b', 'c.json');
+  await atomicWriteFile(target, 'hello');
+  assert.equal(await readFile(target, 'utf8'), 'hello');
+  const files = await walkFiles(root);
+  assert.deepEqual(files, ['a/b/c.json']); // 无 .tmp 残留
+});
+
+test('fs：stableStringify 深度 key 排序、2 空格缩进、结尾换行', () => {
+  const out = stableStringify({ b: { z: 1, a: [3, 1, { y: 0, x: 0 }] }, a: true });
+  assert.equal(out, `${JSON.stringify({ a: true, b: { a: [3, 1, { x: 0, y: 0 }], z: 1 } }, null, 2)}\n`);
+  // 数组顺序不被改动
+  assert.ok(out.indexOf('3') < out.indexOf('1'));
+});
+
+test('fs：sha256 / sha256File / fileExists / ensureDir', async (t) => {
+  const root = await tempRoot(t);
+  assert.equal(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  const p = path.join(root, 'x.txt');
+  assert.equal(await fileExists(p), false);
+  await writeFile(p, 'abc');
+  assert.equal(await fileExists(p), true);
+  assert.equal(await sha256File(p), sha256('abc'));
+  await ensureDir(path.join(root, 'd1', 'd2'));
+  await ensureDir(path.join(root, 'd1', 'd2')); // 幂等
+  assert.equal(await fileExists(path.join(root, 'd1', 'd2')), true);
+});
+
+test('fs：walkFiles 相对路径稳定排序并支持 exclude 目录名', async (t) => {
+  const root = await tempRoot(t);
+  await atomicWriteFile(path.join(root, 'src', 'b.ts'), '');
+  await atomicWriteFile(path.join(root, 'src', 'a.ts'), '');
+  await atomicWriteFile(path.join(root, 'node_modules', 'pkg', 'index.js'), '');
+  await atomicWriteFile(path.join(root, 'README.md'), '');
+  assert.deepEqual(await walkFiles(root, { exclude: ['node_modules'] }), [
+    'README.md', 'src/a.ts', 'src/b.ts',
+  ]);
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/tasks.mjs
+// ---------------------------------------------------------------------------
+
+test('loadTasks：正常读取，跳过 _ 前缀与 README.md，按文件名排序', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'device-list-fe.md', taskDoc());
+  await writeTask(root, 'a-shared-base.md', taskDoc({
+    taskId: 'shared-base', title: '共享层', layer: 'shared', side: 'fullstack',
+    dependsOn: '[]', contract: undefined,
+  }));
+  await writeTask(root, '_template-fe.md', '不是任务');
+  await writeTask(root, 'README.md', '# 任务依赖图');
+  const tasks = await loadTasks(root);
+  assert.deepEqual(tasks.map((x) => x.id), ['shared-base', 'device-list-fe']);
+  const fe = tasks[1];
+  assert.equal(fe.file, 'docs/tasks/device-list-fe.md');
+  assert.equal(fe.fm.status, 'pending');
+  assert.equal(fe.fm.retryCount, 0);
+  assert.deepEqual(fe.fm.dependsOn, ['shared-base', 'device-api-be']);
+  assert.equal(fe.fm.contract, 'docs/contracts/device-api.md');
+  assert.match(fe.body, /## 验收清单/);
+  // contract 可选：shared 任务无 contract 也合法
+  assert.equal(tasks[0].fm.contract, undefined);
+});
+
+test('loadTasks：docs/tasks 目录缺失返回空数组', async (t) => {
+  const root = await tempRoot(t);
+  assert.deepEqual(await loadTasks(root), []);
+});
+
+test('loadTasks：缺必填字段抛 TASK_FM（含 path）', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'bad.md', taskDoc({ status: undefined }));
+  const err = await expectVimaError(() => loadTasks(root), {
+    code: 'TASK_FM', exitCode: EXIT.CHECK_FAILED, messageRe: /status/,
+  });
+  assert.equal(err.path, 'docs/tasks/bad.md');
+});
+
+test('loadTasks：非法枚举值抛 TASK_FM', async (t) => {
+  const cases = [
+    [{ status: 'doing' }, /status/],
+    [{ layer: 'infra' }, /layer/],
+    [{ side: 'middle' }, /side/],
+    [{ taskId: 'Bad_Id' }, /taskId/],
+    [{ retryCount: '-1' }, /retryCount/],
+    [{ dependsOn: '[1, 2]' }, /dependsOn/],
+  ];
+  for (const [overrides, re] of cases) {
+    const root = await tempRoot(t);
+    await writeTask(root, 'bad.md', taskDoc(overrides));
+    await expectVimaError(() => loadTasks(root), { code: 'TASK_FM', messageRe: re });
+  }
+});
+
+test('loadTasks：缺 frontmatter 围栏抛 TASK_FM', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'bad.md', '# 没有 frontmatter 的任务');
+  await expectVimaError(() => loadTasks(root), { code: 'TASK_FM', messageRe: /frontmatter/ });
+});
+
+test('saveTaskFrontmatter：整体重写 frontmatter 并保留 body 原文', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'device-list-fe.md', taskDoc());
+  const [task] = await loadTasks(root);
+  const bodyBefore = task.body;
+  await saveTaskFrontmatter(task, { status: 'done', retryCount: 1, updatedAt: '2026-08-12T11:00:00Z' });
+  assert.equal(task.fm.status, 'done'); // 内存同步更新
+  const [reloaded] = await loadTasks(root);
+  assert.equal(reloaded.fm.status, 'done');
+  assert.equal(reloaded.fm.retryCount, 1);
+  assert.equal(reloaded.fm.updatedAt, '2026-08-12T11:00:00Z');
+  assert.equal(reloaded.fm.title, '设备管理列表页（前端）'); // 未更新字段保留
+  assert.equal(reloaded.body, bodyBefore); // body 原文不动
+});
+
+test('saveTaskFrontmatter：非法更新被拒绝', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'device-list-fe.md', taskDoc());
+  const [task] = await loadTasks(root);
+  await expectVimaError(() => saveTaskFrontmatter(task, { status: 'shipped' }), {
+    code: 'TASK_FM', messageRe: /status/,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/lifecycle.mjs
+// ---------------------------------------------------------------------------
+
+test('defaultLifecycle：结构符合契约 §6.2 / 设计 §14.2', () => {
+  const lc = defaultLifecycle('admin');
+  assert.equal(lc.schemaVersion, '2.0');
+  assert.equal(lc.templateId, 'admin');
+  assert.equal(lc.currentPhase, 'PLANNING');
+  assert.deepEqual(lc.phaseHistory.map((x) => x.phase), ['BOOTSTRAP', 'PLANNING']);
+  assert.deepEqual(Object.keys(lc.checklists.PLANNING).sort(), [
+    'artifactsValidated', 'contractsGenerated', 'modulesConfirmed', 'prototypeRendered',
+    'rawDocsCollected', 'reviewRendered', 'specGenerated', 'tasksApproved', 'tasksDecomposed',
+  ]);
+  assert.ok(Object.values(lc.checklists.PLANNING).every((v) => v === false));
+  assert.deepEqual(Object.keys(lc.checklists.DEVELOPING).sort(), [
+    'businessTasksDone', 'codeAudited', 'pipelineDone', 'sharedLayerDone', 'testsPassed',
+  ]);
+  assert.deepEqual(lc.taskStats, { total: 0, done: 0, failed: 0, blocked: 0, updatedAt: null });
+});
+
+test('lifecycle：缺文件抛 NO_LIFECYCLE（exitCode 4），读写往返一致', async (t) => {
+  const root = await tempRoot(t);
+  await expectVimaError(() => loadLifecycle(root), {
+    code: 'NO_LIFECYCLE', exitCode: EXIT.PRECONDITION,
+  });
+  const lc = defaultLifecycle('admin');
+  lc.checklists.PLANNING.specGenerated = true;
+  await saveLifecycle(root, lc);
+  const loaded = await loadLifecycle(root);
+  assert.deepEqual(loaded, lc);
+  // 落盘为 stableStringify 格式（结尾换行）
+  const raw = await readFile(path.join(root, 'docs', 'lifecycle.json'), 'utf8');
+  assert.ok(raw.endsWith('}\n'));
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/spec.mjs
+// ---------------------------------------------------------------------------
+
+const SPEC_MD = [
+  '# 演示项目规格',
+  '',
+  '## 2. 数据模型',
+  '',
+  '```yaml vima:entities',
+  'entities:',
+  '  - name: Device',
+  '    fields:',
+  '      - { name: id, type: number, required: true, desc: 主键 }',
+  '      - { name: name, type: string, required: true, desc: 设备名称 }',
+  'enums:',
+  '  - { name: DeviceType, values: [sensor, actuator, gateway] }',
+  '```',
+  '',
+  '## 3. 页面清单',
+  '',
+  '```yaml vima:page',
+  'id: PAGE-01',
+  'title: 设备列表',
+  'menu: MENU-01',
+  'layout: [search, table]',
+  'components:',
+  '  - block: table',
+  '    api: GET /api/device/list',
+  'apis: [GET /api/device/list]',
+  '```',
+  '',
+  '```yaml vima:page',
+  'id: PAGE-02',
+  'title: 设备详情',
+  'menu: MENU-01',
+  'layout: [form]',
+  'components:',
+  '  - block: form',
+  '    items: []',
+  'apis: [GET /api/device/detail]',
+  '```',
+  '',
+  '## 6. 权限设计',
+  '',
+  '```yaml vima:roles',
+  'roles:',
+  '  - { id: ROLE-01, name: 管理员, menus: [MENU-01] }',
+  '```',
+  '',
+  '```yaml vima:menus',
+  'menus:',
+  '  - id: MENU-01',
+  '    name: 设备管理',
+  '    page: PAGE-01',
+  '    features:',
+  '      - { name: 设备查询, api: GET /api/device/list }',
+  '```',
+  '',
+  '## 7. 业务流程',
+  '',
+  '```yaml vima:flow',
+  'id: FLOW-01',
+  'name: 设备上架流程',
+  'steps:',
+  '  - { role: ROLE-01, page: PAGE-01, action: 点击新增, api: POST /api/device, next: PAGE-01 }',
+  '```',
+  '',
+].join('\n');
+
+test('loadSpec：pages 为 Map，entities/enums/roles/menus/flows 正确抽取', async (t) => {
+  const root = await tempRoot(t);
+  await mkdir(path.join(root, 'docs'), { recursive: true });
+  await writeFile(path.join(root, 'docs', 'spec.md'), SPEC_MD);
+  const spec = await loadSpec(root);
+
+  assert.equal(spec.text, SPEC_MD);
+  assert.deepEqual(spec.chapters[0], { level: 1, title: '演示项目规格', line: 1 });
+  assert.ok(spec.chapters.some((c) => c.title === '3. 页面清单'));
+
+  assert.ok(spec.pages instanceof Map);
+  assert.deepEqual([...spec.pages.keys()], ['PAGE-01', 'PAGE-02']);
+  assert.equal(spec.pages.get('PAGE-01').title, '设备列表');
+  assert.deepEqual(spec.pages.get('PAGE-02').layout, ['form']);
+
+  assert.equal(spec.entities.length, 1);
+  assert.equal(spec.entities[0].fields.length, 2);
+  assert.deepEqual(spec.enums[0].values, ['sensor', 'actuator', 'gateway']);
+
+  assert.deepEqual(spec.roles, [{ id: 'ROLE-01', name: '管理员', menus: ['MENU-01'] }]);
+  assert.equal(spec.menus[0].id, 'MENU-01');
+  assert.equal(spec.menus[0].features[0].api, 'GET /api/device/list');
+
+  assert.equal(spec.flows.length, 1);
+  assert.equal(spec.flows[0].id, 'FLOW-01');
+  assert.equal(spec.flows[0].steps[0].action, '点击新增');
+});
+
+test('loadSpec：docs/spec.md 缺失抛 NO_SPEC（exitCode 4）', async (t) => {
+  const root = await tempRoot(t);
+  await expectVimaError(() => loadSpec(root), { code: 'NO_SPEC', exitCode: EXIT.PRECONDITION });
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/contracts.mjs
+// ---------------------------------------------------------------------------
+
+const CONTRACT_MD = [
+  '# 设备管理 API 契约',
+  '',
+  '## GET /api/device/list',
+  '',
+  '```yaml vima:contract',
+  'module: device',
+  'apis:',
+  '  - method: GET',
+  '    path: /api/device/list',
+  '    request:',
+  '      - { name: pageNum, type: number, required: true }',
+  '    response:',
+  '      - { name: id, type: number }',
+  '      - { name: name, type: string }',
+  '    errors:',
+  '      - { code: 40001, msg: 参数校验失败 }',
+  '  - method: post',
+  '    path: /api/device',
+  '    request: []',
+  '    response: []',
+  '    errors: []',
+  '```',
+  '',
+].join('\n');
+
+test('loadContracts：读取 vima:contract 块，跳过 _ 前缀', async (t) => {
+  const root = await tempRoot(t);
+  await mkdir(path.join(root, 'docs', 'contracts'), { recursive: true });
+  await writeFile(path.join(root, 'docs', 'contracts', 'device-api.md'), CONTRACT_MD);
+  await writeFile(path.join(root, 'docs', 'contracts', '_draft.md'), '草稿，应被跳过');
+  await writeFile(path.join(root, 'docs', 'contracts', 'empty.md'), '# 还没写数据块');
+
+  const contracts = await loadContracts(root);
+  assert.deepEqual(contracts.map((c) => c.file), [
+    'docs/contracts/device-api.md', 'docs/contracts/empty.md',
+  ]);
+  const [device, empty] = contracts;
+  assert.equal(device.module, 'device');
+  assert.equal(device.apis.length, 2);
+  assert.equal(device.apis[0].method, 'GET');
+  assert.deepEqual(device.apis[0].request[0], { name: 'pageNum', type: 'number', required: true });
+  assert.deepEqual(device.apis[0].errors[0], { code: 40001, msg: '参数校验失败' });
+  // 无数据块的文件返回空条目，供校验规则报告
+  assert.deepEqual(empty, { file: 'docs/contracts/empty.md', module: null, apis: [] });
+});
+
+test('loadContracts：docs/contracts 缺失返回空数组', async (t) => {
+  const root = await tempRoot(t);
+  assert.deepEqual(await loadContracts(root), []);
+});
+
+test('apiKey：method 统一大写拼 path', () => {
+  assert.equal(apiKey({ method: 'get', path: '/api/device/list' }), 'GET /api/device/list');
+  assert.equal(apiKey({ method: 'POST', path: '/api/device' }), 'POST /api/device');
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/manifest.mjs
+// ---------------------------------------------------------------------------
+
+test('manifest：缺文件返回 null，读写往返一致', async (t) => {
+  const root = await tempRoot(t);
+  assert.equal(await loadManifest(root), null);
+  const m = {
+    schemaVersion: '1',
+    vimaVersion: '2.0.0',
+    templateId: 'admin',
+    initializedAt: '2026-08-12T10:00:00Z',
+    createdAt: '2026-08-12T10:00:00Z',
+    files: {
+      managed: [{ path: '.claude/commands/go.md', checksum: 'sha256:abc' }],
+      userOwned: ['CLAUDE.md', 'docs/spec.md'],
+    },
+  };
+  await saveManifest(root, m);
+  assert.deepEqual(await loadManifest(root), m);
+});
+
+// ---------------------------------------------------------------------------
+// lib/model/template.mjs
+// ---------------------------------------------------------------------------
+
+async function makeCliRoot(t) {
+  const cliRoot = await mkdtemp(path.join(tmpdir(), 'vima-cli-root-'));
+  t.after(() => rm(cliRoot, { recursive: true, force: true }));
+  const write = async (id, json) => {
+    await mkdir(path.join(cliRoot, 'templates', id), { recursive: true });
+    await writeFile(path.join(cliRoot, 'templates', id, 'template.json'), JSON.stringify(json));
+  };
+  await write('h5', { id: 'h5', name: 'H5 应用', status: 'preview', description: '移动端' });
+  await write('admin', { id: 'admin', name: '管理后台', status: 'stable', description: '中后台', version: '2.0.0' });
+  return cliRoot;
+}
+
+test('templatesRoot / listTemplates：按 id 排序', async (t) => {
+  const cliRoot = await makeCliRoot(t);
+  assert.equal(templatesRoot(cliRoot), path.join(cliRoot, 'templates'));
+  const list = await listTemplates(cliRoot);
+  assert.deepEqual(list, [
+    { id: 'admin', name: '管理后台', status: 'stable', description: '中后台' },
+    { id: 'h5', name: 'H5 应用', status: 'preview', description: '移动端' },
+  ]);
+});
+
+test('listTemplates：templates 目录缺失返回空数组', async (t) => {
+  const empty = await mkdtemp(path.join(tmpdir(), 'vima-noroot-'));
+  t.after(() => rm(empty, { recursive: true, force: true }));
+  assert.deepEqual(await listTemplates(empty), []);
+});
+
+test('loadTemplate：返回 template.json 内容 + dir；未知 id 抛 NO_TEMPLATE（exit 3）', async (t) => {
+  const cliRoot = await makeCliRoot(t);
+  const tpl = await loadTemplate(cliRoot, 'admin');
+  assert.equal(tpl.name, '管理后台');
+  assert.equal(tpl.version, '2.0.0');
+  assert.equal(tpl.dir, path.join(cliRoot, 'templates', 'admin'));
+  await expectVimaError(() => loadTemplate(cliRoot, 'nope'), {
+    code: 'NO_TEMPLATE', exitCode: EXIT.USAGE,
+  });
+});
+
+test('readProjectTemplateId：manifest 优先于 lifecycle，双缺返回 null', async (t) => {
+  // 1) 双缺 → null
+  const bare = await tempRoot(t);
+  assert.equal(await readProjectTemplateId(bare), null);
+  // 2) 仅 lifecycle → lifecycle.templateId
+  const lcOnly = await tempRoot(t);
+  await saveLifecycle(lcOnly, defaultLifecycle('h5'));
+  assert.equal(await readProjectTemplateId(lcOnly), 'h5');
+  // 3) manifest 存在时优先
+  await saveManifest(lcOnly, { schemaVersion: '1', templateId: 'admin' });
+  assert.equal(await readProjectTemplateId(lcOnly), 'admin');
+});

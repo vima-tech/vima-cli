@@ -1,0 +1,73 @@
+/**
+ * @vima-tech/ui-admin · 令牌层（默认主题：企业蓝 v3）
+ *
+ * 创建日期: 2026-08-10
+ *
+ * 这是整套组件唯一的取色/取值入口——组件样式只写 var(--vui-*)，不写死颜色。
+ * 取值 1:1 冻结自 juvenile-guard 管理端 v3 主题（styles/tokens.css :root + ui-v3/ui.css 控件块），
+ * 因此把本文件与 ui.css 一起引入，渲染结果与 juvenile-guard 现网像素一致。
+ *
+ * 换品牌：整份覆盖本文件，或在宿主里重定义同名变量（宿主的 :root 后加载即可覆盖）。
+ * 注意：组件里不要新增 var(--vui-xxx) 而不在这里给默认值——缺省会静默失效（无报错、只是没颜色）。
+ */
+
+:root {
+  /* ---------- 品牌 ---------- */
+  --vui-primary: #2f73c5;
+  --vui-primary-strong: #235c9b;
+
+  /* ---------- 语义状态 ---------- */
+  --vui-success: #2c7652;
+  --vui-warning: #a66a17;
+  --vui-danger: #a34442;
+
+  /* ---------- 面与线 ---------- */
+  --vui-surface: #ffffff;
+  /** 浮起面（弹层/下拉/面板），默认与 surface 同色，深色主题下可分开 */
+  --vui-surface-raised: var(--vui-surface);
+  /** 列表项悬停底色 */
+  --vui-surface-hover: #f2f6fa;
+  --vui-border: rgba(213, 223, 236, 0.94);
+
+  /* ---------- 文字层级 ---------- */
+  --vui-text-title: #0e1b33;
+  --vui-text-body: #33425f;
+  --vui-text-sub: #51617d;
+  --vui-text-weak: #7d8ba2;
+  --vui-text-faint: #9aa8bf;
+
+  /* ---------- 控件 ---------- */
+  --vui-control-height: 38px;
+  --vui-control-border: #c9d8e4;
+  --vui-control-hover: #8faac1;
+  --vui-control-shadow: 0 1px 2px rgba(41, 83, 116, 0.045);
+  --vui-control-hover-shadow: 0 1px 3px rgba(41, 83, 116, 0.075);
+  /** 键盘焦点圈：唯一的 outline 取色，改这里可整站换焦点观感 */
+  --vui-focus: rgba(67, 136, 199, 0.13);
+
+  /* ---------- 禁用态 ---------- */
+  --vui-disabled-bg: #f4f7f9;
+  --vui-disabled-border: #d2dbe2;
+  --vui-disabled-text: #607386;
+  --vui-disabled-icon: #8999a7;
+  --vui-disabled-shadow: inset 0 1px 2px rgba(41, 65, 86, 0.035);
+
+  /* ---------- 加载态 ---------- */
+  /** VLoading 遮罩底色：要能透出下面的内容轮廓，否则和白屏无异 */
+  --vui-mask-bg: rgba(248, 251, 253, 0.78);
+  /** VSkeleton 灰块底色 */
+  --vui-skeleton-bg: #eef3f8;
+  /** VSkeleton 扫光带颜色（走在灰块上的浅色带） */
+  --vui-skeleton-shine: rgba(255, 255, 255, 0.85);
+
+  /* ---------- 投影 ---------- */
+  /** 投影染色基准（弹层用它 color-mix 出多层投影），一般跟品牌色同色相的深色 */
+  --vui-shadow-color: #173b5f;
+  --vui-shadow-card: 0 1px 2px rgba(8, 38, 80, 0.04), 0 14px 30px -24px rgba(8, 38, 80, 0.48);
+  --vui-shadow-popover: 0 18px 44px -22px rgba(41, 83, 116, 0.4);
+  --vui-shadow-layer: 0 28px 72px -32px rgba(35, 76, 108, 0.46);
+
+  /* ---------- 版式 ---------- */
+  /** 卡片之间的纵向间距（LayCard 的 margin-bottom） */
+  --vui-block-gap: 12px;
+}

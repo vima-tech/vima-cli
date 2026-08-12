@@ -1,0 +1,18 @@
+#!/bin/sh
+# Maven Wrapper script for Unix
+
+# Find Java
+if [ -z "$JAVA_HOME" ]; then
+  JAVACMD="java"
+else
+  JAVACMD="$JAVA_HOME/bin/java"
+fi
+
+# Check if Maven is installed
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn "$@"
+else
+  echo "Maven is not installed. Please install Maven or use the direct command:"
+  echo "  java -jar target/*.jar"
+  exit 1
+fi

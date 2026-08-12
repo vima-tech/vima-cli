@@ -1,0 +1,2326 @@
+/**
+ * @vima-tech/ui-admin · 组件样式层
+ *
+ * 提取自 juvenile-guard/apps/admin-web/src/ui-v3/ui.css（2026-08-10）
+ * 变换见 scripts/extract-from-ui-v3.mjs：去主题闸门、去宿主专属规则、命名空间 jg-ui-/jg- → vui-。
+ *
+ * 令牌只从 styles/tokens.css 取，本文件不定义 :root 变量。
+ */
+
+[class*='vui-'],
+[class*='vui-'] *,
+[class*='vui-']::before,
+[class*='vui-']::after,
+[class*='vui-'] *::before,
+[class*='vui-'] *::after {
+  box-sizing: border-box;
+}
+
+.vui-container {
+  width: 100%;
+  min-width: 0;
+}
+
+.vui-row {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-inline: -6px;
+}
+
+.vui-col {
+  flex: 0 0 calc(var(--vui-col-span, 24) / 24 * 100%);
+  width: calc(var(--vui-col-span, 24) / 24 * 100%);
+  min-width: 0;
+  padding-inline: 6px;
+}
+
+.vui-card {
+  overflow: hidden;
+  margin-bottom: var(--vui-block-gap, 12px);
+  border: 1px solid var(--vui-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--vui-surface) 96%, transparent);
+  box-shadow: var(--vui-shadow-card);
+}
+
+.vui-card:has(.vui-select.is-open),
+.vui-card:has(.vui-date.is-open) {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
+}
+
+.vui-card-header {
+  min-height: 48px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--vui-border);
+  color: var(--vui-text-title);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.vui-card-body {
+  padding: 16px 18px;
+}
+
+.vui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 72px;
+  height: var(--vui-control-height);
+  margin: 0 8px 0 0;
+  padding: 0 16px;
+  border: 1px solid #cad9e6;
+  border-radius: 10px;
+  background: var(--vui-surface);
+  color: var(--vui-text-sub);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.vui-button:hover:not(:disabled) {
+  border-color: #91aec6;
+  background: #f5f9fc;
+  color: var(--vui-primary-strong);
+}
+
+.vui-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.vui-button:focus-visible,
+.vui-icon-button:focus-visible,
+.vui-pagination button:focus-visible {
+  outline: 3px solid var(--vui-focus);
+  outline-offset: 2px;
+}
+
+.vui-button-primary,
+.vui-button-normal {
+  border-color: var(--vui-primary);
+  background: var(--vui-primary);
+  color: #fff;
+  box-shadow: 0 9px 20px -15px rgba(47, 111, 174, 0.74);
+}
+
+.vui-button-primary:hover:not(:disabled),
+.vui-button-normal:hover:not(:disabled) {
+  border-color: var(--vui-primary-strong);
+  background: var(--vui-primary-strong);
+  color: #fff;
+}
+
+.vui-button-warm {
+  border-color: #d89a3b;
+  background: #d89a3b;
+  color: #fff;
+}
+
+.vui-button-danger {
+  border-color: #d75a58;
+  background: #d75a58;
+  color: #fff;
+}
+
+.vui-button.is-text,
+.vui-button.is-borderless {
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--vui-primary);
+  box-shadow: none;
+}
+
+.vui-button:disabled {
+  cursor: not-allowed;
+  border-color: var(--vui-disabled-border);
+  background: var(--vui-disabled-bg);
+  color: var(--vui-disabled-text);
+  box-shadow: var(--vui-disabled-shadow);
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.vui-button-sm {
+  min-width: 60px;
+  height: 32px;
+  padding-inline: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.vui-button-group {
+  display: inline-flex;
+}
+
+.vui-button-group > .vui-button {
+  margin-right: -1px;
+  border-radius: 0;
+}
+
+.vui-button-group > .vui-button:first-child {
+  border-radius: 10px 0 0 10px;
+}
+
+.vui-button-group > .vui-button:last-child {
+  margin-right: 0;
+  border-radius: 0 10px 10px 0;
+}
+
+.vui-form {
+  width: 100%;
+}
+
+.vui-form-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--vui-form-label-width, 100px) minmax(0, 1fr);
+  min-height: var(--vui-control-height);
+  align-items: start;
+  margin-bottom: 15px;
+}
+
+.vui-form-label {
+  width: 100% !important;
+  min-height: var(--vui-control-height);
+  padding: 9px 12px 8px 0;
+  color: var(--vui-text-sub);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vui-required {
+  margin-right: 4px;
+  color: #d95754;
+}
+
+.vui-form-control {
+  min-width: 0;
+  min-height: var(--vui-control-height);
+  margin-left: 0 !important;
+}
+
+.vui-form-control::after,
+.vui-form-item::after {
+  content: none;
+}
+
+.vui-form-item.is-inline {
+  display: inline-grid;
+  align-items: flex-start;
+  margin-right: 12px;
+  vertical-align: top;
+}
+
+.vui-form-item.is-label-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vui-form-item.is-label-hidden > .vui-form-control {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.vui-form-item.is-label-hidden > .vui-form-control > .vui-button {
+  flex: none;
+  margin-left: 0 !important;
+}
+
+.vui-form-error {
+  padding-top: 4px;
+  color: #c94643;
+  font-size: 12px;
+}
+
+.vui-form-item.has-error .vui-input,
+.vui-form-item.has-error .vui-textarea,
+.vui-form-item.has-error .vui-select,
+.vui-form-item.has-error .vui-date {
+  border-color: #d75a58;
+}
+
+.vui-input,
+.vui-select,
+.vui-date,
+.vui-number,
+.vui-tag-input {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--vui-control-height);
+  overflow: hidden;
+  border: 1px solid var(--vui-control-border);
+  border-radius: 10px;
+  background: var(--vui-surface);
+  color: var(--vui-text-body);
+  box-shadow: var(--vui-control-shadow);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.vui-input:hover,
+.vui-select:hover,
+.vui-date:hover,
+.vui-number:hover,
+.vui-tag-input:hover,
+.vui-textarea:hover {
+  border-color: var(--vui-control-hover);
+  box-shadow: var(--vui-control-hover-shadow);
+}
+
+.vui-input:focus-within,
+.vui-select:focus-within,
+.vui-date:focus-within,
+.vui-number:focus-within,
+.vui-tag-input:focus-within,
+.vui-textarea:focus {
+  border-color: var(--vui-primary);
+  box-shadow:
+    0 0 0 2px var(--vui-focus),
+    var(--vui-control-shadow);
+  outline: none;
+}
+
+.vui-input-native,
+.vui-select-native,
+.vui-date-native,
+.vui-number-input,
+.vui-tag-input input {
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--vui-control-height) - 2px);
+  padding: 0 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+.vui-input-native::placeholder,
+.vui-textarea::placeholder {
+  color: var(--vui-text-faint);
+}
+
+.vui-input-prefix {
+  flex: none;
+  padding-left: 12px;
+  color: var(--vui-text-weak);
+}
+
+.vui-textarea {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid var(--vui-control-border);
+  border-radius: 10px;
+  outline: none;
+  background: var(--vui-surface);
+  color: var(--vui-text-body);
+  box-shadow: var(--vui-control-shadow);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.vui-select-native {
+  padding-right: 36px;
+  cursor: pointer;
+  appearance: none;
+}
+
+.vui-date-icon {
+  position: absolute;
+  right: 12px;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--vui-text-weak);
+  pointer-events: none;
+}
+
+.vui-date-icon-page {
+  width: 15px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+
+.vui-date-icon-page::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 13px;
+  border-top: 1.5px solid currentColor;
+}
+
+.vui-date-icon-binding::before,
+.vui-date-icon-binding::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  width: 1.5px;
+  height: 5px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.vui-date-icon-binding::before {
+  left: 5px;
+}
+
+.vui-date-icon-binding::after {
+  right: 5px;
+}
+
+.vui-select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--vui-text-weak);
+  font-size: 0;
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+  transform-origin: center;
+  transition:
+    color 0.18s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vui-select.is-open .vui-select-chevron {
+  color: var(--vui-primary);
+  transform: translateY(-30%) rotate(225deg);
+}
+
+.vui-select-single,
+.vui-select-multiple {
+  overflow: visible;
+}
+
+.vui-select-single.is-open,
+.vui-select-multiple.is-open {
+  z-index: 30;
+}
+
+.vui-select-single.is-disabled,
+.vui-select-multiple.is-disabled {
+  border-color: #dfe7ee;
+  background: #f5f8fa;
+  color: var(--vui-text-weak);
+}
+
+.vui-select-trigger,
+.vui-select-multiple-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(var(--vui-control-height) - 2px);
+  align-items: center;
+  padding: 4px 36px 4px 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vui-select-trigger {
+  height: calc(var(--vui-control-height) - 2px);
+  padding: 0 38px 0 12px;
+}
+
+.vui-select-trigger:disabled,
+.vui-select-multiple-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.vui-select-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vui-text-body);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-select-value.is-placeholder {
+  color: var(--vui-text-faint);
+  font-weight: 400;
+}
+
+.vui-select-values {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.vui-select-placeholder {
+  padding-left: 3px;
+  overflow: hidden;
+  color: var(--vui-text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-select-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px 0 9px;
+  border: 1px solid #cfe0ee;
+  border-radius: 7px;
+  background: #edf5fb;
+  color: #315e84;
+  font-size: 13px;
+}
+
+.vui-select-chip-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-select-chip-remove {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  border-radius: 4px;
+  color: #66839c;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.vui-select-chip-remove:hover {
+  background: #d9eaf6;
+  color: #245f91;
+}
+
+.vui-select-selection-count {
+  flex: none;
+  color: var(--vui-text-weak);
+  font-size: 13px;
+}
+
+.vui-select-popover {
+  position: absolute;
+  z-index: 2100;
+  top: calc(100% + 8px);
+  right: -1px;
+  left: -1px;
+  max-height: 248px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--vui-primary) 14%, var(--vui-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vui-surface) 98%, transparent);
+  box-shadow:
+    0 2px 7px -4px color-mix(in srgb, var(--vui-shadow-color) 28%, transparent),
+    0 20px 44px -22px color-mix(in srgb, var(--vui-shadow-color) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--vui-surface) 88%, transparent);
+  backdrop-filter: blur(14px);
+  transform-origin: top center;
+  animation: vui-dropdown-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  scrollbar-color: color-mix(in srgb, var(--vui-primary) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.vui-select-popover.is-teleported {
+  position: fixed;
+  z-index: 3200;
+}
+
+/* 带检索框时给选项区留出更多可视高度 */
+
+.vui-select-popover.has-search {
+  max-height: 300px;
+}
+
+/* 检索框吸顶：弹层本身就是滚动容器，sticky 才能在滚动选项时保持可见。
+   负外边距用来盖住弹层 7px 内边距，避免滚动时选项从缝隙里透出来。 */
+
+.vui-select-search {
+  position: sticky;
+  z-index: 1;
+  top: -7px;
+  margin: -7px -7px 6px;
+  padding: 7px 7px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vui-primary) 10%, var(--vui-border));
+  background: color-mix(in srgb, var(--vui-surface) 98%, transparent);
+}
+
+.vui-select-search-input {
+  display: block;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--vui-primary) 16%, var(--vui-border));
+  border-radius: 8px;
+  background: var(--vui-surface);
+  color: var(--vui-text-body);
+  font-size: 13px;
+  line-height: 30px;
+  outline: none;
+}
+
+.vui-select-search-input::placeholder {
+  color: var(--vui-text-faint);
+}
+
+.vui-select-search-input:focus {
+  border-color: color-mix(in srgb, var(--vui-primary) 46%, var(--vui-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vui-primary) 12%, transparent);
+}
+
+.vui-select-popover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.vui-select-popover::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vui-primary) 24%, transparent);
+}
+
+.vui-select-single.is-drop-up .vui-select-popover,
+.vui-select-multiple.is-drop-up .vui-select-popover,
+.vui-select-popover.is-drop-up {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom center;
+}
+
+.vui-select-option {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vui-text-body);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.vui-select-option:hover:not(:disabled),
+.vui-select-option:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--vui-primary) 8%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+}
+
+.vui-select-option.is-selected {
+  background: color-mix(in srgb, var(--vui-primary) 13%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+  font-weight: 600;
+}
+
+.vui-select-option:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--vui-focus);
+}
+
+.vui-select-option:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.vui-select-option:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.vui-select-option-check {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  place-items: center;
+  border: 1px solid #b8cbda;
+  border-radius: 5px;
+  color: transparent;
+  font-size: 12px;
+}
+
+.vui-select-option.is-single .vui-select-option-check {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vui-select-option.is-selected .vui-select-option-check {
+  border-color: var(--vui-primary);
+  background: var(--vui-primary);
+  color: #fff;
+}
+
+.vui-select-option.is-single.is-selected .vui-select-option-check {
+  border-color: transparent;
+  background: transparent;
+  color: var(--vui-primary);
+}
+
+.vui-select-option-label {
+  min-width: 0;
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* 允许选项文字换行显示 */
+.vui-select-popover:not(.is-single-line) .vui-select-option-label {
+  white-space: normal;
+}
+
+/* 单行模式保持原有样式 */
+.vui-select-popover.is-single-line .vui-select-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-select-empty {
+  padding: 17px 12px;
+  color: var(--vui-text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.vui-date {
+  overflow: visible;
+}
+
+.vui-date.is-open {
+  z-index: 30;
+  border-color: var(--vui-primary);
+  box-shadow: 0 0 0 3px var(--vui-focus);
+}
+
+.vui-date.is-disabled {
+  border-color: #dfe7ee;
+  background: #f5f8fa;
+  color: var(--vui-text-weak);
+}
+
+.vui-date-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 135px;
+  height: calc(var(--vui-control-height) - 2px);
+  align-items: center;
+  padding: 0 38px 0 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vui-date-native {
+  min-width: 135px;
+  padding-right: 38px;
+}
+
+.vui-date-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.vui-date-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vui-text-body);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-date-value.is-placeholder {
+  color: var(--vui-text-faint);
+  font-weight: 400;
+}
+
+.vui-date-clear {
+  position: absolute;
+  right: 10px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--vui-text-weak);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.vui-date-clear:hover,
+.vui-date-clear:focus-visible {
+  outline: none;
+  background: #e8f1f8;
+  color: var(--vui-primary-strong);
+}
+
+.vui-calendar-popover {
+  position: absolute;
+  z-index: 3200;
+  top: calc(100% + 8px);
+  left: -1px;
+  width: 328px;
+  max-width: calc(100vw - 24px);
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--vui-primary) 16%, var(--vui-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--vui-surface) 98%, transparent);
+  box-shadow: var(--vui-shadow-popover);
+  backdrop-filter: blur(14px);
+  overflow: auto;
+  transform-origin: top left;
+  animation: vui-dropdown-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vui-date.is-align-right .vui-calendar-popover {
+  right: -1px;
+  left: auto;
+  transform-origin: top right;
+}
+
+.vui-date.is-drop-up .vui-calendar-popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+
+.vui-date.is-drop-up.is-align-right .vui-calendar-popover {
+  transform-origin: bottom right;
+}
+
+.vui-calendar-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.vui-calendar-nav {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vui-text-sub);
+  font: inherit;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vui-calendar-nav:hover,
+.vui-calendar-nav:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--vui-primary) 8%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+}
+
+.vui-calendar-title {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+}
+
+.vui-calendar-select {
+  height: 32px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 7px;
+  outline: none;
+  background: transparent;
+  color: var(--vui-text-title);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vui-calendar-select:hover,
+.vui-calendar-select:focus-visible {
+  background: #f0f6fa;
+  box-shadow: inset 0 0 0 1px var(--vui-border);
+}
+
+.vui-calendar-weekdays,
+.vui-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.vui-calendar-weekdays {
+  margin-bottom: 4px;
+  color: var(--vui-text-weak);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.vui-calendar-weekdays span {
+  line-height: 28px;
+}
+
+.vui-calendar-grid {
+  gap: 2px 0;
+}
+
+.vui-calendar-day {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 36px;
+  margin: 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--vui-text-body);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.vui-calendar-day:hover:not(:disabled),
+.vui-calendar-day:focus-visible {
+  z-index: 1;
+  outline: none;
+  background: color-mix(in srgb, var(--vui-primary) 9%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+  box-shadow: inset 0 0 0 2px var(--vui-focus);
+}
+
+.vui-calendar-day.is-outside {
+  color: var(--vui-text-faint);
+}
+
+.vui-calendar-day.is-today:not(.is-selected)::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vui-primary);
+  transform: translateX(-50%);
+}
+
+.vui-calendar-day.is-in-range {
+  border-radius: 0;
+  background: color-mix(in srgb, var(--vui-primary) 10%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+}
+
+.vui-calendar-day.is-selected {
+  z-index: 1;
+  background: var(--vui-primary);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 7px 16px -10px rgba(47, 111, 174, 0.82);
+}
+
+.vui-calendar-day:disabled {
+  color: #c5ced6;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.vui-calendar-time {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 10px 2px 2px;
+  border-top: 1px solid var(--vui-border);
+  color: var(--vui-text-sub);
+}
+
+.vui-calendar-time-label {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vui-calendar-time-input {
+  width: 48px;
+  height: 32px;
+  padding: 0 5px;
+  border: 1px solid var(--vui-control-border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--vui-surface);
+  color: var(--vui-text-body);
+  font: inherit;
+  text-align: center;
+}
+
+.vui-calendar-time-input:focus {
+  border-color: var(--vui-primary);
+  box-shadow: 0 0 0 2px var(--vui-focus);
+}
+
+.vui-calendar-footer {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--vui-border);
+}
+
+.vui-calendar-footer-start,
+.vui-calendar-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vui-calendar-text-button,
+.vui-calendar-confirm {
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--vui-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vui-calendar-text-button:hover:not(:disabled),
+.vui-calendar-text-button:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--vui-primary) 8%, var(--vui-surface));
+}
+
+.vui-calendar-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.vui-calendar-confirm {
+  padding-inline: 13px;
+  background: var(--vui-primary);
+  color: #fff;
+}
+
+.vui-calendar-confirm:hover,
+.vui-calendar-confirm:focus-visible {
+  outline: none;
+  background: var(--vui-primary-strong);
+}
+
+.vui-calendar-hint {
+  color: var(--vui-text-weak);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .vui-calendar-popover {
+    position: fixed;
+      top: 50%;
+      right: 12px;
+      bottom: auto;
+      left: 12px;
+      width: auto;
+      max-width: none;
+      transform: translateY(-50%);
+      transform-origin: center;
+      animation: none;
+  }
+  .vui-date.is-drop-up .vui-calendar-popover {
+    top: 50%;
+      bottom: auto;
+  }
+}
+
+.vui-number-step {
+  align-self: stretch;
+  width: 36px;
+  border: 0;
+  background: #f5f8fb;
+  color: #536c85;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.vui-number-input {
+  text-align: center;
+}
+
+.vui-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #b9c4cf;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.vui-switch.is-checked {
+  background: var(--vui-primary);
+}
+
+.vui-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(20, 45, 70, 0.28);
+  transition: transform 0.2s ease;
+}
+
+.vui-switch.is-checked .vui-switch-thumb {
+  transform: translateX(20px);
+}
+
+.vui-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  min-height: var(--vui-control-height);
+  align-items: center;
+}
+
+.vui-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #3f566e;
+  cursor: pointer;
+}
+
+.vui-radio input {
+  position: absolute;
+  opacity: 0;
+}
+
+.vui-radio-dot {
+  width: 17px;
+  height: 17px;
+  border: 1px solid #afbdcb;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+.vui-radio input:checked + .vui-radio-dot {
+  border-color: var(--vui-primary);
+  background: var(--vui-primary);
+}
+
+.vui-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 2px 5px 2px 0;
+  padding: 3px 9px;
+  border: 1px solid #cfe0f0;
+  border-radius: 999px;
+  background: #eff6fc;
+  color: #2d648f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vui-tag.is-green,
+.vui-tag.is-success {
+  border-color: #c7e7d7;
+  background: #edf8f2;
+  color: #2c7652;
+}
+
+.vui-tag.is-red,
+.vui-tag.is-danger {
+  border-color: #efcecd;
+  background: #fcf1f0;
+  color: #a34442;
+}
+
+.vui-tag-input {
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 40px;
+  padding: 4px 7px;
+}
+
+.vui-tag-input-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #edf4fa;
+  color: #315e86;
+  font-size: 12px;
+}
+
+.vui-tag-input-item button,
+.vui-tag-clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.vui-tag-input input {
+  flex: 1;
+  min-width: 96px;
+  height: 28px;
+  padding: 0 4px;
+}
+
+/* ============ 只读 / 禁用态 ============
+ * 状态类由组件直接输出，不依赖 :has()，确保旧版 WebView 也能命中外层样式。
+ * 只读与禁用控件用浅中性底色和弱化文字向后退，让可编辑控件保持视觉焦点。
+ */
+
+.vui-input.is-readonly,
+.vui-textarea.is-readonly {
+  border-color: #d9e1e7;
+  background: #f7f9fa;
+  color: var(--vui-disabled-text);
+  box-shadow: none;
+}
+
+.vui-input.is-readonly:hover,
+.vui-textarea.is-readonly:hover {
+  border-color: #d9e1e7;
+  box-shadow: none;
+}
+
+.vui-input.is-disabled,
+.vui-textarea.is-disabled,
+.vui-number.is-disabled,
+.vui-tag-input.is-disabled,
+.vui-select.is-disabled,
+.vui-date.is-disabled {
+  border-color: var(--vui-disabled-border);
+  background: var(--vui-disabled-bg);
+  color: var(--vui-disabled-text);
+  box-shadow: var(--vui-disabled-shadow);
+  cursor: not-allowed;
+}
+
+.vui-input.is-disabled:hover,
+.vui-textarea.is-disabled:hover,
+.vui-number.is-disabled:hover,
+.vui-tag-input.is-disabled:hover,
+.vui-select.is-disabled:hover,
+.vui-date.is-disabled:hover {
+  border-color: var(--vui-disabled-border);
+  box-shadow: var(--vui-disabled-shadow);
+}
+
+.vui-input-native:disabled,
+.vui-textarea:disabled,
+.vui-number-input:disabled,
+.vui-tag-input input:disabled,
+.vui-select-trigger:disabled,
+.vui-select-multiple-trigger:disabled,
+.vui-date-trigger:disabled {
+  color: var(--vui-disabled-text);
+  cursor: not-allowed;
+  opacity: 1;
+  -webkit-text-fill-color: var(--vui-disabled-text);
+}
+
+.vui-input-native:disabled::placeholder,
+.vui-textarea:disabled::placeholder,
+.vui-tag-input input:disabled::placeholder,
+.vui-select.is-disabled .is-placeholder,
+.vui-date.is-disabled .is-placeholder {
+  color: var(--vui-disabled-icon);
+  opacity: 1;
+  -webkit-text-fill-color: var(--vui-disabled-icon);
+}
+
+.vui-select.is-disabled .vui-select-value,
+.vui-date.is-disabled .vui-date-value,
+.vui-select.is-disabled .vui-select-selection-count {
+  color: var(--vui-disabled-text);
+}
+
+.vui-input.is-disabled .vui-input-prefix,
+.vui-select.is-disabled .vui-select-chevron,
+.vui-date.is-disabled .vui-date-icon {
+  color: var(--vui-disabled-icon);
+}
+
+.vui-select.is-disabled .vui-select-chip,
+.vui-tag-input.is-disabled .vui-tag-input-item {
+  border-color: color-mix(in srgb, var(--vui-disabled-border) 78%, transparent);
+  background: #e8edf1;
+  color: var(--vui-disabled-text);
+}
+
+.vui-number-step:disabled {
+  background: #e7ecef;
+  color: var(--vui-disabled-icon);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.vui-switch.is-disabled {
+  border: 1px solid var(--vui-disabled-border);
+  background: #d9e0e6;
+  box-shadow: var(--vui-disabled-shadow);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.vui-switch.is-checked.is-disabled {
+  background: #aebcc7;
+}
+
+.vui-switch.is-disabled .vui-switch-thumb {
+  background: #eef2f5;
+  box-shadow: 0 1px 3px rgba(41, 65, 86, 0.2);
+}
+
+.vui-radio.is-disabled {
+  color: var(--vui-disabled-text);
+  cursor: not-allowed;
+}
+
+.vui-radio input:disabled + .vui-radio-dot {
+  border-color: var(--vui-disabled-border);
+  background: #e7ecef;
+  box-shadow: inset 0 0 0 4px var(--vui-disabled-bg);
+}
+
+.vui-radio input:checked:disabled + .vui-radio-dot {
+  border-color: #8099ac;
+  background: #8099ac;
+}
+
+[class*='vui-'] input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  opacity: 0.56;
+}
+
+.vui-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: #63778c;
+  font-size: 13px;
+}
+
+.vui-divider-line {
+  flex: 1;
+  height: 1px;
+  background: #e3eaf2;
+}
+
+.vui-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vui-progress-track {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef4;
+}
+
+.vui-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vui-primary);
+}
+
+.vui-progress-label {
+  flex: none;
+  color: #667b90;
+  font-size: 12px;
+}
+
+.vui-upload-input {
+  display: none;
+}
+
+.vui-upload-trigger {
+  border-style: dashed;
+}
+
+.vui-table {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--vui-border);
+  border-radius: 14px;
+  background: var(--vui-surface);
+  box-shadow: var(--vui-shadow-card);
+}
+
+.vui-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vui-border);
+  background: #f9fbfd;
+}
+
+.vui-table-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.vui-table-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.vui-icon-button {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #d4e0ea;
+  border-radius: 9px;
+  background: var(--vui-surface);
+  color: var(--vui-text-sub);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.vui-icon-button:hover {
+  border-color: #9fb5c9;
+  background: #f3f8fb;
+}
+
+.vui-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: auto;
+}
+
+.vui-table-scroll:has(.vui-table-empty-row) .vui-table-native {
+  height: 100%;
+}
+
+.vui-table-native {
+  /*
+   * 勾选列宽度。冻结列的左偏移与页面列定义里的 `type:"checkbox"` 宽度都要与此同源，
+   * 由 test/table-column-width.test.mjs 直接读这一行校验。
+   * 勾选框 16px，勾选单元格内边距为 0（见 .vui-table-check），因此 40px 是「够点、
+   * 不占额外横向空间」的取值，不要再回到 46px 之类靠表头内边距凑出来的值。
+   */
+  --vui-table-check-w: 40px;
+  width: 100%;
+  /*
+   * 下限。组件会按各列所需宽度之和把它内联覆写成更大的值（columnWidth.ts#tableMinWidth）——
+   * 少了那一步，列多的表格会把剩余宽度不足的账算到不写 width 的吸收列头上，把它压到十几个像素。
+   * 这里的取值同时是 columnWidth.ts 的 TABLE_MIN_WIDTH，由单测对拍。
+   */
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.vui-table-native.has-operation-column {
+  table-layout: auto;
+}
+
+.vui-table-native th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--vui-border);
+  background: #f1f6fa;
+  color: var(--vui-text-sub);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.vui-table-native td {
+  height: 49px;
+  padding: 0;
+  border-bottom: 1px solid #e5ebf1;
+  background: var(--vui-surface);
+  color: var(--vui-text-body);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.vui-table-native tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.vui-table-native tbody tr:hover td {
+  background: #f3f8fb;
+}
+
+.vui-table-cell {
+  overflow: hidden;
+  padding: 10px 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 勾选列。必须带 `.vui-table-native th/td` 前缀提权：
+ * `... .vui-table-native th` 的权重是 (0,3,1)，高于单写 `.vui-table-check` 的 (0,3,0)，
+ * 表头的 `padding: 0 14px` 会赢——实测勾选列因此被顶到 51px，宽度声明形同没写。
+ */
+
+.vui-table-native th.vui-table-check,
+.vui-table-native td.vui-table-check {
+  width: var(--vui-table-check-w);
+  min-width: var(--vui-table-check-w);
+  padding: 0;
+  text-align: center !important;
+}
+
+/* ---------- 冻结列 ----------
+ *
+ * 列多时横向滚动只滚中间部分：勾选列 + 第一个数据列（姓名/名称）常驻左侧，
+ * 操作列常驻右侧。哪些列参与冻结由 components/data.ts 按列的**角色**决定，
+ * 不读列定义里的 fixed（存量数据几乎全列都写了 fixed:"left"，不可用）。
+ *
+ * 前提：表格是 border-collapse: separate。collapse 下单元格无法 position: sticky。
+ *
+ * 层叠顺序（同一 stacking context 内，后者压前者）：
+ *   普通 td 0 < 冻结 td 1 < 普通 th 2（已粘顶）< 冻结 th 3（同时粘顶与粘边）
+ *
+ * 冻结单元格必须有不透明背景，否则滚动内容会从下面透出来。
+ * th/td 各自已有背景色，hover 态由 `tbody tr:hover td` 一并覆盖；
+ * 页面的 rowClassName（row_red/row_yellow…）只改字色不改底色，不受影响。
+ */
+
+.vui-table-native th.is-sticky-left,
+.vui-table-native td.is-sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+/* 勾选列在前时，第一个数据列要让开勾选列的宽度 */
+
+.vui-table-native th.is-sticky-left.is-sticky-left-offset,
+.vui-table-native td.is-sticky-left.is-sticky-left-offset {
+  left: var(--vui-table-check-w);
+}
+
+.vui-table-native th.is-sticky-right,
+.vui-table-native td.is-sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+/* 表头本就 position: sticky + top: 0，补上 left/right 后自动成为双向吸附的四角单元格 */
+
+.vui-table-native th.is-sticky-left,
+.vui-table-native th.is-sticky-right {
+  z-index: 3;
+}
+
+/*
+ * 冻结区与滚动区的分界。
+ * 用 inset 阴影而不是外阴影：外阴影会被相邻单元格的不透明背景盖掉。
+ * 阴影常显（不跟随滚动位置切换），代价是未滚动时也有一道很浅的分界，
+ * 换来的是不需要为此监听 scroll。
+ */
+
+.vui-table-native th.is-sticky-left:not(.vui-table-check),
+.vui-table-native td.is-sticky-left:not(.vui-table-check) {
+  box-shadow: inset -1px 0 0 var(--vui-border), 8px 0 10px -10px rgba(30, 48, 66, 0.45);
+}
+
+.vui-table-native th.is-sticky-right,
+.vui-table-native td.is-sticky-right {
+  box-shadow: inset 1px 0 0 var(--vui-border), -8px 0 10px -10px rgba(30, 48, 66, 0.45);
+}
+
+.vui-table-check input,
+.vui-tree-line input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--vui-primary);
+}
+
+/* 浏览器给 checkbox 的默认外边距左右不等（Chrome 为 4px/3px），会让勾选框偏心 */
+
+.vui-table-check input {
+  margin: 0;
+}
+
+.vui-table-sort {
+  margin-left: 5px;
+  color: var(--vui-text-weak);
+  font-size: 12px;
+}
+
+.vui-table-native th.is-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.vui-table-empty-row td {
+  height: 220px;
+}
+
+.vui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--vui-text-weak);
+}
+
+.vui-empty-icon {
+  color: #b6c5d2;
+  font-size: 34px;
+}
+
+.vui-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-height: 54px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--vui-border);
+  background: #f9fbfd;
+  color: var(--vui-text-weak);
+  font-size: 13px;
+}
+
+.vui-pagination button,
+.vui-pagination select {
+  height: 32px;
+  border: 1px solid #d2dfe9;
+  border-radius: 8px;
+  outline: none;
+  background: var(--vui-surface);
+  color: var(--vui-text-sub);
+}
+
+.vui-pagination button {
+  width: 32px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.vui-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.vui-pagination select {
+  margin-left: 5px;
+  padding-inline: 8px;
+}
+
+.vui-table-loading,
+.vui-layer-loading {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(248, 251, 253, 0.78);
+  color: #4e6a84;
+  backdrop-filter: blur(3px);
+}
+
+.vui-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #c9d8e5;
+  border-top-color: var(--vui-primary);
+  border-radius: 50%;
+  animation: vui-spin 0.75s linear infinite;
+}
+
+@keyframes vui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vui-layer-open {
+  overflow: hidden;
+}
+
+.vui-layer-wrap {
+  position: fixed;
+  z-index: 2200;
+  inset: 0;
+  display: grid;
+  overflow: auto;
+  padding: 16px;
+  place-items: center;
+}
+
+.vui-layer-shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(19, 38, 59, 0.42);
+  backdrop-filter: blur(3px);
+  animation: vui-fade 0.18s ease both;
+}
+
+.vui-layer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(224, 232, 240, 0.98);
+  border-radius: 16px;
+  outline: 0;
+  background: #fff;
+  box-shadow: var(--vui-shadow-layer);
+  animation: vui-layer-in 0.22s cubic-bezier(0.2, 0.75, 0.35, 1) both;
+}
+
+.vui-layer-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 18px 0 21px;
+  border-bottom: 1px solid #e5ebf1;
+  border-radius: 15px 15px 0 0;
+  background: #fbfcfd;
+}
+
+.vui-layer-heading {
+  color: #253d55;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.vui-layer-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #6e8295;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vui-layer-close:hover {
+  background: #edf2f6;
+  color: #324f69;
+}
+
+.vui-layer-content {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.vui-layer-footer {
+  flex: none;
+  padding: 12px 18px;
+  border-top: 1px solid #e5ebf1;
+  border-radius: 0 0 15px 15px;
+  background: #fbfcfd;
+  text-align: right;
+}
+
+@keyframes vui-fade {
+  from { opacity: 0; }
+}
+
+@keyframes vui-layer-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+}
+
+.vui-native-message,
+.vui-native-notify,
+.vui-native-loading,
+.vui-native-confirm-wrap {
+  position: fixed;
+  z-index: 3000;
+}
+
+.vui-native-message {
+  top: 76px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 11px 16px;
+  border: 1px solid #d9e4ee;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.98);
+  color: #3a5269;
+  box-shadow: var(--vui-shadow-popover);
+  transform: translateX(-50%);
+  animation: vui-layer-in 0.18s ease both;
+}
+
+.vui-native-message-icon {
+  display: grid;
+  flex: none;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eaf2f8;
+  color: #3f719d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.vui-native-message.is-icon-1 .vui-native-message-icon {
+  background: #e8f6ef;
+  color: #2f845d;
+}
+
+.vui-native-message.is-icon-2 .vui-native-message-icon {
+  background: #fbeceb;
+  color: #bd4c49;
+}
+
+.vui-native-notify {
+  right: 20px;
+  bottom: 20px;
+  width: min(360px, calc(100vw - 40px));
+  padding: 15px 42px 15px 16px;
+  border: 1px solid #d9e4ee;
+  border-left: 3px solid var(--vui-primary);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  color: #52697e;
+  box-shadow: var(--vui-shadow-popover);
+  animation: vui-layer-in 0.2s ease both;
+}
+
+.vui-native-notify strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #2d465e;
+  font-size: 14px;
+}
+
+.vui-native-notify button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  color: #8191a1;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.vui-native-loading {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(237, 243, 248, 0.58);
+  color: #385975;
+  backdrop-filter: blur(2px);
+}
+
+.vui-native-confirm-wrap {
+  inset: 0;
+  display: grid;
+  padding: 16px;
+  place-items: center;
+  background: rgba(19, 38, 59, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.vui-native-confirm {
+  width: min(440px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid #dfe7ef;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--vui-shadow-layer);
+  animation: vui-layer-in 0.2s ease both;
+}
+
+.vui-native-confirm header {
+  padding: 17px 20px 12px;
+  color: #2b435b;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.vui-native-confirm-body {
+  padding: 4px 20px 20px;
+  color: #5b7085;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.vui-native-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e6ecf2;
+  background: #fafcfd;
+}
+
+.vui-native-confirm footer button {
+  min-width: 72px;
+  height: 34px;
+  border: 1px solid #d2dde8;
+  border-radius: 8px;
+  background: #fff;
+  color: #466079;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vui-native-confirm footer button.is-primary {
+  border-color: var(--vui-primary);
+  background: var(--vui-primary);
+  color: #fff;
+}
+
+.vui-native-message.is-leaving,
+.vui-native-notify.is-leaving,
+.vui-native-confirm-wrap.is-leaving {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* 触发器这边不写 z-index：面板已经 teleport 到 body，这里再抬层级只会把触发器
+   变成层叠上下文，反而把面板关在里面（这正是原先面板压不住对话框的原因）。 */
+
+.vui-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.vui-dropdown-trigger {
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.vui-dropdown.is-open .vui-dropdown-trigger > .vui-button {
+  border-color: color-mix(in srgb, var(--vui-primary) 36%, var(--vui-control-border));
+  background: color-mix(in srgb, var(--vui-primary) 8%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+}
+
+/* 面板 teleport 到 body 之后 top/left/bottom/max-height 由 floating.ts 按视口算好写在
+   内联 style 上，这里只管长相。层级与 select / 日期弹层同档（3200）：在对话框
+   （.vui-layer-wrap 2200）里打开的菜单必须盖住对话框。
+
+   没有指向触发器的小尖角——库里另外三个浮层（select / 日期 / 列设置）都没有，
+   而且尖角凸在盒子外面，与面板自己滚动所需的 overflow 天然冲突。 */
+
+.vui-dropdown-popover {
+  position: fixed;
+  z-index: 3200;
+  min-width: 176px;
+  max-width: calc(100vw - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--vui-primary) 14%, var(--vui-border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--vui-surface) 97%, transparent);
+  box-shadow:
+    0 2px 7px -4px color-mix(in srgb, var(--vui-shadow-color) 28%, transparent),
+    0 20px 44px -22px color-mix(in srgb, var(--vui-shadow-color) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--vui-surface) 88%, transparent);
+  backdrop-filter: blur(14px);
+  transform-origin: top left;
+  animation: vui-dropdown-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  scrollbar-color: color-mix(in srgb, var(--vui-primary) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.vui-dropdown-popover.is-align-end {
+  transform-origin: top right;
+}
+
+/* 下方放不下时向上翻：生长原点和出场方向都要跟着翻，否则面板从远离触发器的一侧长出来 */
+
+.vui-dropdown-popover.is-drop-up {
+  transform-origin: bottom left;
+  animation-name: vui-dropdown-up-in;
+}
+
+.vui-dropdown-popover.is-drop-up.is-align-end {
+  transform-origin: bottom right;
+}
+
+@keyframes vui-dropdown-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.975);
+  }
+}
+
+.vui-dropdown-menu {
+  display: grid;
+  gap: 3px;
+}
+
+.vui-dropdown-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vui-text-body);
+  font: inherit;
+  font-size: 14px !important;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.vui-dropdown-item::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--vui-primary);
+  content: '';
+  opacity: 0;
+  transform: scaleY(0.45);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.vui-dropdown-item:hover:not(:disabled),
+.vui-dropdown-item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--vui-primary) 9%, var(--vui-surface));
+  color: var(--vui-primary-strong);
+}
+
+.vui-dropdown-item:hover:not(:disabled)::before,
+.vui-dropdown-item:focus-visible::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.vui-dropdown-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--vui-focus);
+}
+
+.vui-dropdown-item:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.vui-dropdown-item:disabled {
+  color: var(--vui-text-faint);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+@keyframes vui-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.975);
+  }
+}
+
+.vui-descriptions-title {
+  margin: 0 0 12px;
+  color: var(--vui-text-title);
+  font-size: 15px;
+}
+
+.vui-descriptions-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--vui-description-columns), minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #dfe7ef;
+  border-radius: 11px;
+}
+
+.vui-descriptions-item {
+  display: grid;
+  grid-template-columns: var(--vui-description-label-width) minmax(0, 1fr);
+  min-height: 45px;
+  border-right: 1px solid #e2e9f0;
+  border-bottom: 1px solid #e2e9f0;
+}
+
+.vui-descriptions-label,
+.vui-descriptions-value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 13px;
+  font-size: 13px;
+}
+
+.vui-descriptions-label {
+  background: #f4f7fa;
+  color: #5e7286;
+  font-weight: 600;
+}
+
+.vui-descriptions-value {
+  color: #354c63;
+}
+
+.vui-tree,
+.vui-tree-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vui-tree-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--vui-text-body);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.vui-tree-line:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.vui-tree-line:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.vui-tree-line.is-selected {
+  background: rgba(47, 115, 197, 0.08);
+  color: var(--vui-primary);
+}
+
+.vui-tree-node.is-checked > .vui-tree-line {
+  background: rgba(47, 115, 197, 0.06);
+}
+
+.vui-tree-branch {
+  width: 14px;
+  color: #8092a4;
+  text-align: center;
+}
+
+.vui-tabs {
+  display: flex;
+  min-width: 0;
+  overflow: auto;
+  border-bottom: 1px solid #dde6ef;
+}
+
+.vui-tab-item {
+  flex: none;
+}
+
+.vui-tab-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  color: #62768b;
+  cursor: pointer;
+}
+
+.vui-tab-item.is-active .vui-tab-title {
+  border-bottom-color: var(--vui-primary);
+  color: #245d91;
+  font-weight: 650;
+}
+
+.vui-tab-title button {
+  border: 0;
+  background: transparent;
+  color: #8a9aaa;
+  cursor: pointer;
+}
+
+/* main.vue 已有独立工作区标签条，这里的 Tab 只承担内容切换。 */
+
+.vui-collapse {
+  overflow: hidden;
+  border: 1px solid #dce5ee;
+  border-radius: 10px;
+}
+
+.vui-collapse-title {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid #e3eaf1;
+  background: #f7f9fb;
+  color: #405971;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vui-collapse-content {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e3eaf1;
+}
+
+@media (max-width: 1100px) {
+  .vui-col {
+    flex-basis: 100%;
+      width: 100%;
+  }
+  .vui-descriptions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* .is-drop-up 要单独列一次：它用 0-2-0 的选择器改了 animation-name，
+   只写 .vui-dropdown-popover（0-1-0）的 animation: none 压不住它。 */
+
+@media (prefers-reduced-motion: reduce) {
+  .vui-layer,
+  .vui-layer-shade,
+  .vui-dropdown-popover,
+  .vui-dropdown-popover.is-drop-up {
+    animation: none;
+  }
+}

@@ -1,0 +1,77 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: {{projectName}}
+  datasource:
+    # H2 内存数据库（默认，零外部依赖，开箱即用；重启后数据丢失）
+    url: jdbc:h2:mem:{{projectPkg}};DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    # PostgreSQL (推荐生产环境，取消注释切换)
+    # url: jdbc:postgresql://localhost:5432/{{projectPkg}}
+    # driver-class-name: org.postgresql.Driver
+    # username: postgres
+    # password: postgres
+    # MySQL (取消注释切换)
+    # url: jdbc:mysql://localhost:3306/{{projectPkg}}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+    # username: root
+    # password: root
+    # 人大金仓 KingbaseES (信创，取消注释切换)
+    # url: jdbc:kingbase8://localhost:54321/{{projectPkg}}
+    # driver-class-name: com.kingbase8.Driver
+    # username: system
+    # password: 123456
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    # H2 方言（默认）
+    database-platform: org.hibernate.dialect.H2Dialect
+    # PostgreSQL 方言
+    # database-platform: org.hibernate.dialect.PostgreSQLDialect
+    # MySQL 方言
+    # database-platform: org.hibernate.dialect.MySQLDialect
+    # 人大金仓方言（兼容 PostgreSQL）
+    # database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      # update：启动时自动建表（H2 内存库每次启动都是空库，靠它建表）；生产建议 validate
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  # Redis 仅在 app.token-store=redis 时需要（取消注释并按需修改）
+  # data:
+  #   redis:
+  #     host: localhost
+  #     port: 6379
+  #     password:
+  #     database: 0
+  #     lettuce:
+  #       pool:
+  #         max-active: 8
+  #         max-idle: 8
+  #         min-idle: 0
+  #         max-wait: -1ms
+
+app:
+  # token 存储：memory（默认，进程内，零外部依赖）| redis（多实例共享登录态）
+  token-store: memory
+
+jwt:
+  # 注意：生产必须更换为随机强密钥（HS256 要求至少 256 bits）
+  secret: {{projectName}}-secret-key-must-be-at-least-256-bits-long-for-hs256!!
+  expiration: 86400000
+
+file:
+  upload-dir: ./uploads
+  base-url: http://localhost:8080

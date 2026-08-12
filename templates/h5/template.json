@@ -1,0 +1,13 @@
+{
+  "id": "h5",
+  "name": "移动端 H5",
+  "status": "preview",
+  "description": "Vue 3 移动端应用",
+  "version": "2.0.0",
+  "techStack": {
+    "frontend": "Vue 3 + Vant"
+  },
+  "prerequisites": [
+    { "tool": "node", "check": "node --version", "constraint": ">=20" }
+  ]
+}

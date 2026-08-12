@@ -1,0 +1,1 @@
+{"id":"assets","type":"crud","title":"资产管理","rowKey":"id","fields":[{"key":"name","label":"名称","dataType":"string","required":true},{"key":"enabled","label":"启用","dataType":"boolean"}],"actions":[{"key":"create","label":"新增","kind":"primary","icon":"plus"},{"key":"delete","label":"删除","kind":"danger","icon":"trash"}]}

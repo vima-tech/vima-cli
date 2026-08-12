@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "recipes": [
+    { "id": "admin-shell-navigation", "file": "admin-shell-navigation.md", "example": "examples/admin-shell-navigation.json", "builder": "createArtifactPlan", "intent": "后台壳层、导航与路由", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "search-table-pagination", "file": "search-table-pagination.md", "example": "examples/search-table-pagination.json", "builder": "buildCrudPage", "intent": "查询、表格和分页", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "crud-dialog", "file": "crud-dialog.md", "example": "examples/crud-dialog.json", "builder": "buildCrudPage", "intent": "CRUD 列表与新增编辑", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "form-create-edit", "file": "form-create-edit.md", "example": "examples/form-create-edit.json", "builder": "buildFormPage", "intent": "独立创建编辑表单", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "detail-sections", "file": "detail-sections.md", "example": "examples/detail-sections.json", "builder": "buildDetailPage", "intent": "实体详情与分组信息", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "dashboard-metrics", "file": "dashboard-metrics.md", "example": "examples/dashboard-metrics.json", "builder": "buildDashboardPage", "intent": "数据仪表盘", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "master-detail", "file": "master-detail.md", "example": "examples/master-detail.json", "builder": "createArtifactPlan", "intent": "主从页面", "readiness": "scaffold", "requiresIntegration": true },
+    { "id": "step-form", "file": "step-form.md", "example": "examples/step-form.json", "builder": "createArtifactPlan", "intent": "分步表单", "readiness": "scaffold", "requiresIntegration": true }
+  ]
+}

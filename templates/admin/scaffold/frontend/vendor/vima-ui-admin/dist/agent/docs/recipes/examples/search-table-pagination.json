@@ -1,0 +1,1 @@
+{"id":"users","type":"crud","title":"用户管理","rowKey":"id","fields":[{"key":"name","label":"姓名","dataType":"string"},{"key":"status","label":"状态","dataType":"string","format":"enum","options":[{"label":"启用","value":"active"},{"label":"停用","value":"disabled"}]}]}

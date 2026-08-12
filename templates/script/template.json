@@ -1,0 +1,13 @@
+{
+  "id": "script",
+  "name": "脚本项目",
+  "status": "preview",
+  "description": "Python/Shell 自动化脚本",
+  "version": "2.0.0",
+  "techStack": {
+    "language": "Python + Shell"
+  },
+  "prerequisites": [
+    { "tool": "python3", "check": "python3 --version", "constraint": "*" }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "admin",
+  "name": "管理后台",
+  "status": "stable",
+  "description": "完整管理后台：登录认证 + RBAC 系统管理模块 + vendored 组件库 + 多数据库可切换",
+  "version": "2.0.0",
+  "techStack": {
+    "frontend": "Vue 3 + TypeScript + Vite + vendored @vima-tech/ui-admin",
+    "backend": "Java 21 + Spring Boot + JPA + Spring Security（JWT + RBAC）",
+    "database": "PostgreSQL / MySQL / H2（配置可切换）"
+  },
+  "features": ["登录认证（JWT）", "RBAC 系统管理模块（用户/角色/菜单/部门/字典/配置/文件/日志/消息）",
+               "vendored 组件库（vendor/，离线可用）", "多数据库可切换（PostgreSQL / MySQL / H2）",
+               "按钮级权限（后端 @PreAuthorize + 前端按 perms 串控制按钮，admin 通配 *）",
+               "在线用户监控（查看在线列表 + 强制下线）",
+               "定时任务管理（新增/编辑/启停/立即执行）",
+               "Excel 导入导出（Apache POI，用户模块内置示例）",
+               "API 文档（springdoc-openapi，/swagger-ui 在线调试）",
+               "用户信息接口返回 perms 与可见菜单（前端权限渲染依据）"],
+  "prerequisites": [
+    { "tool": "node", "check": "node --version", "constraint": ">=20" },
+    { "tool": "java", "check": "java --version", "constraint": ">=21", "optional": true,
+      "hint": "缺失不阻断创建，但无法本地运行后端" },
+    { "tool": "maven", "check": "mvn --version", "constraint": ">=3.9", "optional": true,
+      "hint": "缺失不阻断创建，但无法本地运行后端" }
+  ],
+  "scaffold": { ".": "scaffold/frontend", "backend": "scaffold/backend" },
+  "sharedDirs": ["src/components", "src/utils", "vendor",
+                 "backend/src/main/java/com/{{projectPkg}}/config",
+                 "backend/src/main/java/com/{{projectPkg}}/security"],
+  "codeDirs": ["src", "backend/src"],
+  "planning": {
+    "guide": "planning/planning-guide.md",
+    "spec": "planning/spec.admin.md",
+    "codingStandards": "planning/coding-standards.md",
+    "checklist": "planning/validate.checklist.md",
+    "contractExample": "planning/contract.example.md",
+    "coverageExample": "planning/coverage-matrix.example.md",
+    "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md"],
+    "renderers": { "review": "planning/audit-view.mjs", "prototype": "planning/prototype.mjs" },
+    "prototype": true,
+    "goPrerequisites": ["docs/spec.md", "docs/contracts", "docs/tasks/README.md",
+                        "docs/coverage-matrix.md", "docs/review/index.html",
+                        "docs/review/prototype.html"]
+  },
+  "workspace": "workspace"
+}

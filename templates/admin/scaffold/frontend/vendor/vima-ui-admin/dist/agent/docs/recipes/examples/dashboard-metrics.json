@@ -1,0 +1,1 @@
+{"id":"overview","type":"dashboard","title":"经营概览","metrics":[{"key":"revenue","label":"收入","prefix":"¥"},{"key":"orders","label":"订单"},{"key":"rate","label":"转化率","suffix":"%"}]}

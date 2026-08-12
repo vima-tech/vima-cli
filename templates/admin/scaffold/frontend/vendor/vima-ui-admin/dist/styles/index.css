@@ -1,0 +1,10 @@
+/**
+ * @vima-tech/ui-admin · 样式总入口
+ *
+ * 顺序有意义：令牌在前，组件在后；ui.css 是 extract 的产物，components.css 是本库手写的新组件。
+ * 宿主要换品牌色，在自己的样式里重定义同名 --vui-* 变量即可（后加载即生效），
+ * 不需要改本包任何文件。
+ */
+@import './tokens.css';
+@import './ui.css';
+@import './components.css';
