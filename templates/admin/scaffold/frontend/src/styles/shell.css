@@ -1225,10 +1225,14 @@
 
 /* ---------- 独立条模式的浅底配色 ----------
  * 上面那套是给深蓝顶栏写的（on-dark 反色），落到浅色横条上会糊成一片，这里整体翻过来。
- * 激活页签的渐变卡片与 mark 两态通用，不必重写。
+ * 激活页签本身是浅色卡片，两态通用，这里不要碰它。
+ *
+ * 每条都必须写 :not(.is-active)：本节选择器是 0-3-0，和上面的
+ * `.v-workspace-tab.is-active .v-workspace-tab-mark` 同特异度，而位置在后——
+ * 不排除激活态就会靠源顺序把点亮效果盖掉（圆点变灰，实测踩过）。
  */
 .v-workspace-bar.is-standalone .v-tab-placeholder,
-.v-workspace-bar.is-standalone .v-workspace-tab {
+.v-workspace-bar.is-standalone .v-workspace-tab:not(.is-active) {
   color: var(--v-text-weak);
 }
 
