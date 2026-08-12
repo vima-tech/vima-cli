@@ -11,4 +11,5 @@ import java.util.List;
 public interface SysJobRepository extends JpaRepository<SysJob, Long> {
     Page<SysJob> findByNameContaining(String name, Pageable pageable);
     List<SysJob> findByStatus(Integer status);
+    boolean existsByJobKey(String jobKey);
 }

@@ -1,0 +1,50 @@
+# {{projectName}} 本地基础组件：PostgreSQL + Redis
+#
+# 两者都是必需组件，不是可选项：
+#   - PostgreSQL 存业务数据，表结构由 JPA 的 ddl-auto: update 首次启动时自动建
+#   - Redis 存登录态（token:* / user:token:*）与权限缓存（perm:*），连不上则无法登录
+#
+# 启动： docker compose up -d      （podman 用户： podman-compose up -d）
+# 停止： docker compose down
+# 清库： docker compose down -v    （连数据卷一起删，下次启动会重新灌种子数据）
+#
+# 端口与账号密码与 src/main/resources/application.yml 一一对应，改一处要同时改另一处。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: {{projectName}}-postgres
+    environment:
+      POSTGRES_DB: {{projectPkg}}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # 中文环境下建库时指定排序规则，避免后续按名称排序结果与预期不符
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d {{projectPkg}}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: {{projectName}}-redis
+    # appendonly：登录态落盘，容器重启后用户不会被集体踢下线
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

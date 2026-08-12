@@ -17,6 +17,7 @@ updatedAt: 2026-01-01T00:00:00Z
   - status 初始一律 pending；retryCount 初始 0；
   - layer=business / side=backend；dependsOn 通常为 [shared-base]；
   - contract：必填，指向本模块契约文件；
+  - conflictsWith：可选（A8），与本任务共享代码路径的其他任务 ID，plan 不排同批；
   - updatedAt：写盘时的真实 ISO 时间。
 -->
 

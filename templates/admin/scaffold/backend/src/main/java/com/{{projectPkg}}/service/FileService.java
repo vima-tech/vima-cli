@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -54,8 +56,16 @@ public class FileService {
         return fileRepository.save(sysFile);
     }
 
-    public PageResponse<SysFile> listFiles(int pageNum, int pageSize) {
-        Page<SysFile> page = fileRepository.findAllByOrderByCreateTimeDesc(PageRequest.of(pageNum - 1, pageSize));
+    /** 文件名按上传时的原始名模糊匹配——列表展示的就是它，磁盘上的 UUID 名对用户没有意义。 */
+    public PageResponse<SysFile> listFiles(String originalName, int pageNum, int pageSize) {
+        Specification<SysFile> spec = Specification.where(null);
+
+        if (originalName != null && !originalName.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("originalName"), "%" + originalName + "%"));
+        }
+
+        Page<SysFile> page = fileRepository.findAll(spec,
+                PageRequest.of(pageNum - 1, pageSize, Sort.by(Sort.Direction.DESC, "createTime")));
         return PageResponse.<SysFile>builder()
                 .records(page.getContent())
                 .total(page.getTotalElements())

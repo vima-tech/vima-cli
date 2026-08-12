@@ -6,12 +6,15 @@
  * 留白（存量里有 15% / 250px / 300px），要么把按钮挤到换行或被裁掉。
  * 因此按**实际渲染出的按钮文案**逐行算，取最宽的一行做列宽。
  *
- * 下面的常数与 ui-v3/ui.css 的 `.vui-button`、`.vui-table-cell` 同源，改样式要一起改。
+ * 下面的常数与 ui.css 的 `.vui-button-sm`、`.vui-table-cell` 同源，改样式要一起改。
+ * 按 **sm** 标定：操作列的行内动作按钮一律 `size="sm"`（ui.css 里那段尺寸等级注释也是这么定的）。
+ * 若哪天操作列改用 md 按钮，这四个常数要回到 md 口径（min-width 64 / frame 30 / 字宽 13、7.5），
+ * 否则按钮会被挤窄。
  */
-/** `.vui-button` 的 min-width */
-export declare const BUTTON_MIN_WIDTH = 72;
-/** `.vui-button` 的 padding: 0 16px 与 1px 边框，共 34px 不参与文字排布 */
-export declare const BUTTON_FRAME_WIDTH = 34;
+/** `.vui-button-sm` 的 min-width */
+export declare const BUTTON_MIN_WIDTH = 54;
+/** `.vui-button-sm` 的 padding-inline: 10px 与 1px 边框，共 22px 不参与文字排布 */
+export declare const BUTTON_FRAME_WIDTH = 22;
 /** `.vui-button` 的 margin: 0 8px 0 0；末个按钮也带，故每个按钮都计一份 */
 export declare const BUTTON_GAP = 8;
 /** `.vui-table-cell` 的 padding: 10px 14px */
@@ -19,7 +22,7 @@ export declare const CELL_PADDING_X = 28;
 /** 兜底下限：按钮被 v-if 全部隐藏时，不让列塌到表头「操作」两个字的宽度 */
 export declare const OPERATION_COLUMN_MIN_WIDTH = 88;
 /**
- * 按钮文案宽度估算。半角按 8px 算（14px / 600 字重下偏保守），
+ * 按钮文案宽度估算。`.vui-button-sm` 是 12px / 600：全角按 1em = 12px，半角按 7px 算（≈0.58em，偏保守）。
  * 宁可略宽也不能算窄——算窄会直接挤掉按钮。
  */
 export declare function buttonLabelWidth(label: string): number;

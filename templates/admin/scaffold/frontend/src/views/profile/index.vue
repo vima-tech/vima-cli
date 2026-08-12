@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { changePassword } from '@/api/auth'
@@ -49,6 +49,21 @@ const handleChangePassword = async () => {
   }
 }
 
+/*
+ * 展示项取自登录时缓存的 user-info（见 store/user.ts）。这里只读不改：
+ * 后端没有「用户自助改资料」的接口，改资料统一走用户管理，页面里说明这一点即可，
+ * 不摆一个点了没反应的编辑按钮。
+ */
+const infoItems = computed(() => [
+  { label: '用户名', value: userStore.username },
+  { label: '姓名', value: userStore.realName },
+  { label: '角色', value: (userStore.roles as string[]).join('、') },
+  { label: '邮箱', value: userStore.userInfo?.email },
+  { label: '手机', value: userStore.userInfo?.phone },
+])
+
+const initial = computed(() => (userStore.realName || userStore.username || '?').slice(0, 1))
+
 const handleResetPassword = () => {
   passwordForm.oldPassword = ''
   passwordForm.newPassword = ''
@@ -66,18 +81,25 @@ const handleResetPassword = () => {
 
       <div class="tab-content">
         <div v-if="activeTab === 'info'" class="info-section">
-          <div class="info-item">
-            <span class="label">用户名:</span>
-            <span class="value">{{ userStore.username }}</span>
+          <div class="info-head">
+            <span class="info-avatar" aria-hidden="true">{{ initial }}</span>
+            <div class="info-head-copy">
+              <strong>{{ userStore.realName || userStore.username }}</strong>
+              <small>{{ userStore.username }}</small>
+            </div>
           </div>
-          <div class="info-item">
-            <span class="label">姓名:</span>
-            <span class="value">{{ userStore.realName }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">角色:</span>
-            <span class="value">{{ userStore.roles.join(', ') }}</span>
-          </div>
+
+          <dl class="info-grid">
+            <div v-for="item in infoItems" :key="item.label" class="info-item">
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value || '-' }}</dd>
+            </div>
+          </dl>
+
+          <p class="info-hint">
+            <VIcon name="info" size="13" />
+            资料由管理员在「用户管理」中维护；密码可在右侧「修改密码」页签自行更改。
+          </p>
         </div>
 
         <div v-if="activeTab === 'password'" class="password-section">
@@ -108,22 +130,87 @@ const handleResetPassword = () => {
 }
 
 .info-section {
-  max-width: 500px;
+  max-width: 720px;
+}
+
+.info-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--v-border);
+}
+
+.info-avatar {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 16px;
+  color: var(--v-on-dark);
+  background: var(--v-brand-grad);
+  box-shadow: var(--v-shadow-btn);
+  font-size: 18px;
+  font-weight: var(--v-weight-bold);
+}
+
+.info-head-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-head-copy strong {
+  color: var(--v-text-title);
+  font-size: 17px;
+}
+
+.info-head-copy small {
+  color: var(--v-text-weak);
+  font-size: var(--v-font-small);
+}
+
+/* 两列描述列表：三行信息在一张 700px 的卡里排成一列时，右边和下边都是空的 */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--v-gap-md) var(--v-gap-xl);
+  margin-top: 20px;
 }
 
 .info-item {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-ctl);
+  background: var(--v-bg-soft);
+  font-size: var(--v-font-body);
+}
+
+.info-item dt {
+  color: var(--v-text-weak);
+}
+
+.info-item dd {
+  margin: 0;
+  color: var(--v-text-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-hint {
   display: flex;
-  margin-bottom: 16px;
-  font-size: 14px;
-}
-
-.info-item .label {
-  width: 80px;
-  color: #999;
-}
-
-.info-item .value {
-  color: #333;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+  color: var(--v-text-weak);
+  font-size: var(--v-font-small);
 }
 
 .password-section {

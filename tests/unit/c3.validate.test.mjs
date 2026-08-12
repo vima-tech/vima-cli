@@ -39,6 +39,80 @@ async function mutate(root, rel, from, to) {
   await writeFile(p, text.replace(from, to));
 }
 
+// ── V-CODE 代码 ↔ 契约对账（A6）──
+
+test('V-CODE-01：带 @vima 标注的前端代码调用契约外接口 → exit 2；模板串参数归一后命中契约 → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  // 契约补一个带路径参数的接口（顺带验证 {id} ↔ ${expr} 归一）
+  await mutate(
+    root,
+    'docs/contracts/device-api.md',
+    'apis:',
+    'apis:\n  - method: PUT\n    path: /api/device/{id}\n    request: []\n    response:\n      - { name: id, type: number }\n    errors:\n      - { code: 40001, msg: 参数校验失败 }',
+  );
+  const p = path.join(root, 'src/api/device.ts');
+  let text = await readFile(p, 'utf8');
+  text += '\nexport function updateDevice(id: number, data: unknown) {\n  return request.put(`/api/device/${id}`, data)\n}\n';
+  await writeFile(p, text);
+  assert.equal(vima(root, 'validate').code, 0, '模板串归一后命中契约应放行');
+
+  await writeFile(p, `${text}\nexport function rogue() {\n  return request.post('/device/rogue')\n}\n`);
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-CODE-01/); // ❌ 错误块走 stderr（契约 §3 输出流向）
+  assert.match(r.stderr, /POST \/api\/device\/rogue/);
+});
+
+test('V-CODE-01 作用域：无 @vima 标注的文件不参与对账（底座/共享层天然豁免）', async (t) => {
+  const root = await cloneGolden(t);
+  await writeFile(
+    path.join(root, 'src/api/base.ts'),
+    "import { request } from '../utils/request'\nexport function ping() {\n  return request.get('/base/rogue')\n}\n",
+  );
+  assert.equal(vima(root, 'validate').code, 0);
+});
+
+test('V-CODE-02：带 @vima 标注的后端 Controller 声明契约外路径 → exit 2；契约内拼接路径 → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  const dir = path.join(root, 'backend/src/main/java/demo');
+  const ok = [
+    '// @vima device-api-be',
+    'package demo;',
+    '@RestController',
+    '@RequestMapping("/api/device")',
+    'public class AnnotatedDeviceController {',
+    '    @GetMapping("/list")',
+    '    public Object list() { return null; }',
+    '    @PostMapping',
+    '    public Object create() { return null; }',
+    '}',
+  ].join('\n');
+  await writeFile(path.join(dir, 'AnnotatedDeviceController.java'), ok);
+  const r0 = vima(root, 'validate');
+  assert.equal(r0.code, 0, `stdout: ${r0.stdout}`);
+
+  await writeFile(
+    path.join(dir, 'AnnotatedDeviceController.java'),
+    ok.replace('    @PostMapping\n', '    @PostMapping("/rogue")\n    public Object rogue() { return null; }\n    @PostMapping\n'),
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-CODE-02/);
+  assert.match(r.stderr, /POST \/api\/device\/rogue/);
+});
+
+test('V-TASK-04：conflictsWith 指向幽灵任务 → exit 2（A8）；指向存在任务 → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/tasks/device-list-fe.md', 'page: PAGE-01', 'page: PAGE-01\nconflictsWith: [device-api-be]');
+  assert.equal(vima(root, 'validate').code, 0, '引用存在任务应放行');
+
+  await mutate(root, 'docs/tasks/device-list-fe.md', 'conflictsWith: [device-api-be]', 'conflictsWith: [ghost-task]');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-TASK-04/);
+  assert.match(r.stderr, /ghost-task/);
+});
+
 test('黄金夹具：validate exit 0，报告 pass=true，lifecycle 置 artifactsValidated', async (t) => {
   const root = await cloneGolden(t);
   const r = vima(root, 'validate');
@@ -61,7 +135,7 @@ test('破坏：删第八章 → V-SPEC-01，exit 2', async (t) => {
   assert.equal(r.code, 2);
   const report = await readReport(root);
   assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-01'), JSON.stringify(report.errors));
-  assert.match(r.stdout, /V-SPEC-01: .+ \(docs\/spec\.md\)/);
+  assert.match(r.stderr, /V-SPEC-01: .+ \(docs\/spec\.md\)/);
 });
 
 test('破坏：layout 塞非法词 → V-SPEC-04，exit 2', async (t) => {
@@ -244,6 +318,34 @@ test('破坏：删掉后端任务对契约的引用 → V-CON-03，exit 2', asyn
   // business 任务缺 contract 同时命中 V-TASK-01；这里聚焦 V-CON-03 的前后端成对纪律
   assert.ok(report.errors.some((e) => e.rule === 'V-CON-03' && /backend/.test(e.message)), JSON.stringify(report.errors));
   assert.ok(report.errors.some((e) => e.rule === 'V-TASK-01'), JSON.stringify(report.errors));
+});
+
+test('V-TASK-01 专属：business 缺 contract 与枚举非法两分支（后者经 plan 以 TASK_FM 稳定码输出）', async (t) => {
+  // 分支 1：business 任务缺 contract → V-TASK-01 指名任务
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/tasks/device-list-fe.md', 'contract: docs/contracts/device-api.md\n', '');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-TASK-01' && e.message.includes('device-list-fe')),
+    JSON.stringify(report.errors),
+  );
+
+  // 分支 2：frontmatter 枚举非法（layer: bogus）→ validate 折叠进 V-TASK-01（模型层 TASK_FM 把关）
+  const root2 = await cloneGolden(t);
+  await mutate(root2, 'docs/tasks/full-test.md', 'layer: pipeline', 'layer: bogus');
+  const r2 = vima(root2, 'validate');
+  assert.equal(r2.code, 2);
+  const report2 = await readReport(root2);
+  assert.ok(
+    report2.errors.some((e) => e.rule === 'V-TASK-01' && /layer/.test(e.message)),
+    JSON.stringify(report2.errors),
+  );
+  // 同一坏夹具走 plan：TASK_FM 直达 stderr，锁稳定错误码（契约 §3.1，断言 code 而非文案）
+  const r3 = vima(root2, 'plan');
+  assert.equal(r3.code, 2);
+  assert.match(r3.stderr, /^vima plan: TASK_FM: /);
 });
 
 test('破坏：追加同 module 同接口的第二份契约 → V-CON-04 唯一性，exit 2', async (t) => {

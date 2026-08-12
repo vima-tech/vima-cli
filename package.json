@@ -4,14 +4,37 @@
   "description": "vima-cli — AI 开发脚手架：vima create 多模板起盘 + vima init 部署 Claude Code 工作环境 + 确定性校验/渲染/调度命令",
   "type": "module",
   "license": "MIT",
+  "author": "vima-tech",
+  "homepage": "https://github.com/vima-tech/vima-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vima-tech/vima-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vima-tech/vima-cli/issues"
+  },
+  "keywords": [
+    "cli",
+    "scaffold",
+    "claude-code",
+    "agent",
+    "ai-development",
+    "spec-driven",
+    "vue",
+    "spring-boot"
+  ],
   "bin": {
     "vima": "bin/vima.mjs"
   },
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "npm test"
   },
   "files": [
     "bin",

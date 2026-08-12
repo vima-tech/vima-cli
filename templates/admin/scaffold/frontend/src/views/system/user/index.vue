@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { getUserList, createUser, updateUser, deleteUser, resetPassword } from '@/api/system'
 import { getDeptTree } from '@/api/system'
 import { getAllRoles } from '@/api/system'
 import { exportUsers, getUserImportTemplate, importUsers } from '@/api/monitor'
 import { confirmAsync, toastSuccess, toastError } from '@/utils/feedback'
+import { intFlag } from '@/utils/form'
+import { rule } from '@/utils/validate'
 import DictTag from '@/components/common/DictTag.vue'
 
 const loading = ref(false)
@@ -35,19 +37,31 @@ const form = reactive({
   status: 1,
 })
 
+// VSwitch 只吃布尔，后端字段是 0/1，中间必须过一层（原因见 utils/form.ts）
+const statusOn = intFlag(form, 'status')
+
+// 校验规则见 utils/validate.ts；「必填」与「格式」是两条独立规则——
+// 除 required 外，VForm 对空值一律跳过，所以选填字段只写格式规则即可。
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [rule.required('请输入用户名'), rule.username()],
+  realName: [rule.required('请输入真实姓名'), rule.length(2, 20)],
+  password: [rule.required('请输入密码')],
+  email: [rule.email()],
+  phone: [rule.mobile()],
 }
 
+/*
+ * 列宽约定：邮箱此前是唯一没写宽度的列，把剩余的 700 多像素全吃了下去，
+ * 表格中间空出一大条。这里给每个内容列定宽，剩余宽度留给末列的操作列——
+ * 内容左侧成组，空白落在表格最右边缘。
+ */
 const columns = [
-  { key: 'username', title: '用户名', width: 120 },
+  { key: 'username', title: '用户名', width: 130 },
   { key: 'realName', title: '姓名', width: 120 },
-  { key: 'deptName', title: '部门', width: 120 },
-  { key: 'email', title: '邮箱' },
-  { key: 'phone', title: '手机', width: 120 },
-  { key: 'status', title: '状态', width: 80, customSlot: 'status' },
+  { key: 'deptName', title: '部门', width: 140 },
+  { key: 'email', title: '邮箱', width: 240, ellipsisTooltip: true },
+  { key: 'phone', title: '手机', width: 140 },
+  { key: 'status', title: '状态', width: 90, customSlot: 'status' },
   { title: '操作', key: 'operator', customSlot: 'operator' },
 ]
 
@@ -226,6 +240,19 @@ const fetchOptions = async () => {
   }
 }
 
+/**
+ * /system/dept/tree 返回的是嵌套结构（子部门挂在 children 上）。
+ * 下拉框只能吃平铺列表：不摊平的话子部门根本没有对应 option，
+ * 选中值就会因为查不到 label 而回退成部门编号。缩进保留层级可读性。
+ */
+const flattenDepts = (nodes: any[], depth = 0): any[] =>
+  nodes.flatMap((node) => [
+    { id: node.id, label: `${'　'.repeat(depth)}${node.name}` },
+    ...flattenDepts(node.children || [], depth + 1),
+  ])
+
+const deptOptions = computed(() => flattenDepts(deptTree.value))
+
 onMounted(() => {
   fetchData()
   fetchOptions()
@@ -235,7 +262,12 @@ onMounted(() => {
 <template>
   <div class="vui-page">
     <VCard title="用户管理">
-      <VForm inline>
+      <!--
+        搜索栏必须写 layout="inline"。VForm 没有 inline 这个 prop，只有 layout；
+        写成 <VForm inline> 会原样落成一个无效 HTML 属性，表单仍按 horizontal 渲染，
+        每个查询条件独占一整行、控件被拉到上千像素宽——看起来像"设计得难看"，其实是属性名写错了。
+      -->
+      <VForm layout="inline" class="v-searchbar">
         <VFormItem label="用户名">
           <VInput v-model="queryParams.username" placeholder="请输入用户名" clearable />
         </VFormItem>
@@ -244,10 +276,10 @@ onMounted(() => {
         </VFormItem>
         <VFormItem label="部门">
           <VSelect v-model="queryParams.deptId" placeholder="请选择部门" clearable>
-            <VSelectOption v-for="item in deptTree" :key="item.id" :value="item.id" :label="item.name" />
+            <VSelectOption v-for="item in deptOptions" :key="item.id" :value="item.id" :label="item.label" />
           </VSelect>
         </VFormItem>
-        <VFormItem>
+        <VFormItem class="v-searchbar-actions">
           <VButton type="primary" @click="handleSearch">搜索</VButton>
           <VButton @click="handleReset">重置</VButton>
         </VFormItem>
@@ -264,9 +296,9 @@ onMounted(() => {
           <DictTag type="sys_user_status" :value="row.status" />
         </template>
         <template #operator="{ row }">
-          <VButton v-auth="'system:user:edit'" size="small" @click="handleEdit(row)">编辑</VButton>
-          <VButton v-auth="'system:user:resetPwd'" size="small" @click="handleResetPassword(row)">重置密码</VButton>
-          <VButton v-auth="'system:user:remove'" size="small" type="danger" @click="handleDelete(row.id)">删除</VButton>
+          <VButton v-auth="'system:user:edit'" size="sm" @click="handleEdit(row)">编辑</VButton>
+          <VButton v-auth="'system:user:resetPwd'" size="sm" @click="handleResetPassword(row)">重置密码</VButton>
+          <VButton v-auth="'system:user:remove'" size="sm" type="danger" @click="handleDelete(row.id)">删除</VButton>
         </template>
       </VTable>
 
@@ -297,16 +329,17 @@ onMounted(() => {
         </VFormItem>
         <VFormItem label="部门">
           <VSelect v-model="form.deptId" placeholder="请选择部门" clearable>
-            <VSelectOption v-for="item in deptTree" :key="item.id" :value="item.id" :label="item.name" />
+            <VSelectOption v-for="item in deptOptions" :key="item.id" :value="item.id" :label="item.label" />
           </VSelect>
         </VFormItem>
         <VFormItem label="角色">
           <VSelect v-model="form.roleIds" multiple placeholder="请选择角色">
-            <VSelectOption v-for="item in allRoles" :key="item.id" :value="item.id" :label="item.name" />
+            <!-- 后端 Role 实体的字段是 roleName，写成 item.name 会拿到 undefined，选中项回退显示角色编号 -->
+            <VSelectOption v-for="item in allRoles" :key="item.id" :value="item.id" :label="item.roleName" />
           </VSelect>
         </VFormItem>
         <VFormItem label="状态">
-          <VSwitch v-model="form.status" :active-value="1" :inactive-value="0" active-text="正常" inactive-text="禁用" />
+          <VSwitch v-model="statusOn" />
         </VFormItem>
       </VForm>
       <template #footer>
@@ -318,12 +351,12 @@ onMounted(() => {
     <VLayer v-model="importVisible" title="导入用户" area="520px">
       <div class="import-step">
         <span class="import-step-label">1. 下载模板</span>
-        <VButton size="small" @click="handleDownloadTemplate">下载导入模板</VButton>
+        <VButton size="sm" @click="handleDownloadTemplate">下载导入模板</VButton>
       </div>
       <div class="import-step">
         <span class="import-step-label">2. 选择文件</span>
         <VUpload accept=".xlsx,.xls" :before-upload="handleFileSelect">
-          <VButton size="small" type="primary">选择文件</VButton>
+          <VButton size="sm" type="primary">选择文件</VButton>
         </VUpload>
         <span v-if="importFile" class="import-file">{{ importFile.name }}</span>
       </div>
@@ -342,12 +375,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 16px;
-  display: flex;
-  gap: 8px;
-}
-
 .import-step {
   display: flex;
   align-items: center;
@@ -356,26 +383,27 @@ onMounted(() => {
 }
 
 .import-step-label {
+  color: var(--v-text-sub);
   font-size: 14px;
-  color: #606266;
 }
 
 .import-file {
-  font-size: 13px;
-  color: #909399;
+  color: var(--v-text-weak);
+  font-size: var(--v-font-small);
 }
 
 .import-result {
   padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-  font-size: 13px;
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-sm);
+  background: var(--v-bg-soft);
+  font-size: var(--v-font-small);
 }
 
 .import-errors {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: #f56c6c;
+  color: var(--v-error-strong);
 }
 
 .import-errors li {

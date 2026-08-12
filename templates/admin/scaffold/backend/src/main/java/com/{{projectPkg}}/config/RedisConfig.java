@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -14,10 +13,15 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * 仅在 app.token-store=redis 时装配（缺省 memory 不需要 Redis 连接）。
+ * Redis 序列化装配：key 用字符串，value 用带类型信息的 JSON（便于在 redis-cli 里直接看内容）。
+ * <p>
+ * 无条件装配——登录态（{@code token:*} / {@code user:token:*}）与权限缓存（{@code perm:*}）
+ * 都依赖它，Redis 连不上应用就该在启动阶段失败，而不是悄悄退化成别的行为。
+ * <p>
+ * 注意：value 序列化启用了默认类型信息，缓存集合请统一写入 {@code ArrayList}/{@code LinkedHashMap}
+ * 这类可反序列化的具体类型，不要直接塞 {@code List.of()}/{@code Set.of()} 的不可变实现。
  */
 @Configuration
-@ConditionalOnProperty(name = "app.token-store", havingValue = "redis")
 public class RedisConfig {
 
     @Bean

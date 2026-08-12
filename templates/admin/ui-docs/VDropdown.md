@@ -2,7 +2,10 @@
 
 # VDropdown
 
-与上游 ui-v3 已分歧：面板从「贴着触发器的 absolute」改成 teleport 到 body 的 fixed。 重跑 scripts/extract-from-ui-v3.mjs 会把这段覆盖回去，理由见 src/floating.ts 的文件注释。
+<!-- 上游注意：api.generated.json 把内部分叉备注抽成了 VDropdown 的描述（源头在组件源码
+     文件注释），下方描述为手工替换；上游修复抽取源后按生成结果覆盖本段即可。 -->
+
+在触发元素附近展开下拉操作面板。
 
 - 分类：`overlay`
 

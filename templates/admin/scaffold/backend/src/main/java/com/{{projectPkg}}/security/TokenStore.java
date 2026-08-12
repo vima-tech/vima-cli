@@ -3,13 +3,11 @@ package com.{{projectPkg}}.security;
 import java.util.List;
 
 /**
- * Token 存储抽象：登录态的保存 / 查询 / 失效。
+ * 登录态存储抽象：token 的保存 / 查询 / 续期 / 失效。
  * <p>
- * 通过 application.yml 的 {@code app.token-store} 切换实现：
- * <ul>
- *   <li>{@code memory}（缺省）— {@link InMemoryTokenStore}，零外部依赖，适合开发与单机部署；</li>
- *   <li>{@code redis} — {@link RedisTokenStore}，多实例共享登录态时使用。</li>
- * </ul>
+ * 唯一实现是 {@link RedisTokenStore}——登录态必须活过进程重启、且多实例要共享，
+ * 所以 Redis 是本脚手架的必需组件而非可选项。曾经的进程内存实现已移除：
+ * 它会让每次重启后端都把所有人踢下线，且不同实例各存各的。
  */
 public interface TokenStore {
 
@@ -21,6 +19,12 @@ public interface TokenStore {
 
     /** 按 token 查用户名；不存在或已过期返回 null。 */
     String getUsernameByToken(String token);
+
+    /**
+     * 滑动续期：把该 token 及其反查索引的存活时间重置为 ttlMillis。
+     * username 由调用方传入（认证时已查得），省掉一次反查往返；token 已消失时不会复活它。
+     */
+    void refreshToken(String token, String username, long ttlMillis);
 
     /** 使指定 token 失效（连同其用户的反查索引）。 */
     void removeToken(String token);

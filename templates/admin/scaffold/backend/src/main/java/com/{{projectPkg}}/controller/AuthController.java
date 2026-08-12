@@ -18,10 +18,13 @@ public class AuthController {
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         try {
             String ip = getClientIp(httpRequest);
-            LoginResponse response = authService.login(request, ip);
+            String userAgent = httpRequest.getHeader("User-Agent");
+            LoginResponse response = authService.login(request, ip, userAgent);
             return ApiResponse.success(response);
         } catch (Exception e) {
-            return ApiResponse.error(401, e.getMessage());
+            // 用 400 而非 401：401 在本项目里专指"登录态失效，请重新登录"，前端见到它会清态跳登录页。
+            // 登录接口本身失败（账号不存在/密码错/被禁用）属业务错误，只该把 message 弹出来。
+            return ApiResponse.error(400, e.getMessage());
         }
     }
 

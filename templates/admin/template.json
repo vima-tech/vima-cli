@@ -2,15 +2,15 @@
   "id": "admin",
   "name": "管理后台",
   "status": "stable",
-  "description": "完整管理后台：登录认证 + RBAC 系统管理模块 + vendored 组件库 + 多数据库可切换",
+  "description": "完整管理后台：登录认证 + RBAC 系统管理模块 + vendored 组件库 + PostgreSQL/Redis 基础组件",
   "version": "2.0.0",
   "techStack": {
     "frontend": "Vue 3 + TypeScript + Vite + vendored @vima-tech/ui-admin",
-    "backend": "Java 21 + Spring Boot + JPA + Spring Security（JWT + RBAC）",
-    "database": "PostgreSQL / MySQL / H2（配置可切换）"
+    "backend": "Java 21 + Spring Boot + JPA + Spring Security（Redis 登录态 + RBAC）",
+    "database": "PostgreSQL（默认必需）+ Redis（登录态与权限缓存，必需）"
   },
-  "features": ["登录认证（JWT）", "RBAC 系统管理模块（用户/角色/菜单/部门/字典/配置/文件/日志/消息）",
-               "vendored 组件库（vendor/，离线可用）", "多数据库可切换（PostgreSQL / MySQL / H2）",
+  "features": ["登录认证（Redis 登录态：滑动续期/单会话/可强制作废）", "RBAC 系统管理模块（用户/角色/菜单/部门/字典/配置/文件/日志/消息）",
+               "vendored 组件库（vendor/，离线可用）", "PostgreSQL + Redis 基础组件（附 docker-compose，可切换 MySQL/信创库）",
                "按钮级权限（后端 @PreAuthorize + 前端按 perms 串控制按钮，admin 通配 *）",
                "在线用户监控（查看在线列表 + 强制下线）",
                "定时任务管理（新增/编辑/启停/立即执行）",
@@ -22,7 +22,7 @@
     { "tool": "java", "check": "java --version", "constraint": ">=21", "optional": true,
       "hint": "缺失不阻断创建，但无法本地运行后端" },
     { "tool": "maven", "check": "mvn --version", "constraint": ">=3.9", "optional": true,
-      "hint": "缺失不阻断创建，但无法本地运行后端" }
+      "hint": "缺失不阻断：backend/mvnw 首次运行会自动下载 Maven（需联网）" }
   ],
   "scaffold": { ".": "scaffold/frontend", "backend": "scaffold/backend" },
   "sharedDirs": ["src/components", "src/utils", "vendor",

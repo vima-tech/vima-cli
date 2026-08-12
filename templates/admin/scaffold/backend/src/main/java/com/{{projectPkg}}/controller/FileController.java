@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/system/file")
@@ -20,6 +21,7 @@ public class FileController {
     private final FileService fileService;
     private final UserRepository userRepository;
 
+    @PreAuthorize("@perm.has('system:file:upload')")
     @PostMapping("/upload")
     public ApiResponse<SysFile> upload(@RequestParam("file") MultipartFile file, Authentication authentication) {
         try {
@@ -32,13 +34,16 @@ public class FileController {
         }
     }
 
+    @PreAuthorize("@perm.has('system:file:list')")
     @GetMapping("/list")
     public ApiResponse<PageResponse<SysFile>> list(
+            @RequestParam(required = false) String originalName,
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {
-        return ApiResponse.success(fileService.listFiles(pageNum, pageSize));
+        return ApiResponse.success(fileService.listFiles(originalName, pageNum, pageSize));
     }
 
+    @PreAuthorize("@perm.has('system:file:remove')")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         try {

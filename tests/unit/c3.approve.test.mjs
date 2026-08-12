@@ -35,10 +35,11 @@ test('前置 2 拦截：审计视图/原型未渲染 → exit 4 并提示先渲�
   const root = await cloneGolden(t);
   const r = vima(root, 'approve');
   assert.equal(r.code, 4, `stderr: ${r.stderr}\nstdout: ${r.stdout}`);
-  assert.match(r.stdout, /docs\/review\/index\.html/);
-  assert.match(r.stdout, /docs\/review\/prototype\.html/);
-  assert.match(r.stdout, /render-review/);
-  assert.match(r.stdout, /render-prototype/);
+  // ❌ 前置未满足块走 stderr（契约 §3 输出流向）
+  assert.match(r.stderr, /docs\/review\/index\.html/);
+  assert.match(r.stderr, /docs\/review\/prototype\.html/);
+  assert.match(r.stderr, /render-review/);
+  assert.match(r.stderr, /render-prototype/);
   // 未通过时不得写 tasksApproved
   const lifecycle = JSON.parse(await readFile(path.join(root, 'docs/lifecycle.json'), 'utf8'));
   assert.equal(lifecycle.checklists.PLANNING.tasksApproved, false);
@@ -53,8 +54,8 @@ test('前置 1 拦截：validate 未通过 → exit 4 并列错误清单', async
   await writeFile(p, text.replace('device-api-be, full-test', 'TODO'));
   const r = vima(root, 'approve');
   assert.equal(r.code, 4);
-  assert.match(r.stdout, /validate 未通过/);
-  assert.match(r.stdout, /V-COV-01/);
+  assert.match(r.stderr, /validate 未通过/);
+  assert.match(r.stderr, /V-COV-01/);
 });
 
 test('前置 3 拦截：存在 pendingConfirm 推断项 → exit 4 并列待确认清单', async (t) => {
@@ -66,8 +67,8 @@ test('前置 3 拦截：存在 pendingConfirm 推断项 → exit 4 并列待确�
   await writeFile(p, text.replace('id: PAGE-01\ntitle: 设备列表', 'id: PAGE-01\npendingConfirm: true\ntitle: 设备列表'));
   const r = vima(root, 'approve');
   assert.equal(r.code, 4);
-  assert.match(r.stdout, /pendingConfirm/);
-  assert.match(r.stdout, /PAGE-01 \(docs\/spec\.md\)/);
+  assert.match(r.stderr, /pendingConfirm/);
+  assert.match(r.stderr, /PAGE-01 \(docs\/spec\.md\)/);
 });
 
 test('前置全过：打印任务汇总表 → 写 tasksApproved/tasksApprovedAt → 提示可以 /go', async (t) => {

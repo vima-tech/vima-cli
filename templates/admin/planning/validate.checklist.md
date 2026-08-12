@@ -54,6 +54,14 @@
 
 - [ ] **V-COV-01**（error）：文件存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。
 
+## 代码 ↔ 契约对账（A6；带 `@vima` 标注的业务代码才参与，规划期无代码时自然为空）
+
+- [ ] **V-CODE-01**（error）：前端带 `@vima` 标注文件中的 `request.<method>(路径字面量)`
+  归一后（非 /api 开头补前缀；`${expr}` 与 `{id}` 归一为 `{*}`）必须 ∈ 契约 apis。
+  单向对账防野生接口；实现完整性由 Verifier 逐点判定负责。
+- [ ] **V-CODE-02**（error）：后端带 `@vima` 标注 Controller 的类级 `@RequestMapping`
+  基路径 + `@*Mapping` 子路径拼接归一后必须 ∈ 契约 apis。
+
 ## 待确认项
 
 - [ ] **V-PEND-01**（warn）：全部 `pendingConfirm: true` 条目已收集进报告；

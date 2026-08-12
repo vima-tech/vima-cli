@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -16,8 +17,17 @@ import java.util.Optional;
 public class ConfigService {
     private final SysConfigRepository configRepository;
 
-    public PageResponse<SysConfig> listConfigs(int pageNum, int pageSize) {
-        Page<SysConfig> page = configRepository.findAll(PageRequest.of(pageNum - 1, pageSize, Sort.by("id").descending()));
+    public PageResponse<SysConfig> listConfigs(String configName, String configKey, int pageNum, int pageSize) {
+        Specification<SysConfig> spec = Specification.where(null);
+
+        if (configName != null && !configName.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("configName"), "%" + configName + "%"));
+        }
+        if (configKey != null && !configKey.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("configKey"), "%" + configKey + "%"));
+        }
+
+        Page<SysConfig> page = configRepository.findAll(spec, PageRequest.of(pageNum - 1, pageSize, Sort.by("id").descending()));
         return PageResponse.<SysConfig>builder()
                 .records(page.getContent())
                 .total(page.getTotalElements())

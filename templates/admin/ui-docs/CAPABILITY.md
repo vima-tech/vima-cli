@@ -97,7 +97,7 @@
 | 组件 | 描述 | Props 数 | 文档 |
 |---|---|---|---|
 | `VDrawer` | 从视口边缘展开辅助任务面板。 | 11 | [VDrawer.md](./VDrawer.md) |
-| `VDropdown` | 与上游 ui-v3 已分歧：面板从「贴着触发器的 absolute」改成 teleport 到 body 的 fixed。 重跑 scripts/extract-from-ui-v3.mjs 会把这段覆盖回去，理由见 src/floating.ts 的文件注释。 | 2 | [VDropdown.md](./VDropdown.md) |
+| `VDropdown` | 在触发元素附近展开下拉操作面板。 | 2 | [VDropdown.md](./VDropdown.md) |
 | `VLayer` | 在模态浮层中承载需要用户处理的内容。 | 7 | [VLayer.md](./VLayer.md) |
 | `VPopover` | 在目标附近展示可交互的浮层内容。 | 10 | [VPopover.md](./VPopover.md) |
 | `VTooltip` | 为目标内容展示简短文字提示。 | 8 | [VTooltip.md](./VTooltip.md) |

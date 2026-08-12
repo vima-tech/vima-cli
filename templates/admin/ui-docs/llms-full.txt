@@ -1,0 +1,2658 @@
+<!-- 生成自 templates/admin/ui-docs/*.md（@vima-tech/ui-admin 0.1.0），勿手改；由 scripts/gen-from-manifest.mjs 重新生成。单文件全量档：索引档见 CAPABILITY.md，按需单读组件文档更省上下文，本文件供支持大上下文的工具一次性消费。 -->
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# UI 组件能力索引（CAPABILITY.md）
+
+> 生成自 `@vima-tech/ui-admin` **0.1.0** 的 `api.generated.json`，**勿手改**。
+> 使用组件前必须先在本索引确认组件存在，再读对应组件文档（同目录 `<组件名>.md`）。
+
+共 **63** 个组件。所有组件均从 `@vima-tech/ui-admin` 具名导入。
+
+## 基础 basic（4）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VAvatar` | 展示用户或实体头像。 | 7 | [VAvatar.md](./VAvatar.md) |
+| `VAvatarGroup` | 紧凑展示一组头像。 | 1 | [VAvatarGroup.md](./VAvatarGroup.md) |
+| `VButton` | 触发操作或提交的按钮。 | 6 | [VButton.md](./VButton.md) |
+| `VButtonGroup` | 将相关按钮组织成连续操作组。 | 0 | [VButtonGroup.md](./VButtonGroup.md) |
+
+## 布局 layout（9）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VBody` | 后台布局的主体区域。 | 0 | [VBody.md](./VBody.md) |
+| `VCard` | 承载后台页面信息区块的卡片。 | 2 | [VCard.md](./VCard.md) |
+| `VCol` | 24 栅格中的列。 | 3 | [VCol.md](./VCol.md) |
+| `VContainer` | 页面内容容器。 | 0 | [VContainer.md](./VContainer.md) |
+| `VDivider` | 分隔相邻内容区块。 | 4 | [VDivider.md](./VDivider.md) |
+| `VHeader` | 后台布局的顶部区域。 | 0 | [VHeader.md](./VHeader.md) |
+| `VLayout` | 后台系统页面骨架的根布局。 | 0 | [VLayout.md](./VLayout.md) |
+| `VRow` | 24 栅格中的行容器。 | 3 | [VRow.md](./VRow.md) |
+| `VSide` | 后台布局的侧边区域。 | 0 | [VSide.md](./VSide.md) |
+
+## 表单 form（16）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VCheckbox` | 在有限选项中切换单个多选状态。 | 7 | [VCheckbox.md](./VCheckbox.md) |
+| `VCheckboxGroup` | 管理一组多选项的值。 | 3 | [VCheckboxGroup.md](./VCheckboxGroup.md) |
+| `VDatePicker` | 输入单个日期、时间或日期范围。 | 9 | [VDatePicker.md](./VDatePicker.md) |
+| `VForm` | 管理表单模型、规则和字段校验。 | 6 | [VForm.md](./VForm.md) |
+| `VFormItem` | 组合字段标签、控件和校验反馈。 | 5 | [VFormItem.md](./VFormItem.md) |
+| `VInput` | 输入单行文本。 | 13 | [VInput.md](./VInput.md) |
+| `VInputNumber` | 输入带范围约束的数值。 | 4 | [VInputNumber.md](./VInputNumber.md) |
+| `VRadio` | 在有限选项中选择一个值。 | 2 | [VRadio.md](./VRadio.md) |
+| `VRadioGroup` | 管理一组互斥单选项的值。 | 3 | [VRadioGroup.md](./VRadioGroup.md) |
+| `VSelect` | 从有限选项中选择单值或多值。 | 14 | [VSelect.md](./VSelect.md) |
+| `VSelectOption` | 声明 VSelect 的插槽式选项。 | 3 | [VSelectOption.md](./VSelectOption.md) |
+| `VSwitch` | 在两个互斥状态之间切换。 | 2 | [VSwitch.md](./VSwitch.md) |
+| `VTagInput` | 输入和维护一组标签值。 | 4 | [VTagInput.md](./VTagInput.md) |
+| `VTextarea` | 输入多行文本。 | 6 | [VTextarea.md](./VTextarea.md) |
+| `VTimePicker` | 输入或选择一天中的时间。 | 7 | [VTimePicker.md](./VTimePicker.md) |
+| `VUpload` | 选择文件并交由业务逻辑上传。 | 5 | [VUpload.md](./VUpload.md) |
+
+## 数据展示 data（12）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VBadge` | 在内容旁展示数量或状态徽标。 | 6 | [VBadge.md](./VBadge.md) |
+| `VCollapse` | 管理一组可折叠内容。 | 2 | [VCollapse.md](./VCollapse.md) |
+| `VCollapseItem` | 折叠面板中的单个内容项。 | 2 | [VCollapseItem.md](./VCollapseItem.md) |
+| `VColumnSetting` | 配置表格列的显示、隐藏与顺序。 | 5 | [VColumnSetting.md](./VColumnSetting.md) |
+| `VCountdown` | 展示到目标时间的倒计时。 | 5 | [VCountdown.md](./VCountdown.md) |
+| `VDescriptions` | 按分组网格展示实体详情。 | 4 | [VDescriptions.md](./VDescriptions.md) |
+| `VDescriptionsItem` | 详情描述列表中的单个字段。 | 2 | [VDescriptionsItem.md](./VDescriptionsItem.md) |
+| `VProgress` | 展示任务或流程完成进度。 | 2 | [VProgress.md](./VProgress.md) |
+| `VStatistic` | 突出展示关键统计数值。 | 7 | [VStatistic.md](./VStatistic.md) |
+| `VTable` | 展示、选择、排序和分页处理结构化数据。 | 17 | [VTable.md](./VTable.md) |
+| `VTag` | 展示状态、分类或可移除关键词。 | 3 | [VTag.md](./VTag.md) |
+| `VTree` | 展示和选择层级数据。 | 9 | [VTree.md](./VTree.md) |
+
+## 导航 navigation（10）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VBreadcrumb` | 展示当前页面的层级导航路径。 | 2 | [VBreadcrumb.md](./VBreadcrumb.md) |
+| `VBreadcrumbItem` | 面包屑导航中的单个层级。 | 2 | [VBreadcrumbItem.md](./VBreadcrumbItem.md) |
+| `VDropdownMenu` | 下拉操作中的菜单容器。 | 0 | [VDropdownMenu.md](./VDropdownMenu.md) |
+| `VDropdownMenuItem` | 下拉菜单中的单个操作项。 | 1 | [VDropdownMenuItem.md](./VDropdownMenuItem.md) |
+| `VLink` | 页面导航或低强调文字操作。 | 6 | [VLink.md](./VLink.md) |
+| `VPagination` | 在分页数据集合之间导航。 | 9 | [VPagination.md](./VPagination.md) |
+| `VStep` | 步骤条中的单个步骤。 | 4 | [VStep.md](./VStep.md) |
+| `VSteps` | 展示多步骤流程的当前进度。 | 6 | [VSteps.md](./VSteps.md) |
+| `VTab` | 在同一区域切换多组内容。 | 3 | [VTab.md](./VTab.md) |
+| `VTabItem` | 标签页中的单个内容面板。 | 3 | [VTabItem.md](./VTabItem.md) |
+
+## 反馈 feedback（4）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VAlert` | 展示需要持续可见的状态或警告信息。 | 7 | [VAlert.md](./VAlert.md) |
+| `VEmpty` | 在集合或页面无数据时展示空状态。 | 3 | [VEmpty.md](./VEmpty.md) |
+| `VLoading` | 展示局部或全屏加载状态。 | 3 | [VLoading.md](./VLoading.md) |
+| `VSkeleton` | 在内容加载前展示结构占位。 | 5 | [VSkeleton.md](./VSkeleton.md) |
+
+## 浮层 overlay（5）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VDrawer` | 从视口边缘展开辅助任务面板。 | 11 | [VDrawer.md](./VDrawer.md) |
+| `VDropdown` | 在触发元素附近展开下拉操作面板。 | 2 | [VDropdown.md](./VDropdown.md) |
+| `VLayer` | 在模态浮层中承载需要用户处理的内容。 | 7 | [VLayer.md](./VLayer.md) |
+| `VPopover` | 在目标附近展示可交互的浮层内容。 | 10 | [VPopover.md](./VPopover.md) |
+| `VTooltip` | 为目标内容展示简短文字提示。 | 8 | [VTooltip.md](./VTooltip.md) |
+
+## 图标 icon（1）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VIcon` | 从统一 SVG 注册表渲染图标。 | 5 | [VIcon.md](./VIcon.md) |
+
+## 模板 template（1）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VTemplateEditor` | 可视化编辑并预览 Template DSL。 | 3 | [VTemplateEditor.md](./VTemplateEditor.md) |
+
+## 工具 utility（1）
+
+| 组件 | 描述 | Props 数 | 文档 |
+|---|---|---|---|
+| `VFullscreen` | 为指定元素提供全屏切换能力。 | 0 | [VFullscreen.md](./VFullscreen.md) |
+
+## 函数式 API（非组件）
+
+以下服务同样从 `@vima-tech/ui-admin` 导入，命令式调用，无需模板标签：
+
+| API | 说明 |
+|---|---|
+| `layer` | 轻量弹层服务，API 形状与 Layui layer 一致：`layer.msg()` / `layer.notify()` / `layer.confirm()` / `layer.load()` / `layer.close()` / `layer.closeAll()` |
+| `message` | 全局消息提示：`message.info/success/warning/error(content, duration?)` / `message.open(options)` / `message.closeAll()` |
+| `messageBox` | 模态对话框（Promise 风格）：`messageBox.alert/confirm/prompt(message, title?, options?)` → `Promise<'confirm'\|'cancel'\|'close'>` |
+| `getIconNames` | 返回全部已注册图标名列表 |
+| `hasIcon` | 判断指定图标名是否已注册 |
+| `iconSvgMarkup` | 返回指定图标的内联 SVG 字符串 |
+| `normalizeIconName` | 归一化图标名写法（别名/大小写） |
+| `registerIcon` | 注册自定义图标（名称 + SVG） |
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 ai-manifest.json，勿手改；由 vima-cli 仓库 scripts/gen-from-manifest.mjs 重新生成 -->
+
+# 图标名清单（ICONS.md）
+
+> `<VIcon name="…">` 的 `name` 只能取本清单中的值（含别名）；清单之外的名字渲染不出图标。
+> post-write hook 对 .vue 中的静态字面量图标名按同一 manifest 机检（契约 §14），
+> 动态绑定 `:name` 不在机检范围，取值同样必须落在本清单内。
+
+共 **85** 个图标。
+
+| 图标名 | 别名 | 分类 |
+|---|---|---|
+| `alert` | — | general |
+| `app` | — | general |
+| `arrow-down` | — | general |
+| `arrow-left` | — | general |
+| `arrow-right` | — | general |
+| `arrow-up` | — | general |
+| `bell` | — | general |
+| `building` | — | general |
+| `button` | — | general |
+| `calendar` | — | general |
+| `chart-bar` | — | general |
+| `check` | — | general |
+| `check-circle` | — | general |
+| `chevron-down` | `down`、`triangle-d` | general |
+| `chevron-left` | `left` | general |
+| `chevron-right` | `right` | general |
+| `chevron-up` | — | general |
+| `circle` | — | general |
+| `clock` | — | general |
+| `close` | — | general |
+| `cloud` | — | general |
+| `columns` | — | general |
+| `copy` | — | general |
+| `database` | — | general |
+| `divider` | — | general |
+| `download` | — | general |
+| `drag-handle` | — | general |
+| `edit` | — | general |
+| `external-link` | — | general |
+| `eye` | — | general |
+| `eye-off` | — | general |
+| `file` | — | general |
+| `file-text` | — | general |
+| `filter` | — | general |
+| `flask` | — | general |
+| `folder` | — | general |
+| `form` | — | general |
+| `fullscreen` | `screen-full` | general |
+| `fullscreen-exit` | `screen-restore` | general |
+| `heart` | — | general |
+| `help-circle` | — | general |
+| `home` | — | general |
+| `image` | — | general |
+| `info` | — | general |
+| `layout` | — | general |
+| `link` | — | general |
+| `list` | — | general |
+| `lock` | — | general |
+| `log-in` | — | general |
+| `log-out` | — | general |
+| `mail` | — | general |
+| `menu` | — | general |
+| `minus` | — | general |
+| `minus-circle` | — | general |
+| `monitor` | — | general |
+| `more-vertical` | — | general |
+| `package` | — | general |
+| `paperclip` | — | general |
+| `pause` | — | general |
+| `phone` | — | general |
+| `play` | — | general |
+| `plus` | `addition` | general |
+| `printer` | — | general |
+| `redo` | — | general |
+| `refresh` | — | general |
+| `save` | — | general |
+| `search` | — | general |
+| `server` | — | general |
+| `settings` | — | general |
+| `shield` | — | general |
+| `shield-check` | — | general |
+| `sort` | — | general |
+| `star` | — | general |
+| `table` | — | general |
+| `target` | — | general |
+| `text` | — | general |
+| `trash` | — | general |
+| `undo` | — | general |
+| `unlock` | — | general |
+| `upload` | — | general |
+| `user` | `username` | general |
+| `user-plus` | — | general |
+| `users` | — | general |
+| `zoom-in` | — | general |
+| `zoom-out` | — | general |
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VAlert
+
+展示需要持续可见的状态或警告信息。
+
+- 分类：`feedback`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `type` | `'info' \| 'success' \| 'warning' \| 'error'` | `info` | 否 | 提示语义类型 |
+| `title` | `string` | — | 否 | 提示标题 |
+| `description` | `string` | — | 否 | 补充说明 |
+| `closable` | `boolean` | `true` | 否 | 是否允许关闭 |
+| `showIcon` | `boolean` | `false` | 否 | 是否显示语义 SVG 图标 |
+| `center` | `boolean` | `false` | 否 | 内容是否居中 |
+| `closeText` | `string` | — | 否 | 自定义关闭文案 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `close` | `void` |  |
+
+## Slots
+
+- `description`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VAlert type="info" />
+</template>
+
+<script setup lang="ts">
+import { VAlert } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VAvatar
+
+展示用户或实体头像。
+
+- 分类：`basic`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `size` | `string \| number` | `md` | 否 | 预设尺寸或像素值 |
+| `shape` | `'circle' \| 'square'` | `circle` | 否 | 圆形或方形 |
+| `src` | `string` | — | 否 | 头像图片地址 |
+| `icon` | `string` | — | 否 | 无图片时的图标名 |
+| `text` | `string` | — | 否 | 无图片时的文字 |
+| `color` | `string` | — | 否 | 文字头像背景色 |
+| `fit` | `'fill' \| 'contain' \| 'cover' \| 'none' \| 'scale-down'` | `cover` | 否 | 图片 object-fit 方式 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VAvatar shape="circle" />
+</template>
+
+<script setup lang="ts">
+import { VAvatar } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VAvatarGroup
+
+紧凑展示一组头像。
+
+- 分类：`basic`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `max` | `number \| string` | `0` | 否 | 最多展示的头像数，0 表示不限 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VAvatarGroup />
+</template>
+
+<script setup lang="ts">
+import { VAvatarGroup } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VBadge
+
+在内容旁展示数量或状态徽标。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `value` | `string \| number` | — | 否 | 徽标数值或文字 |
+| `max` | `string \| number` | `99` | 否 | 数值上限，超出后显示加号 |
+| `dot` | `boolean` | `false` | 否 | 是否仅显示圆点 |
+| `type` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | `danger` | 否 | 徽标语义类型 |
+| `showZero` | `boolean` | `false` | 否 | 值为零时是否显示 |
+| `hidden` | `boolean` | `false` | 否 | 是否隐藏徽标 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VBadge type="danger" />
+</template>
+
+<script setup lang="ts">
+import { VBadge } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VBody
+
+后台布局的主体区域。
+
+- 分类：`layout`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VBody />
+</template>
+
+<script setup lang="ts">
+import { VBody } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VBreadcrumb
+
+展示当前页面的层级导航路径。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `separator` | `string` | `/` | 否 | 层级分隔文字 |
+| `separatorIcon` | `string` | — | 否 | 层级分隔 SVG 图标名 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VBreadcrumb />
+</template>
+
+<script setup lang="ts">
+import { VBreadcrumb } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VBreadcrumbItem
+
+面包屑导航中的单个层级。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `to` | `string \| object` | — | 否 | 目标路由或地址 |
+| `replace` | `boolean` | `false` | 否 | 导航时是否替换历史记录 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VBreadcrumbItem />
+</template>
+
+<script setup lang="ts">
+import { VBreadcrumbItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VButton
+
+触发操作或提交的按钮。
+
+- 分类：`basic`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `type` | `string` | `default` | 否 | 按钮语义与视觉类型 |
+| `size` | `string` | `md` | 否 | 按钮尺寸 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `loading` | `boolean` | `false` | 否 | 是否显示加载态 |
+| `nativeType` | `'button' \| 'submit' \| 'reset'` | `button` | 否 | 原生 button 类型 |
+| `borderStyle` | `string` | — | 否 | 边框样式，none 为无边框 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VButton nativeType="button" />
+</template>
+
+<script setup lang="ts">
+import { VButton } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VButtonGroup
+
+将相关按钮组织成连续操作组。
+
+- 分类：`basic`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VButtonGroup />
+</template>
+
+<script setup lang="ts">
+import { VButtonGroup } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCard
+
+承载后台页面信息区块的卡片。
+
+- 分类：`layout`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `title` | `string` | — | 否 | 卡片标题 |
+| `shadow` | `'always' \| 'hover' \| 'never'` | `always` | 否 | 阴影显示策略 |
+
+## Slots
+
+- `default`
+- `extra`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VCard shadow="always" />
+</template>
+
+<script setup lang="ts">
+import { VCard } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCheckbox
+
+在有限选项中切换单个多选状态。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | `false` | 否 | 独立使用时的当前值 |
+| `value` | `CheckboxValue` | — | 否 | 在复选框组中的选项值 |
+| `label` | `string` | — | 否 | 选项显示文字 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `indeterminate` | `boolean` | `false` | 否 | 是否显示半选态 |
+| `trueValue` | `unknown` | `true` | 否 | 选中时写入的值 |
+| `falseValue` | `unknown` | `false` | 否 | 未选中时写入的值 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `PropValue` | 更新后的独立复选值 |
+| `change` | `PropValue` | 值变更 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VCheckbox />
+</template>
+
+<script setup lang="ts">
+import { VCheckbox } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCheckboxGroup
+
+管理一组多选项的值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `CheckboxValue[]` | `() => []` | 否 | 当前选中的值数组 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用整组 |
+| `options` | `CheckboxOption[]` | `() => []` | 否 | 可选项列表 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `CheckboxValue[]` |  |
+| `change` | `CheckboxValue[]` |  |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VCheckboxGroup />
+</template>
+
+<script setup lang="ts">
+import { VCheckboxGroup } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCol
+
+24 栅格中的列。
+
+- 分类：`layout`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `md` | `number \| string` | `24` | 否 | 中等屏幕默认占用栅格数 |
+| `span` | `number \| string` | `undefined` | 否 | 占用的 24 栅格数 |
+| `offset` | `number \| string` | `0` | 否 | 左侧偏移栅格数 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VCol />
+</template>
+
+<script setup lang="ts">
+import { VCol } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCollapse
+
+管理一组可折叠内容。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | — | 否 | 当前展开项键或键数组 |
+| `accordion` | `boolean` | `false` | 否 | 是否手风琴单开 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| number` | 更新后的展开项键 |
+| `change` | `string \| number` | 展开项变更 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VCollapse />
+</template>
+
+<script setup lang="ts">
+import { VCollapse } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCollapseItem
+
+折叠面板中的单个内容项。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `id` | `unknown` | — | 否 | 内容项唯一键 |
+| `title` | `string` | — | 否 | 内容项标题 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VCollapseItem />
+</template>
+
+<script setup lang="ts">
+import { VCollapseItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VColumnSetting
+
+配置表格列的显示、隐藏与顺序。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `source` | `ColumnLike[]` | `() => []` | 否 | 全量列定义，顺序即默认顺序 |
+| `modelValue` | `ColumnLike[]` | `() => []` | 否 | v-model：生效的列，直接喂给 VTable 的 columns |
+| `storageKey` | `string` | — | 否 | 记忆用的键，同一张表在不同页面要用不同的键。留空 = 不落盘 |
+| `label` | `string` | `列设置` | 否 | 触发按钮文案 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止调整列 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `ColumnLike[]` |  |
+| `change` | `ColumnLike[]` |  |
+
+## 用法
+
+```vue
+<template>
+  <VColumnSetting />
+</template>
+
+<script setup lang="ts">
+import { VColumnSetting } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VContainer
+
+页面内容容器。
+
+- 分类：`layout`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VContainer />
+</template>
+
+<script setup lang="ts">
+import { VContainer } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VCountdown
+
+展示到目标时间的倒计时。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `value` | `number \| Date` | `0` | 否 | 目标时间戳或 Date |
+| `format` | `string` | `HH:mm:ss` | 否 | 倒计时格式模板 |
+| `title` | `string` | — | 否 | 指标标题 |
+| `prefix` | `string` | — | 否 | 倒计时前缀 |
+| `suffix` | `string` | — | 否 | 倒计时后缀 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `finish` | `void` | 倒计时结束 |
+| `change` | `number` | 剩余毫秒数变更 |
+
+## Slots
+
+- `default`
+- `prefix`
+- `suffix`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VCountdown />
+</template>
+
+<script setup lang="ts">
+import { VCountdown } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDatePicker
+
+输入单个日期、时间或日期范围。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | — | 否 | 当前日期、时间或范围值。 |
+| `type` | `string` | `date` | 否 | 日期选择精度。 |
+| `placeholder` | `string` | — | 否 | 未选择时显示的提示。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止选择。 |
+| `required` | `boolean` | `false` | 否 | 是否向表单语义声明必填。 |
+| `range` | `boolean` | `false` | 否 | 是否选择起止范围。 |
+| `allowClear` | `boolean` | `false` | 否 | 是否允许清空当前值。 |
+| `min` | `string` | — | 否 | 可选择的最小日期。 |
+| `max` | `string` | — | 否 | 可选择的最大日期。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| string[]` | 更新后的日期值 |
+| `change` | `string \| string[]` | 日期变更 |
+
+## 用法
+
+```vue
+<template>
+  <VDatePicker />
+</template>
+
+<script setup lang="ts">
+import { VDatePicker } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDescriptions
+
+按分组网格展示实体详情。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `title` | `string` | — | 否 | 详情区域标题 |
+| `column` | `number \| string` | `3` | 否 | 每行列数 |
+| `border` | `boolean` | `false` | 否 | 是否显示边框 |
+| `labelWidth` | `number \| string` | — | 否 | 标签列宽度 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDescriptions />
+</template>
+
+<script setup lang="ts">
+import { VDescriptions } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDescriptionsItem
+
+详情描述列表中的单个字段。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `label` | `string` | — | 否 | 字段标签 |
+| `span` | `number \| string` | `1` | 否 | 跨越的列数 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDescriptionsItem />
+</template>
+
+<script setup lang="ts">
+import { VDescriptionsItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDivider
+
+分隔相邻内容区块。
+
+- 分类：`layout`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `content` | `string` | — | 否 | 分隔线文字 |
+| `theme` | `string` | — | 否 | 分隔线颜色 |
+| `direction` | `'horizontal' \| 'vertical'` | `horizontal` | 否 | 水平或垂直方向 |
+| `contentPosition` | `'left' \| 'center' \| 'right'` | `center` | 否 | 文字对齐位置 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDivider direction="horizontal" />
+</template>
+
+<script setup lang="ts">
+import { VDivider } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDrawer
+
+从视口边缘展开辅助任务面板。
+
+- 分类：`overlay`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `boolean` | `false` | 否 | 抽屉是否可见 |
+| `title` | `string` | — | 否 | 抽屉标题 |
+| `direction` | `'rtl' \| 'ltr' \| 'ttb' \| 'btt'` | `rtl` | 否 | 抽屉展开方向 |
+| `size` | `string \| number` | `30%` | 否 | 抽屉宽度或高度 |
+| `modal` | `boolean` | `true` | 否 | 是否显示遮罩 |
+| `showClose` | `boolean` | `true` | 否 | 是否显示关闭按钮 |
+| `closeOnClickModal` | `boolean` | `false` | 否 | 点击遮罩是否关闭 |
+| `closeOnPressEscape` | `boolean` | `true` | 否 | 按 Escape 是否关闭 |
+| `beforeClose` | `(done: () => void) => void` | `undefined` | 否 | 关闭前钩子 |
+| `destroyOnClose` | `boolean` | `false` | 否 | 关闭后是否销毁内容 |
+| `withHeader` | `boolean` | `true` | 否 | 是否渲染头部 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `boolean` |  |
+| `open` | `void` |  |
+| `close` | `void` |  |
+| `opened` | `void` |  |
+| `closed` | `void` |  |
+
+## Slots
+
+- `default`
+- `footer`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VDrawer direction="rtl" />
+</template>
+
+<script setup lang="ts">
+import { VDrawer } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDropdown
+
+<!-- 上游注意：api.generated.json 把内部分叉备注抽成了 VDropdown 的描述（源头在组件源码
+     文件注释），下方描述为手工替换；上游修复抽取源后按生成结果覆盖本段即可。 -->
+
+在触发元素附近展开下拉操作面板。
+
+- 分类：`overlay`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `visible` | `boolean` | `undefined` | 否 | 受控的面板可见状态 |
+| `placement` | `string` | `bottom-start` | 否 | 面板相对触发器的位置 |
+
+## Slots
+
+- `content`
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDropdown />
+</template>
+
+<script setup lang="ts">
+import { VDropdown } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDropdownMenu
+
+下拉操作中的菜单容器。
+
+- 分类：`navigation`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDropdownMenu />
+</template>
+
+<script setup lang="ts">
+import { VDropdownMenu } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VDropdownMenuItem
+
+下拉菜单中的单个操作项。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `disabled` | `boolean` | `false` | 否 | 是否禁用该菜单项 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VDropdownMenuItem />
+</template>
+
+<script setup lang="ts">
+import { VDropdownMenuItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VEmpty
+
+在集合或页面无数据时展示空状态。
+
+- 分类：`feedback`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `description` | `string` | `暂无数据` | 否 | 空状态说明 |
+| `image` | `string` | — | 否 | 自定义图片地址 |
+| `imageSize` | `number \| string` | `0` | 否 | 图片尺寸 |
+
+## Slots
+
+- `default`
+- `footer`
+- `image`
+
+## 用法
+
+```vue
+<template>
+  <VEmpty />
+</template>
+
+<script setup lang="ts">
+import { VEmpty } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VForm
+
+管理表单模型、规则和字段校验。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `model` | `Record<string, unknown>` | `() => ({})` | 否 | 表单响应式数据模型 |
+| `rules` | `Record<string, Array<Record<string, unknown>>>` | `() => ({})` | 否 | 按字段名组织的校验规则 |
+| `required` | `boolean` | `false` | 否 | 是否将全部绑定字段标记为必填 |
+| `pane` | `boolean` | `false` | 否 | 是否使用带分隔边框的面板样式 |
+| `labelWidth` | `string \| number` | `100` | 否 | 水平布局标签宽度 |
+| `layout` | `'horizontal' \| 'vertical' \| 'inline'` | `horizontal` | 否 | 表单字段排列方式 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VForm layout="horizontal" />
+</template>
+
+<script setup lang="ts">
+import { VForm } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VFormItem
+
+组合字段标签、控件和校验反馈。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `label` | `string` | — | 否 | 展示在控件旁的字段名称 |
+| `labelWidth` | `string \| number` | `undefined` | 否 | 覆盖当前字段的标签宽度 |
+| `prop` | `string` | — | 否 | 字段在表单模型中的键 |
+| `required` | `boolean` | `false` | 否 | 是否显式要求当前字段必填 |
+| `mode` | `string` | — | 否 | 字段展示模式 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VFormItem />
+</template>
+
+<script setup lang="ts">
+import { VFormItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VFullscreen
+
+为指定元素提供全屏切换能力。
+
+- 分类：`utility`
+
+## Props
+
+（无 props）
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `fullscreenchange` | `boolean` |  |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VFullscreen />
+</template>
+
+<script setup lang="ts">
+import { VFullscreen } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VHeader
+
+后台布局的顶部区域。
+
+- 分类：`layout`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VHeader />
+</template>
+
+<script setup lang="ts">
+import { VHeader } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VIcon
+
+从统一 SVG 注册表渲染图标。
+
+- 分类：`icon`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `type` | `string` | — | 否 | 兼容旧调用的图标名或别名 |
+| `name` | `string` | — | 否 | 注册表中的规范图标名 |
+| `color` | `string` | — | 否 | 图标颜色，默认继承 currentColor |
+| `size` | `number \| string` | `1em` | 否 | 图标尺寸 |
+| `title` | `string` | — | 否 | 无障碍标题，提供后图标不再隐藏 |
+
+## 用法
+
+```vue
+<template>
+  <VIcon />
+</template>
+
+<script setup lang="ts">
+import { VIcon } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VInput
+
+输入单行文本。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `string \| number \| boolean` | — | 否 | 当前输入值。 |
+| `type` | `string` | `text` | 否 | 原生输入类型。 |
+| `placeholder` | `string` | — | 否 | 无值时显示的输入提示。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止输入和交互。 |
+| `readonly` | `boolean` | `false` | 否 | 是否仅允许读取。 |
+| `required` | `boolean` | `false` | 否 | 是否向表单语义声明必填。 |
+| `prefixIcon` | `string` | — | 否 | 前缀图标 |
+| `suffixIcon` | `string` | — | 否 | 后缀图标 |
+| `prefix` | `string` | — | 否 | 前缀文字 |
+| `suffix` | `string` | — | 否 | 后缀文字 |
+| `clearable` | `boolean` | `false` | 否 | 是否可清空 |
+| `showPassword` | `boolean` | `false` | 否 | 是否显示密码切换（仅 type="password" 时有效） |
+| `rows` | `number \| string` | `undefined` | 否 | 多行输入模式下的可见行数。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| number \| boolean` |  |
+| `blur` | `FocusEvent` |  |
+| `change` | `string \| number \| boolean` |  |
+| `input` | `string` |  |
+| `clear` | `void` |  |
+| `focus` | `FocusEvent` |  |
+
+## Slots
+
+- `prefix`
+- `suffix`
+
+## 用法
+
+```vue
+<template>
+  <VInput />
+</template>
+
+<script setup lang="ts">
+import { VInput } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VInputNumber
+
+输入带范围约束的数值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `number` | `undefined` | 否 | 当前数值。 |
+| `min` | `number` | `undefined` | 否 | 允许输入的最小值。 |
+| `max` | `number` | `undefined` | 否 | 允许输入的最大值。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止输入和步进操作。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `number` |  |
+| `change` | `number` |  |
+
+## 用法
+
+```vue
+<template>
+  <VInputNumber />
+</template>
+
+<script setup lang="ts">
+import { VInputNumber } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VLayer
+
+在模态浮层中承载需要用户处理的内容。
+
+- 分类：`overlay`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `boolean` | `false` | 否 | 浮层是否可见 |
+| `title` | `string` | — | 否 | 浮层标题 |
+| `area` | `string \| number \| Array<string \| number>` | — | 否 | 面板宽高 |
+| `shadeClose` | `boolean` | `false` | 否 | 点击遮罩是否关闭 |
+| `closeBtn` | `boolean \| number \| string` | `true` | 否 | 是否显示关闭按钮 |
+| `loading` | `boolean` | `false` | 否 | 是否显示处理遮罩 |
+| `type` | `string \| number` | `1` | 否 | 兼容层类型 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `boolean` |  |
+| `close` | `void` |  |
+| `open` | `void` |  |
+
+## Slots
+
+- `default`
+- `footer`
+
+## 用法
+
+```vue
+<template>
+  <VLayer />
+</template>
+
+<script setup lang="ts">
+import { VLayer } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VLayout
+
+后台系统页面骨架的根布局。
+
+- 分类：`layout`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VLayout />
+</template>
+
+<script setup lang="ts">
+import { VLayout } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VLink
+
+页面导航或低强调文字操作。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `href` | `string` | — | 否 | 目标地址 |
+| `target` | `'_self' \| '_blank' \| '_parent' \| '_top'` | `_self` | 否 | 链接打开方式 |
+| `type` | `string` | `default` | 否 | 链接语义类型 |
+| `underline` | `boolean` | `false` | 否 | 悬停时是否显示下划线 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `download` | `boolean \| string` | `false` | 否 | 是否作为下载链接 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `click` | `MouseEvent` |  |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VLink target="_self" />
+</template>
+
+<script setup lang="ts">
+import { VLink } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VLoading
+
+展示局部或全屏加载状态。
+
+- 分类：`feedback`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `loading` | `boolean` | `false` | 否 | 是否显示加载遮罩 |
+| `text` | `string` | — | 否 | 遮罩上的文案，留空则只有转圈 |
+| `fullscreen` | `boolean` | `false` | 否 | 铺满视口而不是包裹的内容区。此时组件本身不需要有默认插槽 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VLoading />
+</template>
+
+<script setup lang="ts">
+import { VLoading } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VPagination
+
+在分页数据集合之间导航。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `current` | `number` | `1` | 否 | 当前页码 |
+| `total` | `number` | `0` | 否 | 数据总条数 |
+| `pageSize` | `number` | `10` | 否 | 每页条数 |
+| `pageSizes` | `number[]` | `() => [10, 20, 30, 50, 100]` | 否 | 可选每页条数 |
+| `layout` | `string` | `prev, pager, next, jumper, total` | 否 | 分页子控件布局 |
+| `pagerCount` | `number` | `7` | 否 | 最多显示的页码按钮数 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `hideOnSinglePage` | `boolean` | `false` | 否 | 单页时是否隐藏 |
+| `background` | `boolean` | `false` | 否 | 页码按钮是否有背景 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:current` | `number` | 更新后的页码 |
+| `update:pageSize` | `number` | 更新后的每页条数 |
+| `change` | `[number, number]` | 页码和每页条数变更 |
+| `sizeChange` | `number` | 每页条数变更 |
+
+## 用法
+
+```vue
+<template>
+  <VPagination />
+</template>
+
+<script setup lang="ts">
+import { VPagination } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VPopover
+
+在目标附近展示可交互的浮层内容。
+
+- 分类：`overlay`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `title` | `string` | — | 否 | 浮层标题 |
+| `content` | `string` | — | 否 | 浮层正文 |
+| `placement` | `TooltipPlacement` | `bottom` | 否 | 浮层相对目标的位置 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `trigger` | `'hover' \| 'click' \| 'focus'` | `click` | 否 | 触发方式 |
+| `width` | `string \| number` | — | 否 | 浮层宽度 |
+| `showAfter` | `number` | `0` | 否 | 显示延迟毫秒数 |
+| `hideAfter` | `number` | `200` | 否 | 隐藏延迟毫秒数 |
+| `enterable` | `boolean` | `true` | 否 | 鼠标是否可进入浮层 |
+| `popperClass` | `string` | — | 否 | 浮层附加类名 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `show` | `void` |  |
+| `hide` | `void` |  |
+
+## Slots
+
+- `content`
+- `default`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VPopover trigger="click" />
+</template>
+
+<script setup lang="ts">
+import { VPopover } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VProgress
+
+展示任务或流程完成进度。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `percent` | `number` | `0` | 否 | 完成百分比，范围 0–100 |
+| `status` | `string` | — | 否 | 进度状态样式 |
+
+## 用法
+
+```vue
+<template>
+  <VProgress />
+</template>
+
+<script setup lang="ts">
+import { VProgress } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VRadio
+
+在有限选项中选择一个值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `value` | `unknown` | — | 否 | 当前单选项代表的值。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止选择当前项。 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VRadio />
+</template>
+
+<script setup lang="ts">
+import { VRadio } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VRadioGroup
+
+管理一组互斥单选项的值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | — | 否 | 当前选中值。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止组内所有选项。 |
+| `options` | `Array<{ label: string; value: unknown; disabled?: boolean }>` | `() => []` | 否 | 无需插槽时使用的结构化选项。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| number \| boolean` | 更新后的单选值 |
+| `change` | `string \| number \| boolean` | 单选变更 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VRadioGroup />
+</template>
+
+<script setup lang="ts">
+import { VRadioGroup } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VRow
+
+24 栅格中的行容器。
+
+- 分类：`layout`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `gutter` | `number \| string` | `12` | 否 | 列间距（像素） |
+| `justify` | `'start' \| 'center' \| 'end' \| 'space-between' \| 'space-around'` | `start` | 否 | 主轴对齐方式 |
+| `align` | `'top' \| 'middle' \| 'bottom'` | `top` | 否 | 交叉轴对齐方式 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VRow justify="start" />
+</template>
+
+<script setup lang="ts">
+import { VRow } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSelect
+
+从有限选项中选择单值或多值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | — | 否 | 当前选中值；多选模式使用数组。 |
+| `placeholder` | `string` | `请选择` | 否 | 未选择时显示的提示。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止选择。 |
+| `multiple` | `boolean` | `false` | 否 | 是否允许选择多个值。 |
+| `clearable` | `boolean` | `false` | 否 | 是否提供清空入口。 |
+| `required` | `boolean` | `false` | 否 | 是否向表单语义声明必填。 |
+| `showSearch` | `boolean` | `false` | 否 | 是否强制显示选项检索框。 |
+| `searchPlaceholder` | `string` | — | 否 | 选项检索框的提示。 |
+| `dropdownMinWidth` | `number` | `0` | 否 | 下拉面板最小宽度。 |
+| `dropdownMaxWidth` | `number` | `400` | 否 | 下拉面板最大宽度。 |
+| `dropdownAlignToParent` | `boolean` | `false` | 否 | 是否将下拉面板右边缘与父元素对齐。 |
+| `autoWidth` | `boolean` | `true` | 否 | 下拉宽度是否自动适应内容 |
+| `items` | `Array<Record<string, unknown>>` | `() => []` | 否 | 兼容旧接口的选项集合。 |
+| `options` | `Array<Record<string, unknown>>` | `() => []` | 否 | 结构化选项集合。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| number \| Array<string \| number> \| null` | 更新后的选择值 |
+| `change` | `string \| number \| Array<string \| number> \| null` | 选择变更 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VSelect />
+</template>
+
+<script setup lang="ts">
+import { VSelect } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSelectOption
+
+声明 VSelect 的插槽式选项。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `value` | `unknown` | — | 否 | 选项提交值 |
+| `label` | `string \| number` | — | 否 | 选项显示文字 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用该选项 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VSelectOption />
+</template>
+
+<script setup lang="ts">
+import { VSelectOption } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSide
+
+后台布局的侧边区域。
+
+- 分类：`layout`
+
+## Props
+
+（无 props）
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VSide />
+</template>
+
+<script setup lang="ts">
+import { VSide } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSkeleton
+
+在内容加载前展示结构占位。
+
+- 分类：`feedback`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `loading` | `boolean` | `false` | 否 | 是否显示骨架而非真实内容 |
+| `type` | `SkeletonType` | `text` | 否 | 骨架的内容形态 |
+| `rows` | `number \| string` | `3` | 否 | 正文行数 / 表格行数 |
+| `columns` | `number \| string` | `4` | 否 | 表格骨架的列数 |
+| `animated` | `boolean` | `true` | 否 | 关掉扫光动画（长列表里几十个骨架同时扫光会很吵） |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VSkeleton />
+</template>
+
+<script setup lang="ts">
+import { VSkeleton } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VStatistic
+
+突出展示关键统计数值。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `value` | `number \| string` | `0` | 否 | 统计值 |
+| `title` | `string` | — | 否 | 指标标题 |
+| `precision` | `number` | `undefined` | 否 | 小数位数 |
+| `prefix` | `string` | — | 否 | 数值前缀 |
+| `suffix` | `string` | — | 否 | 数值后缀 |
+| `valueStyle` | `object` | `() => ({})` | 否 | 数值区域样式 |
+| `groupSeparator` | `boolean` | `false` | 否 | 千位分隔符 |
+
+## Slots
+
+- `default`
+- `prefix`
+- `suffix`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VStatistic />
+</template>
+
+<script setup lang="ts">
+import { VStatistic } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VStep
+
+步骤条中的单个步骤。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `title` | `string` | — | 否 | 步骤标题 |
+| `description` | `string` | — | 否 | 步骤说明 |
+| `icon` | `string` | — | 否 | 步骤 SVG 图标名 |
+| `status` | `'wait' \| 'process' \| 'finish' \| 'error' \| 'success'` | — | 否 | 覆盖自动计算的状态 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VStep status="wait" />
+</template>
+
+<script setup lang="ts">
+import { VStep } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSteps
+
+展示多步骤流程的当前进度。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `active` | `number` | `0` | 否 | 当前步骤索引 |
+| `direction` | `'horizontal' \| 'vertical'` | `horizontal` | 否 | 排列方向 |
+| `processStatus` | `'wait' \| 'process' \| 'finish' \| 'error' \| 'success'` | `process` | 否 | 当前步骤状态 |
+| `finishStatus` | `'wait' \| 'process' \| 'finish' \| 'error' \| 'success'` | `finish` | 否 | 已完成步骤状态 |
+| `alignCenter` | `boolean` | `false` | 否 | 是否居中对齐 |
+| `simple` | `boolean` | `false` | 否 | 是否使用简洁模式 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `change` | `number` | 点击的步骤索引 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VSteps direction="horizontal" />
+</template>
+
+<script setup lang="ts">
+import { VSteps } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VSwitch
+
+在两个互斥状态之间切换。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `boolean \| string \| number` | `false` | 否 | 当前开关值。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止切换。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `boolean \| string \| number` |  |
+| `change` | `boolean \| string \| number` |  |
+
+## 用法
+
+```vue
+<template>
+  <VSwitch />
+</template>
+
+<script setup lang="ts">
+import { VSwitch } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTab
+
+在同一区域切换多组内容。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown` | — | 否 | 当前激活的标签页键 |
+| `type` | `string` | — | 否 | 标签页视觉类型 |
+| `allowClose` | `boolean` | `false` | 否 | 是否允许关闭标签页 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string \| number` | 更新后的标签页键 |
+| `change` | `string \| number` | 标签页变更 |
+| `close` | `void` |  |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VTab />
+</template>
+
+<script setup lang="ts">
+import { VTab } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTabItem
+
+标签页中的单个内容面板。
+
+- 分类：`navigation`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `id` | `unknown` | — | 否 | 面板唯一键 |
+| `title` | `string` | — | 否 | 标签标题 |
+| `closable` | `boolean` | `false` | 否 | 该标签是否可关闭 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VTabItem />
+</template>
+
+<script setup lang="ts">
+import { VTabItem } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTable
+
+展示、选择、排序和分页处理结构化数据。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `columns` | `TableColumn[]` | `() => []` | 否 | 表格列定义。 |
+| `dataSource` | `RowData[]` | `() => []` | 否 | 当前展示的数据行。 |
+| `page` | `Record<string, any> \| false` | `false` | 否 | 分页配置；false 表示不展示内部分页。 |
+| `loading` | `boolean` | `false` | 否 | 是否展示加载状态。 |
+| `selectedKeys` | `unknown[]` | `() => []` | 否 | 当前选中行的唯一键集合。 |
+| `showCheckbox` | `boolean` | `false` | 否 | 是否展示行选择框。 |
+| `defaultToolbar` | `boolean` | `false` | 否 | 是否展示默认工具栏。 |
+| `height` | `string \| number` | — | 否 | 表格内容区高度。 |
+| `id` | `string` | `_id` | 否 | 行数据中的唯一键字段名。 |
+| `size` | `string` | `md` | 否 | 表格密度。 |
+| `rowClassName` | `string \| ((row: RowData, index: number) => string)` | — | 否 | 行类名或行类名计算函数。 |
+| `treeProps` | `Record<string, string>` | `() => ({})` | 否 | 树形数据的字段映射。 |
+| `defaultExpandAll` | `boolean` | `false` | 否 | 是否展开全部树节点；绑定响应式布尔值即可当「全部展开/全部折叠」开关用，单行展开态由表格自己维护。 |
+| `resize` | `boolean` | `false` | 否 | 是否允许拖动列边缘调整宽度。 |
+| `draggable` | `boolean` | `false` | 否 | 启用表头列拖拽排序 |
+| `exportAllData` | `RowData[]` | `undefined` | 否 | 全量数据，用于导出全部数据。如果提供此属性，导出时会使用此数据而非 dataSource |
+| `fetchAllData` | `() => Promise<RowData[]>` | `undefined` | 否 | 异步获取全量数据的函数，用于导出全部数据 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:selectedKeys` | `unknown[]` | 更新后的选中行键 |
+| `change` | `Record<string, unknown>` | 表格分页或查询状态变更 |
+| `sortChange` | `[string, 'asc' \| 'desc' \| '']` | 排序字段和方向 |
+| `columnOrderChange` | `[TableColumn[], { fromIndex: number; toIndex: number }]` | 列顺序变更 |
+
+## Slots
+
+- `rowDoubleClick`
+- `toolbar`
+
+## 用法
+
+```vue
+<template>
+  <VTable />
+</template>
+
+<script setup lang="ts">
+import { VTable } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTag
+
+展示状态、分类或可移除关键词。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `type` | `string` | `default` | 否 | 标签的语义色类型。 |
+| `closable` | `boolean` | `false` | 否 | 是否展示移除按钮。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止移除操作。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `close` | `void` |  |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VTag />
+</template>
+
+<script setup lang="ts">
+import { VTag } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTagInput
+
+输入和维护一组标签值。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `unknown[]` | `() => []` | 否 | 当前标签值集合。 |
+| `allowClear` | `boolean` | `false` | 否 | 是否允许清空全部标签。 |
+| `disabledInput` | `boolean` | `false` | 否 | 是否禁止新增标签但允许查看现有值。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止全部交互。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `unknown[]` |  |
+| `change` | `unknown[]` |  |
+
+## 用法
+
+```vue
+<template>
+  <VTagInput />
+</template>
+
+<script setup lang="ts">
+import { VTagInput } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTemplateEditor
+
+可视化编辑并预览 Template DSL。
+
+- 分类：`template`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `Template` | `—` | 是 | 被编辑的模板。编辑器内部持有副本，通过 update:modelValue 回吐 |
+| `readonly` | `boolean` | `false` | 否 | 只读模式：仍可浏览与选中，但不能改动 |
+| `categories` | `string[]` | `undefined` | 否 | 组件面板只显示这些分类名，不传则全部显示 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `Template` |  |
+| `save` | `Template` | 保存当前模板 |
+| `select` | `string[]` | 选中节点 ID 集合 |
+
+## 用法
+
+```vue
+<template>
+  <VTemplateEditor />
+</template>
+
+<script setup lang="ts">
+import { VTemplateEditor } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTextarea
+
+输入多行文本。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `string` | — | 否 | 当前多行文本值。 |
+| `placeholder` | `string` | — | 否 | 无值时显示的输入提示。 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁止输入。 |
+| `readonly` | `boolean` | `false` | 否 | 是否仅允许读取。 |
+| `rows` | `number \| string` | `3` | 否 | 默认可见行数。 |
+| `autosize` | `boolean \| object` | `false` | 否 | 是否根据内容自动调整高度。 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string` |  |
+| `change` | `string` |  |
+
+## 用法
+
+```vue
+<template>
+  <VTextarea />
+</template>
+
+<script setup lang="ts">
+import { VTextarea } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTimePicker
+
+输入或选择一天中的时间。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `modelValue` | `string` | — | 否 | HH:mm 格式的当前时间 |
+| `min` | `string` | — | 否 | 允许选择的最早时间 |
+| `max` | `string` | — | 否 | 允许选择的最晚时间 |
+| `step` | `number \| string` | `60` | 否 | 分钟步长 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用 |
+| `readonly` | `boolean` | `false` | 否 | 是否只读 |
+| `clearable` | `boolean` | `true` | 否 | 是否允许清空 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `string` |  |
+| `change` | `string` |  |
+| `focus` | `FocusEvent` |  |
+| `blur` | `FocusEvent` |  |
+| `clear` | `void` |  |
+
+## 用法
+
+```vue
+<template>
+  <VTimePicker />
+</template>
+
+<script setup lang="ts">
+import { VTimePicker } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTooltip
+
+为目标内容展示简短文字提示。
+
+- 分类：`overlay`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `content` | `string` | — | 否 | 提示文字 |
+| `placement` | `TooltipPlacement` | `top` | 否 | 提示相对目标的位置 |
+| `disabled` | `boolean` | `false` | 否 | 是否禁用提示 |
+| `trigger` | `'hover' \| 'click' \| 'focus'` | `hover` | 否 | 触发方式 |
+| `showAfter` | `number` | `0` | 否 | 显示延迟毫秒数 |
+| `hideAfter` | `number` | `200` | 否 | 隐藏延迟毫秒数 |
+| `effect` | `'dark' \| 'light'` | `dark` | 否 | 深色或浅色主题 |
+| `enterable` | `boolean` | `true` | 否 | 鼠标是否可进入提示层 |
+
+## Slots
+
+- `content`
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VTooltip trigger="hover" />
+</template>
+
+<script setup lang="ts">
+import { VTooltip } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VTree
+
+展示和选择层级数据。
+
+- 分类：`data`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `data` | `RowData[]` | `() => []` | 否 | 树节点数据 |
+| `checkedKeys` | `unknown[]` | `() => []` | 否 | 当前勾选的节点键 |
+| `selectedKey` | `unknown` | — | 否 | 当前选中的节点键 |
+| `showCheckbox` | `boolean` | `false` | 否 | 是否显示复选框 |
+| `showIcon` | `boolean` | `false` | 否 | 是否显示节点图标 |
+| `draggable` | `boolean` | `false` | 否 | 是否允许拖拽节点 |
+| `defaultExpandAll` | `boolean` | `false` | 否 | 是否默认展开全部节点 |
+| `expandedKeys` | `unknown[]` | `undefined` | 否 | 受控的已展开节点键 |
+| `replaceFields` | `Record<string, string>` | `() => ({})` | 否 | 自定义字段映射 |
+
+## Events
+
+| 事件名 | 回调参数 | 说明 |
+|---|---|---|
+| `update:checkedKeys` | `unknown[]` | 更新后的勾选键 |
+| `update:selectedKey` | `PropertyKey \| null` | 更新后的选中键 |
+| `update:expandedKeys` | `unknown[]` | 更新后的展开键 |
+| `check` | `[unknown[], Record<string, unknown>]` | 勾选状态变更 |
+| `select` | `RowData` | 节点选择 |
+| `nodeClick` | `[RowData, Record<string, unknown>, MouseEvent]` | 节点单击 |
+| `nodeDblclick` | `[RowData, Record<string, unknown>, MouseEvent]` | 节点双击 |
+| `nodeContextmenu` | `[RowData, Record<string, unknown>, MouseEvent]` | 节点上下文菜单 |
+| `expand` | `[boolean, RowData]` | 展开状态变更 |
+| `dragstart` | `[RowData, DragEvent]` | 开始拖拽 |
+| `dragover` | `[RowData, DragEvent]` | 拖拽经过节点 |
+| `drop` | `[RowData, RowData, string, DragEvent]` | 放置节点 |
+| `dragend` | `[RowData, DragEvent]` | 结束拖拽 |
+
+## Slots
+
+- `icon`
+- `leafIcon`
+- `operations`
+- `title`
+
+## 用法
+
+```vue
+<template>
+  <VTree />
+</template>
+
+<script setup lang="ts">
+import { VTree } from '@vima-tech/ui-admin';
+</script>
+```
+
+---
+
+<!-- 生成自 @vima-tech/ui-admin 0.1.0 api.generated.json，勿手改；随组件库版本更新由脚本重新生成 -->
+
+# VUpload
+
+选择文件并交由业务逻辑上传。
+
+- 分类：`form`
+
+## Props
+
+| 名称 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---|---|---|
+| `url` | `string` | — | 否 | 业务上传端点；组件本身只负责文件选择。 |
+| `accept` | `string` | — | 否 | 原生文件类型过滤表达式。 |
+| `accpet` | `string` | — | 否 | accept 的历史拼写兼容属性。 |
+| `multiple` | `boolean` | `false` | 否 | 是否允许一次选择多个文件。 |
+| `beforeUpload` | `(files: FileList \| File[]) => unknown` | `undefined` | 否 | 文件选择后的业务处理函数。 |
+
+## Slots
+
+- `default`
+
+## 用法
+
+```vue
+<template>
+  <VUpload />
+</template>
+
+<script setup lang="ts">
+import { VUpload } from '@vima-tech/ui-admin';
+</script>
+```

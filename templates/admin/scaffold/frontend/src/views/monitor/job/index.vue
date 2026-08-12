@@ -11,6 +11,11 @@ const tableData = ref<any[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增任务')
 
+// 接口只接受 name 一个筛选参数（见后端 JobController）
+const queryParams = reactive({
+  name: '',
+})
+
 const form = reactive({
   id: undefined as number | undefined,
   jobName: '',
@@ -31,8 +36,8 @@ const columns = [
   { key: 'jobKey', title: 'jobKey', width: 160 },
   { key: 'cron', title: 'cron 表达式', width: 140 },
   { key: 'status', title: '状态', width: 90, customSlot: 'status' },
-  { key: 'remark', title: '备注' },
-  { title: '操作', key: 'operator', width: 220, customSlot: 'operator' },
+  { key: 'remark', title: '备注', ellipsisTooltip: true },
+  { title: '操作', key: 'operator', customSlot: 'operator' },
 ]
 
 const resetForm = () => {
@@ -102,10 +107,15 @@ const handleSubmit = async () => {
   }
 }
 
+const handleReset = () => {
+  queryParams.name = ''
+  fetchData()
+}
+
 const fetchData = async () => {
   loading.value = true
   try {
-    const res: any = await getJobList()
+    const res: any = await getJobList(queryParams)
     // 兼容分页包装（records）与纯列表两种返回
     tableData.value = res.data?.records || res.data || []
   } catch (error) {
@@ -121,11 +131,27 @@ onMounted(fetchData)
 <template>
   <div class="vui-page">
     <VCard title="定时任务">
+      <VForm layout="inline" class="v-searchbar">
+        <VFormItem label="任务名称">
+          <VInput v-model="queryParams.name" placeholder="请输入任务名称" clearable @keyup.enter="fetchData" />
+        </VFormItem>
+        <VFormItem class="v-searchbar-actions">
+          <VButton type="primary" @click="fetchData">搜索</VButton>
+          <VButton @click="handleReset">重置</VButton>
+        </VFormItem>
+      </VForm>
+
       <div class="toolbar">
         <VButton v-auth="'monitor:job:add'" type="primary" @click="handleAdd">新增任务</VButton>
       </div>
 
-      <VTable :loading="loading" :data-source="tableData" :columns="columns">
+      <VEmpty v-if="!loading && !tableData.length" description="还没有配置定时任务">
+        <template #footer>
+          <VButton v-auth="'monitor:job:add'" type="primary" @click="handleAdd">新增任务</VButton>
+        </template>
+      </VEmpty>
+
+      <VTable v-else :loading="loading" :data-source="tableData" :columns="columns">
         <template #status="{ row }">
           <!-- 开关即 toggle：无 toggle 权限时禁用但仍可见状态 -->
           <VSwitch
@@ -135,9 +161,9 @@ onMounted(fetchData)
           />
         </template>
         <template #operator="{ row }">
-          <VButton v-auth="'monitor:job:edit'" size="small" @click="handleEdit(row)">编辑</VButton>
-          <VButton v-auth="'monitor:job:run'" size="small" @click="handleRun(row)">执行一次</VButton>
-          <VButton v-auth="'monitor:job:remove'" size="small" type="danger" @click="handleDelete(row)">删除</VButton>
+          <VButton v-auth="'monitor:job:edit'" size="sm" @click="handleEdit(row)">编辑</VButton>
+          <VButton v-auth="'monitor:job:run'" size="sm" @click="handleRun(row)">执行一次</VButton>
+          <VButton v-auth="'monitor:job:remove'" size="sm" type="danger" @click="handleDelete(row)">删除</VButton>
         </template>
       </VTable>
     </VCard>
@@ -172,20 +198,16 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 16px;
-}
-
 .form-tip {
   margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
+  color: var(--v-text-weak);
+  font-size: var(--v-font-xs);
   line-height: 1.5;
 }
 
 .form-tip-inline {
   margin-left: 8px;
-  font-size: 13px;
-  color: #606266;
+  color: var(--v-text-sub);
+  font-size: var(--v-font-small);
 }
 </style>

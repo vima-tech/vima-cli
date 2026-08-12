@@ -1,5 +1,10 @@
 # vima-cli — AI 开发脚手架
 
+[![CI](https://github.com/vima-tech/vima-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/vima-tech/vima-cli/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/%40vima-tech%2Fcli)](https://www.npmjs.com/package/@vima-tech/cli)
+[![node](https://img.shields.io/node/v/%40vima-tech%2Fcli)](package.json)
+[![license](https://img.shields.io/badge/license-MIT-blue)](package.json)
+
 **用自然语言沟通需求，依托 Claude Code 完成 需求拆解 → 规范生成 → 人机对齐评审 → 批次并行编码 → 机械验收 的全流程。**
 
 vima-cli 不是又一个 Agent——它是给 Claude Code 配的「宪法体系 + 确定性工具箱」：
@@ -8,7 +13,7 @@ vima-cli 不是又一个 Agent——它是给 Claude Code 配的「宪法体系 
 CLI 命令完成，**不留给 Agent 概率性行为**。
 
 - 需求真源：[docs/design/vima-cli-design-v2.md](docs/design/vima-cli-design-v2.md)（§N 引用格式）
-- 吸收自 PACT 的五项增补：[docs/design/v2.1-amendments.md](docs/design/v2.1-amendments.md)（A1–A5）
+- 设计增补 A1–A8：[docs/design/v2.1-amendments.md](docs/design/v2.1-amendments.md)（A1–A5 吸收自 PACT，A6–A7 吸收自 AI-First 评估，A8 吸收自市场对标）
 - 吸收溯源与资产移植映射：[docs/pact-absorption.md](docs/pact-absorption.md)
 - 内部实现契约（文件格式/接口/规则唯一权威）：[docs/internal-contracts.md](docs/internal-contracts.md)
 
@@ -43,14 +48,16 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 | `vima create <name> [-t <id>]` | 多模板起骨架（环境预检 + 变量替换 + git init） | 4=目录冲突/必需依赖缺失 |
 | `vima init` | 部署 Agent 工作环境（宪法/lifecycle/命令/角色/hooks/manifest） | 4=已初始化或 preview 模板 |
 | `vima upgrade [--dry-run]` | 升级 vima 生成物：三方比较，用户文件永不覆盖 | 改动过的受管文件出 `.vima-new` |
-| `vima validate [--artifact <p>]` | PLANNING 产物机械校验（19 条规则，零 token） | 2=有 error |
+| `vima validate [--artifact <p>]` | PLANNING 产物机械校验（契约 §8 全量规则，零 token） | 2=有 error |
 | `vima render-review [--check]` | spec 数据块 → 人类审计视图（单文件 HTML，四视图） | 2=四要素缺失/漂移 |
 | `vima render-prototype [--check]` | spec 数据块 → 线框原型 + prototype.manifest.json | 2=四要素缺失/漂移 |
 | `vima approve` | 用户评审的机械确认，写 tasksApproved 留痕 | 4=前置未满足/有 pendingConfirm |
 | `vima plan [--json]` | 任务 frontmatter → 拓扑批次计划（环检测） | 2=依赖环/缺依赖 |
-| `vima trace [--strict]` | 代码 `@vima <taskId>` 标注 ↔ 任务对账：抓**野生**与**虚报** | 2=野生（--strict 时含虚报） |
+| `vima trace [--strict] [--dir <p>]` | 代码 `@vima <taskId>` 标注 ↔ 任务对账：抓**野生**与**虚报** | 2=野生（--strict 时含虚报） |
 | `vima sync [--dry-run]` | frontmatter → taskStats + tasks/README.md 确定性重建 | — |
 | `vima doctor [--json]` | 九项体检（环境/宪法/状态一致性/对齐产物漂移） | 2=任一 ❌ |
+
+每个命令支持 `vima <command> --help` 或 `vima help <command>` 在终端查看完整用法与示例。
 
 ## 模板（A5 能力诚实分级）
 
@@ -85,7 +92,7 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 ## 开发
 
 ```bash
-npm test          # 128 单测 + 9 步端到端黄金链路（node --test，零依赖）
+npm test          # node --test：单测 + CLI 路由矩阵 + 端到端黄金链路（零依赖）
 node bin/vima.mjs help
 ```
 
@@ -93,4 +100,6 @@ node bin/vima.mjs help
 
 ## License
 
-MIT
+[MIT](LICENSE)。随包分发的 `templates/admin/scaffold/frontend/vendor/vima-ui-admin/` 为
+vima-tech 自有组件库（其 package.json 标注 UNLICENSED，不经 npm registry 单独发布），
+仅随模板落入生成项目使用；其对外授权口径以 vima-tech 官方声明为准。

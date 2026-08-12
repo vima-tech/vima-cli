@@ -7,6 +7,19 @@
 > 4. **补齐后端体系**：新增后端任务文件结构与 API 契约机制；
 > 5. **状态系统统一**：单一 lifecycle.json Schema、任务级状态机、单一写入者约定、断点续跑；
 > 6. **实现细节修正**：hooks 采用 Claude Code 真实配置格式，修正编号与重复内容。
+>
+> 当前修订：**v2.0.4**（标题中的 v2.0 指主版本线，逐次修订见 §21 版本历史与文末页脚）。
+
+## 目录
+
+§1 背景与目标 · §2 整体架构设计 · §3 多模式脚手架（vima create）· §4 框架脚手架（vima init）·
+§5 约束框架分层 · §6 需求沟通阶段（PLANNING）· §7 斜杠命令体系 · §8 UI 框架集成 ·
+§9 任务拆解设计 · §10 编码开发阶段（批次驱动调度）· §11 上下文管理 · §12 自然语言优先 ·
+§13 规范产物工程与人机对齐 · §14 生命周期状态机 · §15 完整项目结构 · §16 配置文件参考 ·
+§17 核心痛点与解决方案 · §18 工程落地关键建议 · §19 CLI 命令参考 · §20 故障排除 ·
+§21 版本历史 · 附录（A 术语 · B 参考 · C 贡献 · D 许可证）
+
+> 全仓引用格式 §N 对应本目录的章节序号（正文一级标题用中文数字，二级起用阿拉伯数字，如 §19.6 = 19.6 小节）。
 
 ---
 
@@ -197,7 +210,7 @@ vima create mobile-app --template h5
   "techStack": {
     "frontend": "Vue 3 + TypeScript + Vite",
     "backend": "Java 21 + Spring Boot + JPA",
-    "database": "PostgreSQL / MySQL / H2"
+    "database": "PostgreSQL + Redis（均为必需组件）"
   },
   "features": [
     "用户认证与授权",
@@ -236,7 +249,7 @@ vima create mobile-app --template h5
 > **实现裁定（v2.0，详见 internal-contracts §6.3）**：`scaffold` 为「目标位置 → 内置目录」
 > 映射，**只做 builtin 目录拷贝，不执行 `npm create` / `spring init` 外部命令**
 > （偏离 3.5 初稿，理由：确定性与离线可测）；`sharedDirs` 是共享层写保护面的
-> **单一真源**（guard-shared.sh 与全部红线文案与之同步）；`planning` 为资产键集
+> **单一真源**（guard-shared.mjs 与全部红线文案与之同步）；`planning` 为资产键集
 > （初稿的 `artifacts` 数组形态未采用）。
 
 ### 3.5 模板生成流程
@@ -384,13 +397,14 @@ templates/admin/
 | `.claude/settings.json` | 权限与 hooks 配置 | vima 管理 |
 | `.vima/manifest.json` | vima 生成物清单与版本标记（升级迁移用） | vima 管理 |
 
-### 4.2 核心能力：自动扫描 UI 组件库
+### 4.2 核心能力：预置 UI 组件库文档
 
-执行 `vima init` 时，自动扫描项目中已安装的 `@vima/ui` 组件库：
+执行 `vima init` 时，安装 `@vima-tech/ui-admin`（vendored）的整套组件文档
+（模板 ui-docs/ 预置，生成自组件库的 `api.generated.json` 与 `ai-manifest.json`，
+不在 init 期扫描 node_modules——确定性与离线可用优先）：
 
-- 提取组件的 TypeScript 类型定义
-- 提取 JSDoc 注释
-- 生成 `CAPABILITY.md` 组件索引
+- `CAPABILITY.md` 组件索引 + 每组件一份文档
+- `ICONS.md` 图标名清单（AI 写 `<VIcon name>` 的唯一依据，post-write hook 按同源 manifest 机检）
 - 生成每个组件的用法手册
 
 ### 4.3 两脚手架联动
@@ -532,9 +546,10 @@ CLI 升级后，项目中的 vima 生成物需要同步更新，但绝不能摧�
 
 ```markdown
 # 项目技术栈
-- 前端：Vue 3 + TypeScript + Vite + @vima/ui
+- 前端：Vue 3 + TypeScript + Vite + @vima-tech/ui-admin（vendored，组件已全局注册）
 - 后端：Java 21 + Spring Boot + JPA
 - 数据库：PostgreSQL
+- 缓存：Redis（登录态与权限缓存）
 
 # 核心编码约定
 - 组件使用 .vue 单文件组件，<script setup> 语法
@@ -777,7 +792,13 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
         dependsOn 引用的 taskId 都存在）；
         taskStats 与 frontmatter 对账。不通过 → 输出缺失清单，终止 /go，交用户处置
      b. **第二道：语义抽查（Verifier 子代理，只读）**——抽样 2-3 个模块，对照 docs/raw/
-        原文核对契约字段与 spec 章节是否遗漏/失真；发现问题回到 PLANNING 修补后重校验
+        原文核对契约字段与 spec 章节是否遗漏/失真；发现问题回到 PLANNING 修补后重校验。
+        **可选深模式：冷读门（A3）**——用户说「深度校验/深检/冷读」或 spec 首次进评审时，
+        派发零知识子代理（只读 spec + 契约，不读 raw/对话/代码），输出实现计划 +
+        「动工前必问、否则只能靠猜」的问题清单并逐条注明不问的后果；问题数 > 0 = 规格
+        存在漏洞（信息只在对话记忆未落盘）。清单交用户逐条裁定：规格遗漏 → 回 PLANNING
+        补进 spec/契约后重跑 vima validate；可推断项 → 对应 YAML 条目标 pendingConfirm
+        （approve 时统一裁定）
      c. 两道通过且 tasksApproved = true（由 vima approve 机械置位，见 19.10）→ 切换为 DEVELOPING 并记录时间
    - 若 currentPhase = DEVELOPING：进入断点续跑模式（见步骤 4）
 
@@ -825,11 +846,14 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
 ## 完成度计算（客观信号为主）
 
 1. **任务状态统计**：扫描 docs/tasks/*.md 的 frontmatter status 字段
-2. **构建信号**：前端 npm run build:check 与 lint 结果；后端 mvn -q compile 结果
+2. **构建信号**：前端 npm run build:check；后端 mvn -q compile 与 mvn -q test
+   （骨架自带 @SpringBootTest 上下文冒烟测试，A7——恒绿空门变真实信号）
 3. **验收清单**：统计各任务文件验收清单的勾选比例
 4. **追溯对账**：`vima trace` 的标注数 / 野生标注 / 虚报嫌疑（A1 代码级追溯）
 5. **任务点完成度**：聚合 .vima/reports/*-verifier.json 的 points——按钮·字段·连线级
    的真实完成度（v2.0.2，契约 §6.9）
+6. **运行时错误信号（A7，契约 §6.10）**：读取 .vima/reports/runtime-errors.jsonl（存在时）
+   ——条数、按 page 分组分布与最近条目摘要；不存在或为空记「无运行时错误上报」
 
 ## 深度检查（可选，仅当用户要求"深度检查"时）
 
@@ -848,7 +872,10 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
 ❌ 失败（1）：订单详情页（重试 2 次未通过，报告：docs/tasks/order-detail.md）
 ⛔ 阻塞（2）：全量测试、代码审计（依赖订单详情页）
 
-🔧 构建状态：tsc ✅ │ eslint ✅ │ mvn compile ✅
+🔧 构建状态：tsc+vite ✅ │ mvn compile ✅ │ mvn test ✅
+🔎 追溯对账：标注 15 │ 野生 0 │ 虚报嫌疑 1（详见 .vima/reports/trace.json）
+🎯 任务点：143/150 通过（按钮·字段·连线级，来自 verifier 逐点报告）
+🛑 运行时错误：3 条（/system/order 2 │ /system/device 1）
 
 建议：处理订单详情页失败项后，输入 /go 继续
 ```
@@ -871,7 +898,7 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
 
 - 页面结构以 spec 的 `vima:page` 数据块与线框原型为唯一真源（A2 单一真源裁定：
   任务文件不再手写组件树，V-TASK-05 机检）
-- Hook 自动拦截直接从底层库导入的行为（post-write.sh，§10.5 第三道防线）
+- Hook 自动拦截直接从底层库导入的行为（post-write.mjs，§10.5 第三道防线）
 - CLAUDE.md 强制要求使用前必须读取组件文档
 
 ### 8.4 组件文档按需引用
@@ -956,8 +983,8 @@ updatedAt: 2026-08-12T10:00:00Z
 ```markdown
 ## 维护须知
 - 此页面依赖设备管理 API（契约：docs/contracts/device-api.md）
-- 表格列定义在 src/pages/DeviceList/columns.ts
-- 搜索条件在 src/pages/DeviceList/SearchForm.vue
+- 表格列定义在 src/views/DeviceList/columns.ts
+- 搜索条件在 src/views/DeviceList/SearchForm.vue
 - 新增操作需在 columns.ts 中追加列定义
 ```
 
@@ -1075,9 +1102,9 @@ updatedAt: 2026-08-12T10:00:00Z
 1. 生成页面骨架（src/views/DeviceList/）
 2. 实现 API 层（src/api/device.ts，严格按契约）
 3. 实现类型定义（src/views/DeviceList/types.ts，共享类型引自契约）
-4. 实现组件层（对照本页 `vima:page` 数据块与原型，使用 @vima/ui，先读 CAPABILITY.md）
+4. 实现组件层（对照本页 `vima:page` 数据块与原型，组件已全局注册无需 import，先读 CAPABILITY.md）
 5. 实现业务逻辑（搜索、表单验证、错误处理）
-6. 自检：对照验收清单 + npm run build:check + npm run lint
+6. 自检：对照验收清单 + npm run build:check
 
 ## 约束重申
 - 禁止修改 src/components/、src/utils/、vendor/（共享层只读，同 template.json sharedDirs）
@@ -1274,7 +1301,7 @@ updatedAt: 2026-08-12T10:00:00Z
 | **第一道：分步执行** | Builder 子代理 | 每步有明确产出物，按固定顺序执行 |
 | **第二道：独立 Verifier** | Verifier 子代理 | 对照验收清单与契约逐项校验，只读权限。避免"自己检查自己"的偏差 |
 | **第三道：Hook 强制校验** | 自动钩子 | PreToolUse 拦截共享层写入；PostToolUse 检查导入规范、类型定义 |
-| **第四道：完成定义** | Builder 自检 | 验收清单全勾 + tsc/eslint 零错误（前端）或 mvn compile/test 通过（后端） |
+| **第四道：完成定义** | Builder 自检 | 验收清单全勾 + tsc/vite 构建零错误（前端）或 mvn compile/test 通过（后端，骨架自带上下文冒烟测试） |
 | **第五道：主 Agent 汇总** | 主 Agent | 收集所有结果，确认依赖满足、无遗漏任务，最终批准进入下一批 |
 
 ### 10.6 失败重试与降级
@@ -1320,7 +1347,7 @@ v1.0 曾设计"运行时监听 Builder 变更 → 暂停依赖方 → Git 合并
 
 ```
 机制：
-- .claude/hooks/guard-shared.sh 注册为 PreToolUse hook（matcher: Write|Edit）
+- .claude/hooks/guard-shared.mjs 注册为 PreToolUse hook（matcher: Write|Edit）
 - 默认拦截对共享目录的写入（exit 2 阻断并提示原因）；共享目录以
   template.json sharedDirs 为单一真源（v2.0 实现裁定，以骨架真实目录为准）：
     前端：src/components/、src/utils/、vendor/
@@ -1381,9 +1408,9 @@ model: sonnet
 1. 读取被指定的任务文件（docs/tasks/xxx.md）
 2. 若任务引用了契约文件，先读取契约
 3. 按任务文件中的分步指令逐步完成开发
-4. 使用 @vima/ui 组件前必须先读取 docs/ui-framework/CAPABILITY.md
+4. 组件已全局注册无需 import；使用组件前必须先读取 docs/ui-framework/CAPABILITY.md
 5. 每一步完成后对照验收清单自检
-6. 全部完成后执行自检命令（前端：build:check + lint；后端：mvn compile + test）
+6. 全部完成后执行自检命令（前端：build:check；后端：mvn compile + test）
 7. 将结构化结果摘要写入 .vima/reports/<taskId>-builder.json（落盘留痕，重试与审计的依据）
 8. 在返回消息中输出同一份 JSON 摘要
 
@@ -1700,7 +1727,7 @@ PLANNING 产物（spec / contracts / tasks）是后续全部开发的事实来�
 
 **边界**：
 
-- **保真度边界**：只表达功能与布局语义，不表达视觉层级与间距美学；视觉设计留给开发期 @vima/ui，也防止审核者被样式分心
+- **保真度边界**：只表达功能与布局语义，不表达视觉层级与间距美学；视觉设计留给开发期 @vima-tech/ui-admin，也防止审核者被样式分心
 - **交互边界**：仅三种交互，多步表单与复杂状态机不仿真，避免 YAML 填写成本陡增
 - **模板边界**：admin/h5 适用；无页面概念的模板（cli/script/lib）声明 `prototype: false`，渲染器跳过
 
@@ -1943,15 +1970,16 @@ my-project/
 │   │   ├── vima-verifier.md
 │   │   └── vima-planner.md
 │   └── hooks/                   ← 校验与写保护脚本
-│       ├── guard-shared.sh      ← PreToolUse：共享层写保护（令牌机制）
-│       └── post-write.sh        ← PostToolUse：导入规范/行数检查
+│       ├── guard-shared.mjs      ← PreToolUse：共享层写保护（令牌机制）
+│       └── post-write.mjs        ← PostToolUse：导入规范/行数检查
 ├── .vima/
 │   ├── manifest.json            ← vima 生成物清单与版本（升级迁移用）
 │   ├── reports/                 ← 子代理执行报告（Builder/Verifier JSON，审计与重试依据）
 │   └── shared-write-token       ← 共享层写令牌（仅共享层任务执行期间存在）
 ├── src/                         ← 前端代码（vima create 生成）
 │   ├── components/ utils/       ← 前端共享层（业务任务只读，同 template.json sharedDirs）
-│   ├── hooks/ types/            ← 业务层预留目录（.gitkeep 占位）
+│   ├── api/ router/ store/      ← 业务层基础设施（API 封装 / 路由 / Pinia 状态）
+│   ├── assets/ styles/ directives/ ← 静态资源 / 样式 / 自定义指令
 │   └── views/                   ← 业务层页面
 ├── vendor/                      ← vendored 组件库（共享层，业务任务只读）
 └── backend/                     ← 后端代码（vima create 生成）
@@ -1995,7 +2023,7 @@ my-project/
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/guard-shared.sh" }
+          { "type": "command", "command": "node .claude/hooks/guard-shared.mjs" }
         ]
       }
     ],
@@ -2003,7 +2031,7 @@ my-project/
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/post-write.sh" }
+          { "type": "command", "command": "node .claude/hooks/post-write.mjs" }
         ]
       }
     ]
@@ -2017,8 +2045,8 @@ my-project/
 
 | 脚本 | 触发 | 行为 |
 |------|------|------|
-| `guard-shared.sh` | 写入/编辑前 | 目标路径命中共享目录（template.json sharedDirs 同步）或 DEVELOPING 期的 docs/contracts/**，且 `.vima/shared-write-token` 不存在/过期 → exit 2 阻断并返回原因；否则放行 |
-| `post-write.sh` | 写入/编辑后 | src/ 业务代码检查底层库深路径导入与原生 confirm()/alert() → exit 2 反馈 Agent 修复；.vue 含 `data-page` 时按 prototype.manifest.json 机检区块/弹窗标记（13.3 机械对账）→ 不符 exit 2；CLAUDE.md 行数超限仅告警（exit 0） |
+| `guard-shared.mjs` | 写入/编辑前 | 目标路径命中共享目录（template.json sharedDirs 同步）或 DEVELOPING 期的 docs/contracts/**，且 `.vima/shared-write-token` 不存在/过期 → exit 2 阻断并返回原因；否则放行 |
+| `post-write.mjs` | 写入/编辑后 | src/ 业务代码检查底层库深路径导入、幻包名 `@vima/ui` 导入与原生 confirm()/alert() → exit 2 反馈 Agent 修复；带 `data-page` 的业务页机检 `.vui-page` 类、字面量色值（豁免 `--x:` 定义片段）、操作列手写 width（A6）；.vue 的 VIcon 静态图标名须 ∈ vendor ai-manifest icons（A6）；.vue 含 `data-page` 时按 prototype.manifest.json 机检区块/弹窗标记（13.3 机械对账）→ 不符 exit 2；CLAUDE.md 行数超限仅告警（exit 0）。hooks 为 node 直跑的 .mjs（跨平台，无 shell 包装） |
 
 > hook 通过 stdin 接收 JSON（含 `tool_input.file_path`），脚本据此判断目标路径。exit 2 表示阻断，stderr 内容会反馈给 Agent。
 
@@ -2276,6 +2304,29 @@ vima --version
 vima -v
 ```
 
+### 19.12 vima trace
+
+```bash
+vima trace [options]
+
+代码 @vima 标注与任务对账（A1 吸收自 PACT，契约 §10）：
+  - 扫描模板 codeDirs（无 manifest 时默认 src/ backend/src）中注释里的 @vima <taskId>
+  - 野生：代码标注的 taskId 不在任务清单（规格外代码）→ error，exit 2
+  - 虚报嫌疑：status=done 且 layer∈{shared,business} 的任务无任何代码标注 → warn（--strict 时 exit 2）
+  - 报告落盘 .vima/reports/trace.json；✅ 摘要走 stdout，❌/⚠️ 清单走 stderr（契约 §3）
+
+Options:
+  --strict         虚报嫌疑也非零退出
+  --dir <path>     在 codeDirs 之外追加扫描目录（可重复）
+
+Examples:
+  vima trace
+  vima trace --strict
+  vima trace --dir packages/shared
+```
+
+> 各命令均支持 `vima <command> --help` 与 `vima help <command>` 在终端查看本节用法（契约 §3 顶层路由）。
+
 ---
 
 ## 二十、故障排除
@@ -2347,6 +2398,67 @@ cat .vima/shared-write-token 2>/dev/null || echo "无令牌（共享层写保护
 ---
 
 ## 二十一、版本历史
+
+### v2.0.5 (2026-08-12) 市场对标采纳（增补项 A8 落地）
+
+依 docs/design/ai-scaffold-benchmarks.md（20+ 同类项目对标）采纳清单的定向落地：
+
+- **`vima context <taskId>`**：任务开工上下文确定性打包（任务原文/契约/spec 页面块/
+  按受限词表映射的组件文档切片/编码规范 → `.vima/context/<taskId>.md`，契约 §6.11），
+  stdout 分节字节计量，`--budget` 超限 CONTEXT_BUDGET exit 2——上下文预算首次成为
+  机检项（市场三重收敛：BMAD story 胶囊 / CCPM 摘要防火墙 / Agent OS 索引层；
+  预算机检为全行业空白）。/go 派发前打包，Builder 以包为第一必读
+- **任务 `conflictsWith` 字段**（契约 §6.1，吸收自 CCPM）：声明式冲突 → plan 层内
+  贪心首适应切批保证不同批（PLAN_CONFLICT / V-TASK-04 校验引用），补文件所有权
+  模型的「两任务合法改同一文件」盲区
+- **验收词汇补 waived**（契约 §6.9，吸收自 BMAD gate 词汇表）：豁免须用户裁定 +
+  带 reason 落盘，/check 按 通过/豁免/未过 三分计数——豁免不再只存在于对话
+- **AGENTS.md 跨工具兼容**：init 安装 managed 指针文件（真源仍是 CLAUDE.md），
+  供 Cursor/Codex 等 AGENTS.md 标准（60k+ 仓库、27+ 工具）工具消费
+- **图标机检升级为纠错**（吸收自 v0）：拦截杜撰图标名时按编辑距离给前 3 近似候选
+- **ui-docs 全量档**：gen 脚本追加 llms-full.txt（llms.txt 多档分级思想）
+
+### v2.0.4 (2026-08-12) 工程正式度收口（精致度审计落地）
+
+依全仓精致度/正式度审计结论的定向收口（业务语义不变）：
+
+- **CLI 帮助面**：11 个子命令全量接通 `--help` / `vima help <command>`（§19 文案落地，
+  选项以实现为唯一真源）；§19 补 19.12 trace 条目；parseArgs 英文报错统一中文化；
+  未知命令改为一行报错 + 提示；USAGE 错误追加 `--help` 提示行；顶层 help 标注模板成熟度（A5）
+- **输出流向收口（契约 §3）**：失败诊断与警告统一走 stderr（validate/trace/approve/create/init），
+  重定向 stdout 不再吞错误；非 VimaError 异常堆栈改为 DEBUG 门控
+- **错误码登记表（契约 §3.1）**：VimaError code 全集登记为稳定接口面；
+  plan 新增 NO_TASKS 前置（非 vima 项目不再静默产出空计划）
+- **代码债偿还**：render-review/render-prototype 静态复用 validatePages，删除并行开发期的
+  动态探测与内联兜底（约 146 行不可达代码）；validate 复用 hasCheckbox；收窄单文件使用的导出
+- **测试护栏**：新增 CLI 路由矩阵（tests/cli.test.mjs）、V-TASK-01 专属用例、script/lib/h5
+  模板冒烟、defaultLifecycle 版本同步锁、tests/helpers.mjs 公共 helper；e2e 改用 process.execPath
+- **发布合规与工程门面**：LICENSE（MIT）、CHANGELOG、GitHub Actions CI（Node 20/22/24）、
+  .editorconfig、.gitattributes、bin 可执行位、package.json 发布元数据
+  （repository/homepage/bugs/keywords/publishConfig.access/prepublishOnly）
+- **文档一致性**：本文档补目录与修订版本标注；§7.5 回写 A3 冷读深模式；§7.6 对齐 check.md
+  资产（补 A7 运行时错误信号、修正构建信号、删 lint 残留、输出样例补 🔎🎯🛑 行）；
+  §9.4 残留 src/pages 改 src/views；§15 结构树对齐骨架实际目录；契约补版本戳/目录/
+  §2 所有权表更新/草稿期自语清理；删除孤儿评估文档副本；README 数字修正与徽章
+
+### v2.0.3 (2026-08-12) AI-First 深度优化（增补项 A6/A7 落地）
+
+依 docs/design/ai-first-assessment.md 的评估结论做的定向优化：
+
+- **真源卫生**：修正 5 处幻包名 `@vima/ui`（真名 `@vima-tech/ui-admin`，且组件全局注册
+  无需 import）；删除不存在的 `npm run lint` 验收引用；后端骨架补 `@SpringBootTest`
+  上下文冒烟测试，`mvn test` 从恒绿空门变为真实信号（沙箱实测通过）
+- **A6 规范执行者阶梯**：coding-standards 逐条标执行者标签并新增双端共享层能力索引；
+  post-write hook 机检扩展（幻包名导入 / 业务页 vui-page / 字面量色值豁免 `--x:` 定义 /
+  操作列手写 width / VIcon 图标名 ∈ ai-manifest）；validate 新增 V-CODE-01/02
+  代码↔契约对账（作用域 = 带 @vima 标注的业务代码）；hooks 迁移为 node 直跑 .mjs；
+  ICONS.md + components.d.ts 由 ai-manifest 同源生成（scripts/gen-from-manifest.mjs，
+  修复手工维护漂移 44/63）；操作列宽度由组件库 VTable 按行内按钮文案自动计算（L1 吸收），
+  hook 拦字面量回潮
+- **A7 运行时证据**：骨架 vite dev 中间件把浏览器错误（window error / unhandledrejection /
+  Vue errorHandler）落盘 `.vima/reports/runtime-errors.jsonl`（契约 §6.10），/check 聚合——
+  给不开浏览器的 Agent 装眼睛
+- Builder 开工前按页面类型读 vendor recipe（数据契约/状态质量/可访问性要点）
 
 ### v2.0.2 (2026-08-12) 人机对齐直观性与编码可控性增强
 
@@ -2475,6 +2587,6 @@ MIT License
 
 ---
 
-**文档版本**: v2.0.0
+**文档版本**: v2.0.4
 **最后更新**: 2026-08-12
 **作者**: vima-cli 团队

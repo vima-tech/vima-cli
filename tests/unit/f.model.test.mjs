@@ -216,6 +216,11 @@ test('defaultLifecycle：结构符合契约 §6.2 / 设计 §14.2', () => {
   assert.deepEqual(lc.taskStats, { total: 0, done: 0, failed: 0, blocked: 0, updatedAt: null });
 });
 
+test('defaultLifecycle：vimaVersion 缺省值与 package.json 同步（防升版漂移；init 运行时另以 readCliVersion 覆盖）', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(defaultLifecycle('admin').vimaVersion, pkg.version);
+});
+
 test('lifecycle：缺文件抛 NO_LIFECYCLE（exitCode 4），读写往返一致', async (t) => {
   const root = await tempRoot(t);
   await expectVimaError(() => loadLifecycle(root), {

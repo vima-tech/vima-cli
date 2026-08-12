@@ -1,7 +1,6 @@
 package com.{{projectPkg}}.security;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -13,12 +12,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Redis Token 存储：多实例共享登录态时使用。
- * 启用方式：application.yml 设置 app.token-store=redis，并配置 spring.data.redis.*。
+ * Redis 登录态存储：token → username 正查 + username → token 反查，两条 key 同 TTL。
+ * <p>
+ * 反查索引让"同一账号重复登录顶掉旧会话""管理员强制某人下线""改密后强制重登"
+ * 都变成一次 O(1) 删除；过期由 Redis 的 TTL 负责，无需清理任务。
  */
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.token-store", havingValue = "redis")
 public class RedisTokenStore implements TokenStore {
 
     private final RedisTemplate<String, Object> redisTemplate;
@@ -28,17 +28,32 @@ public class RedisTokenStore implements TokenStore {
 
     @Override
     public void saveToken(String token, String username, long ttlMillis) {
-        String tokenKey = TOKEN_PREFIX + token;
-        String userTokenKey = USER_TOKEN_PREFIX + username;
-
-        redisTemplate.opsForValue().set(tokenKey, username, ttlMillis, TimeUnit.MILLISECONDS);
-        redisTemplate.opsForValue().set(userTokenKey, token, ttlMillis, TimeUnit.MILLISECONDS);
+        // 同一用户重复登录：先失效旧 token，避免旧会话继续可用、也避免在线列表里出现两条
+        Object oldToken = redisTemplate.opsForValue().get(USER_TOKEN_PREFIX + username);
+        if (oldToken != null && !oldToken.toString().equals(token)) {
+            redisTemplate.delete(TOKEN_PREFIX + oldToken);
+        }
+        redisTemplate.opsForValue().set(TOKEN_PREFIX + token, username, ttlMillis, TimeUnit.MILLISECONDS);
+        redisTemplate.opsForValue().set(USER_TOKEN_PREFIX + username, token, ttlMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public String getUsernameByToken(String token) {
+        if (token == null) {
+            return null;
+        }
         Object username = redisTemplate.opsForValue().get(TOKEN_PREFIX + token);
         return username != null ? username.toString() : null;
+    }
+
+    @Override
+    public void refreshToken(String token, String username, long ttlMillis) {
+        if (token == null || username == null) {
+            return;
+        }
+        // EXPIRE 对不存在的 key 是空操作，不会把已被踢掉的登录态复活
+        redisTemplate.expire(TOKEN_PREFIX + token, ttlMillis, TimeUnit.MILLISECONDS);
+        redisTemplate.expire(USER_TOKEN_PREFIX + username, ttlMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -75,6 +90,9 @@ public class RedisTokenStore implements TokenStore {
 
     @Override
     public void removeTokenByUsername(String username) {
+        if (username == null) {
+            return;
+        }
         Object token = redisTemplate.opsForValue().get(USER_TOKEN_PREFIX + username);
         if (token != null) {
             redisTemplate.delete(TOKEN_PREFIX + token);

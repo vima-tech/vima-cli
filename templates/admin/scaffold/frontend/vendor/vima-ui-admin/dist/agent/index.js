@@ -896,4 +896,3 @@ export {
   q as validateAppSpec,
   _ as validatePageSpec
 };
-//# sourceMappingURL=index.js.map

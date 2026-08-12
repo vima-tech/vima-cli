@@ -1,0 +1,26 @@
+# CI：零依赖仓库，无 install 步骤——node --check 全量语法扫描 + node --test + 发布包内容自检
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: 语法扫描（node --check）
+        run: find bin lib tests scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check
+      - name: 单测 + 端到端黄金链路
+        run: npm test
+      - name: 发布包内容自检
+        run: npm pack --dry-run

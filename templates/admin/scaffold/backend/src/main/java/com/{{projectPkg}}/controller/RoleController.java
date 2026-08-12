@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/system/role")
@@ -16,6 +17,7 @@ import java.util.Map;
 public class RoleController {
     private final RoleService roleService;
 
+    @PreAuthorize("@perm.has('system:role:list')")
     @GetMapping("/list")
     public ApiResponse<PageResponse<Role>> list(
             @RequestParam(required = false) String roleName,
@@ -26,11 +28,13 @@ public class RoleController {
         return ApiResponse.success(page);
     }
 
+    /** 不加权限点：用户管理弹窗的角色下拉要用，只暴露角色名称级信息。 */
     @GetMapping("/all")
     public ApiResponse<List<Role>> getAll() {
         return ApiResponse.success(roleService.getAllRoles());
     }
 
+    @PreAuthorize("@perm.has('system:role:add')")
     @PostMapping
     public ApiResponse<Role> create(@RequestBody Role role) {
         try {
@@ -40,22 +44,26 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("@perm.has('system:role:edit')")
     @PutMapping
     public ApiResponse<Role> update(@RequestBody Role role) {
         return ApiResponse.success(roleService.updateRole(role));
     }
 
+    @PreAuthorize("@perm.has('system:role:remove')")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         roleService.deleteRole(id);
         return ApiResponse.success();
     }
 
+    @PreAuthorize("@perm.has('system:role:list')")
     @GetMapping("/{roleId}/menus")
     public ApiResponse<List<Long>> getRoleMenuIds(@PathVariable Long roleId) {
         return ApiResponse.success(roleService.getRoleMenuIds(roleId));
     }
 
+    @PreAuthorize("@perm.has('system:role:edit')")
     @PostMapping("/assign-menus")
     public ApiResponse<Void> assignMenus(@RequestBody Map<String, Object> params) {
         Long roleId = Long.valueOf(params.get("roleId").toString());

@@ -67,7 +67,11 @@
   --vui-shadow-popover: 0 18px 44px -22px rgba(41, 83, 116, 0.4);
   --vui-shadow-layer: 0 28px 72px -32px rgba(35, 76, 108, 0.46);
 
+  /* ---------- 标签页 ---------- */
+  /** segment 变体（胶囊分段）的轨道底色，要比 surface-hover 深一档才能衬出白色滑块 */
+  --vui-segment-bg: #e9eef5;
+
   /* ---------- 版式 ---------- */
   /** 卡片之间的纵向间距（LayCard 的 margin-bottom） */
-  --vui-block-gap: 12px;
+  --vui-block-gap: 10px;
 }

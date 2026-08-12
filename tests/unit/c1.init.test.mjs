@@ -104,7 +104,7 @@ test('init --force：可重建，且已存在的 userOwned 文件保留用户版
   await writeFile(path.join(proj, 'CLAUDE.md'), before + marker);
   const r = vima(proj, 'init', '--force');
   assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.match(r.stdout, /保留用户版本/);
+  assert.match(r.stderr, /保留用户版本/); // 独立 ⚠️ 提示走 stderr（契约 §3 输出流向）
   const after = await readFile(path.join(proj, 'CLAUDE.md'), 'utf8');
   assert.ok(after.includes(marker.trim()), 'userOwned 的 CLAUDE.md 不应被 --force 覆盖');
 });
@@ -155,6 +155,20 @@ test('init --skip-scan：跳过组件文档拷贝（契约 §6.4），其余规�
   );
   assert.ok(await fileExists(path.join(proj, 'docs/spec.md')), '其余规划资产不受影响');
   assert.ok(await fileExists(path.join(proj, 'CLAUDE.md')));
+});
+
+test('init：安装 AGENTS.md 跨工具指针（A8，managed；真源仍是 CLAUDE.md）', async (t) => {
+  const proj = await createAdminProject(t);
+  assert.equal(vima(proj, 'init').status, 0);
+  const text = await readFile(path.join(proj, 'AGENTS.md'), 'utf8');
+  assert.match(text, /CLAUDE\.md/, '指针文件必须声明真源是 CLAUDE.md');
+  assert.match(text, /my-admin/, '{{projectName}} 须已渲染');
+  assert.ok(!text.includes('{{project'), '不得残留模板占位符');
+  const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
+  assert.ok(
+    manifest.files.managed.some((e) => e.path === 'AGENTS.md'),
+    'AGENTS.md 应为 managed 文件（随模板升级，用户定制走 CLAUDE.md）',
+  );
 });
 
 test('init：安装 docs/coding-standards.md（§5.2 详细规范指针落点，契约 §6.3 codingStandards）', async (t) => {

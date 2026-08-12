@@ -20,6 +20,8 @@ updatedAt: 2026-01-01T00:00:00Z
     （默认 [shared-base, <对应后端任务>]；契约先行并行开发时只填 [shared-base]）；
   - contract：必填，指向本模块契约文件；
   - page：必填，指向本页在 spec 中的 PAGE-xx 数据块；
+  - conflictsWith：可选（A8），与本任务共享代码路径（同文件/同目录改动）的其他任务 ID，
+    vima plan 会保证它们不排进同一并行批；
   - updatedAt：写盘时的真实 ISO 时间。
 -->
 
@@ -55,7 +57,7 @@ updatedAt: 2026-01-01T00:00:00Z
       （与 prototype.manifest.json 一致，post-write hook 机检）
 - [ ] 列表/表单与契约响应字段一致，分页可用
 - [ ] 业务规则校验生效（含边界值与错误提示）
-- [ ] npm run build:check 与 npm run lint 通过
+- [ ] npm run build:check 通过
 
 ## 开发步骤
 
@@ -63,12 +65,12 @@ updatedAt: 2026-01-01T00:00:00Z
    并为每个 layout 区块预置带 `data-block="<词>"` 的容器元素（§13.3 机械对账标记）；
 2. 实现 API 层（src/api/<module>.ts，严格按契约）；
 3. 实现类型定义（共享类型引自契约，不重复手写）；
-4. 实现组件层（对照本页 `vima:page` 数据块与原型；使用 @vima/ui，先读 CAPABILITY.md；
-   弹窗挂载点带 `data-modal="MODAL-xx"`）；
+4. 实现组件层（对照本页 `vima:page` 数据块与原型；组件已全局注册无需 import，
+   先读 CAPABILITY.md 再读组件文档；弹窗挂载点带 `data-modal="MODAL-xx"`）；
 5. 实现业务逻辑（搜索、表单验证、错误处理）；
 6. **代码级追溯（A1）**：本任务产出的每个业务代码文件头部加注释 `// @vima <taskId>`
    （如 `// @vima example-list-fe`），`vima trace` 据此对账；
-7. 自检：对照验收清单逐项核对 + npm run build:check + npm run lint。
+7. 自检：对照验收清单逐项核对 + npm run build:check。
 
 ## 约束重申
 

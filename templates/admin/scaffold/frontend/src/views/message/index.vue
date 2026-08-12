@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getMessageList, markAsRead, markAllAsRead } from '@/api/system'
 import { useMessageStore } from '@/store/message'
+import { formatDateTime } from '@/utils/datetime'
 
 const messageStore = useMessageStore()
 const loading = ref(false)
@@ -21,16 +22,17 @@ const tabs = [
   { key: 'read', label: '已读消息', status: 1 },
 ]
 
+// 内容是唯一自由列；标题定宽后不会和内容列平分成两条 600px 的宽栏
 const columns = [
-  { key: 'title', title: '标题', customSlot: 'title' },
-  { key: 'content', title: '内容' },
-  { key: 'type', title: '类型', width: 100, customSlot: 'type' },
-  { key: 'status', title: '状态', width: 80, customSlot: 'status' },
-  { key: 'createTime', title: '时间', width: 180 },
+  { key: 'title', title: '标题', width: 360, customSlot: 'title' },
+  { key: 'content', title: '内容', ellipsisTooltip: true },
+  { key: 'type', title: '类型', width: 110, customSlot: 'type' },
+  { key: 'status', title: '状态', width: 90, customSlot: 'status' },
+  { key: 'createTime', title: '时间', width: 170, customSlot: 'createTime' },
 ]
 
-const handleTabClick = (tab: any) => {
-  queryParams.status = tab.status
+const handleTabClick = (key: string | number) => {
+  queryParams.status = tabs.find((tab) => tab.key === key)?.status
   queryParams.pageNum = 1
   fetchData()
 }
@@ -75,11 +77,11 @@ onMounted(fetchData)
 <template>
   <div class="vui-page">
     <VCard title="消息中心">
-      <template #header-extra>
+      <template #extra>
         <VButton @click="handleReadAll">全部已读</VButton>
       </template>
 
-      <VTab v-model="activeTab" @change="handleTabClick">
+      <VTab v-model="activeTab" type="segment" class="message-tabs" @change="handleTabClick">
         <VTabItem v-for="tab in tabs" :key="tab.key" :id="tab.key" :title="tab.label" />
       </VTab>
 
@@ -100,6 +102,9 @@ onMounted(fetchData)
             {{ row.status === 1 ? '已读' : '未读' }}
           </VTag>
         </template>
+        <template #createTime="{ row }">
+          <span>{{ formatDateTime(row.createTime) }}</span>
+        </template>
       </VTable>
 
       <VPagination
@@ -113,6 +118,10 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
+.vui-tabs.message-tabs {
+  margin-bottom: var(--v-gap-lg);
+}
+
 .message-title {
   display: flex;
   align-items: center;
@@ -125,14 +134,15 @@ onMounted(fetchData)
 }
 
 .message-title.unread {
-  font-weight: bold;
-  color: #333;
+  color: var(--v-text-title);
+  font-weight: var(--v-weight-semibold);
 }
 
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f56c6c;
+  background: var(--v-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--v-error) 12%, transparent);
 }
 </style>

@@ -16,7 +16,7 @@
 | `size` | `string \| number` | `30%` | 否 | 抽屉宽度或高度 |
 | `modal` | `boolean` | `true` | 否 | 是否显示遮罩 |
 | `showClose` | `boolean` | `true` | 否 | 是否显示关闭按钮 |
-| `closeOnClickModal` | `boolean` | `true` | 否 | 点击遮罩是否关闭 |
+| `closeOnClickModal` | `boolean` | `false` | 否 | 点击遮罩是否关闭 |
 | `closeOnPressEscape` | `boolean` | `true` | 否 | 按 Escape 是否关闭 |
 | `beforeClose` | `(done: () => void) => void` | `undefined` | 否 | 关闭前钩子 |
 | `destroyOnClose` | `boolean` | `false` | 否 | 关闭后是否销毁内容 |

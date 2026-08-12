@@ -497,4 +497,3 @@ export {
   tt as t,
   B as v
 };
-//# sourceMappingURL=icons-B1oeJ8GI.js.map

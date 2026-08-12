@@ -63,7 +63,7 @@ export declare const VTable: import("vue").DefineComponent<import("vue").Extract
         type: PropType<Record<string, string>>;
         default: () => {};
     };
-    /** 是否默认展开全部树节点。 */
+    /** 是否展开全部树节点；绑定响应式布尔值即可当「全部展开/全部折叠」开关用，单行展开态由表格自己维护。 */
     defaultExpandAll: {
         type: BooleanConstructor;
         default: boolean;
@@ -151,7 +151,7 @@ export declare const VTable: import("vue").DefineComponent<import("vue").Extract
         type: PropType<Record<string, string>>;
         default: () => {};
     };
-    /** 是否默认展开全部树节点。 */
+    /** 是否展开全部树节点；绑定响应式布尔值即可当「全部展开/全部折叠」开关用，单行展开态由表格自己维护。 */
     defaultExpandAll: {
         type: BooleanConstructor;
         default: boolean;
@@ -370,7 +370,7 @@ export declare const VTree: import("vue").DefineComponent<import("vue").ExtractP
     expandedKeys: unknown[];
     replaceFields: Record<string, string>;
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, any>;
-/** 在同一区域切换多组内容。 @category navigation @props modelValue::当前激活的标签页键;type::标签页视觉类型;allowClose::是否允许关闭标签页 @event update:modelValue :: string | number :: 更新后的标签页键 @event change :: string | number :: 标签页变更 */
+/** 在同一区域切换多组内容。 @category navigation @props modelValue::当前激活的标签页键;type::标签页视觉类型：留空为下划线，card 为卡片页签，segment 为胶囊分段（card/segment 作纯切换器用，内容放在 VTab 之后）;allowClose::是否允许关闭标签页 @event update:modelValue :: string | number :: 更新后的标签页键 @event change :: string | number :: 标签页变更 */
 export declare const VTab: import("vue").DefineComponent<import("vue").ExtractPropTypes<{
     modelValue: {
         type: null;

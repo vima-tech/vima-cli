@@ -115,6 +115,12 @@ const router = createRouter({
           component: () => import('@/views/profile/index.vue'),
           meta: { title: '个人中心', icon: '👤', hidden: true },
         },
+        {
+          path: 'settings',
+          name: 'Settings',
+          component: () => import('@/views/settings/index.vue'),
+          meta: { title: '个人设置', icon: '⚙️', hidden: true },
+        },
       ],
     },
     {

@@ -1445,7 +1445,7 @@
           "rawType": "Boolean",
           "extractionStatus": "exact",
           "required": false,
-          "default": true,
+          "default": false,
           "description": "点击遮罩是否关闭"
         },
         {
@@ -2253,7 +2253,7 @@
           "rawType": "Boolean",
           "extractionStatus": "exact",
           "required": false,
-          "default": true,
+          "default": false,
           "description": "点击遮罩是否关闭"
         },
         {
@@ -3606,7 +3606,7 @@
           "extractionStatus": "exact",
           "required": false,
           "default": "",
-          "description": "标签页视觉类型"
+          "description": "标签页视觉类型：留空为下划线，card 为卡片页签，segment 为胶囊分段（card/segment 作纯切换器用，内容放在 VTab 之后）"
         },
         {
           "name": "allowClose",
@@ -3826,7 +3826,7 @@
           "extractionStatus": "exact",
           "required": false,
           "default": false,
-          "description": "是否默认展开全部树节点。"
+          "description": "是否展开全部树节点；绑定响应式布尔值即可当「全部展开/全部折叠」开关用，单行展开态由表格自己维护。"
         },
         {
           "name": "resize",

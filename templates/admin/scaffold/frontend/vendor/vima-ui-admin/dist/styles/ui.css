@@ -37,7 +37,7 @@
 
 .vui-card {
   overflow: hidden;
-  margin-bottom: var(--vui-block-gap, 12px);
+  margin-bottom: var(--vui-block-gap, 10px);
   border: 1px solid var(--vui-border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--vui-surface) 96%, transparent);
@@ -65,21 +65,31 @@
   padding: 16px 18px;
 }
 
+/*
+ * 按钮尺寸等级（VButton 的 size 属性 → .vui-button-<size>）：
+ *   md（默认，即本条基础规则）  34px 高 / 13px 字 / 最小宽 64px
+ *   sm（表格行内动作、弹层页脚）30px 高 / 12px 字 / 最小宽 54px
+ *
+ * 高度与 --vui-control-height（输入类控件 38px）刻意脱钩：按钮是动作不是输入框，
+ * 在列表页一屏几十颗的密度下，跟输入框等高会显得过重。搜索栏里按钮被
+ * .vui-form-control（min-height 38px、align-items:center）居中，比同排输入框矮 4px，
+ * 是有意的层级差；要让两者重新等高，把下面的 height 改回 var(--vui-control-height)。
+ */
 .vui-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 72px;
-  height: var(--vui-control-height);
+  min-width: 64px;
+  height: 34px;
   margin: 0 8px 0 0;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 1px solid #cad9e6;
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--vui-surface);
   color: var(--vui-text-sub);
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
@@ -156,11 +166,11 @@
 }
 
 .vui-button-sm {
-  min-width: 60px;
-  height: 32px;
-  padding-inline: 12px;
+  min-width: 54px;
+  height: 30px;
+  padding-inline: 10px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .vui-button-group {
@@ -173,12 +183,12 @@
 }
 
 .vui-button-group > .vui-button:first-child {
-  border-radius: 10px 0 0 10px;
+  border-radius: 9px 0 0 9px;
 }
 
 .vui-button-group > .vui-button:last-child {
   margin-right: 0;
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 9px 9px 0;
 }
 
 .vui-form {
@@ -404,15 +414,12 @@
 .vui-select-chevron {
   position: absolute;
   top: 50%;
-  right: 14px;
-  width: 8px;
-  height: 8px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
+  right: 12px;
+  width: 16px;
+  height: 16px;
   color: var(--vui-text-weak);
-  font-size: 0;
   pointer-events: none;
-  transform: translateY(-70%) rotate(45deg);
+  transform: translateY(-50%);
   transform-origin: center;
   transition:
     color 0.18s ease,
@@ -421,7 +428,7 @@
 
 .vui-select.is-open .vui-select-chevron {
   color: var(--vui-primary);
-  transform: translateY(-30%) rotate(225deg);
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .vui-select-single,
@@ -1676,6 +1683,7 @@
   font-size: 34px;
 }
 
+/* 分页与表格同属一张白底卡片：不加分隔线、不刷底色，视觉上是表格的延续。 */
 .vui-pagination {
   display: flex;
   align-items: center;
@@ -1683,10 +1691,39 @@
   gap: 7px;
   min-height: 54px;
   padding: 9px 14px;
-  border-top: 1px solid var(--vui-border);
-  background: #f9fbfd;
   color: var(--vui-text-weak);
   font-size: 13px;
+}
+
+/*
+ * 表格后面紧跟分页（列表页的标准写法：<VTable/> 与 <VPagination/> 是兄弟节点）时，
+ * 两者缝成一张卡：表格让出下边框与下圆角，由分页承接卡片下沿。
+ * 阴影必须整体只画一份——两个元素各带一份会在接缝处叠出一条横线，
+ * 所以表格在这个组合下 box-shadow:none，落影由分页统一投出。
+ */
+.vui-table:has(+ .vui-pagination) {
+  border-bottom: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+  box-shadow: none;
+}
+
+/*
+ * 末行下边框在这个组合下要还回来。上面那条 tbody tr:last-child { border-bottom: 0 }
+ * 是为了不和卡片底边框叠成双线；缝合后表格自己的底边框已经让给分页，
+ * 末行下方要么是空白填充区、要么直接接分页，不会叠线，反而缺了收口的一横。
+ */
+.vui-table:has(+ .vui-pagination) .vui-table-native tbody tr:last-child td {
+  border-bottom: 1px solid #e5ebf1;
+}
+
+.vui-table:has(+ .vui-pagination) + .vui-pagination {
+  border: 1px solid var(--vui-border);
+  border-top: 0;
+  border-end-start-radius: 14px;
+  border-end-end-radius: 14px;
+  background: var(--vui-surface);
+  box-shadow: var(--vui-shadow-card);
 }
 
 .vui-pagination button,
@@ -1823,8 +1860,14 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  padding: 20px 21px;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+/* 表单项自带 15px 下边距，末项不再叠加，避免内容底部比顶部空一截。 */
+.vui-layer-content > .vui-form > .vui-form-item:last-child {
+  margin-bottom: 0;
 }
 
 .vui-layer-footer {

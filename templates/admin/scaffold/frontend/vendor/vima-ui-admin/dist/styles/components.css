@@ -91,10 +91,10 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--vui-block-gap, 12px);
+  gap: var(--vui-block-gap, 10px);
   height: 100%;
   min-height: 0;
-  padding: var(--vui-block-gap, 12px);
+  padding: var(--vui-block-gap, 10px);
   overflow: auto;
 }
 
@@ -2905,4 +2905,184 @@
   font-size: 12px;
   line-height: 1.7;
   text-align: center;
+}
+
+/* ==================================================== VTab 视觉变体
+ *
+ * type 留空 = 下划线（ui.css 的基础样式 + 这里的打磨层）；
+ * type="card" = 卡片页签（页签像卡片一样立在分隔线上，激活页签与内容区连成一体）；
+ * type="segment" = 胶囊分段（灰色轨道 + 白色浮起滑块，适合 2~5 个平级筛选，如 全部/未读/已读）。
+ *
+ * 三种变体共用同一套 DOM（.vui-tabs > .vui-tab-item > .vui-tab-title），
+ * card / segment 页签内不要放默认插槽内容，切换的内容放在 VTab 之后自己管理。
+ */
+
+/* ---- 下划线（默认）打磨：悬停反馈 + 颜色/下划线过渡 ---- */
+.vui-tabs .vui-tab-title {
+  border-radius: 8px 8px 0 0;
+  font-size: 14px;
+  user-select: none;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.vui-tabs .vui-tab-item:not(.is-active) .vui-tab-title:hover {
+  background: var(--vui-surface-hover);
+  color: var(--vui-text-body);
+}
+
+/* ---- 卡片页签 ---- */
+/*
+ * 分隔线不能用容器自己的 border-bottom：border 画在 padding-box 之外，
+ * 子元素怎么叠（负 margin / box-shadow）都盖不住它，激活页签永远被一条线拦腰截断。
+ * 所以线改用绝对定位的 ::after 画在容器内，激活页签 position:relative 抬到线上方，
+ * 用自己的白底把线盖掉，实现「页签与内容区连成一体」。
+ */
+.vui-tabs.is-card {
+  position: relative;
+  padding: 2px 2px 0;
+  border-bottom: 0;
+  gap: 6px;
+}
+
+.vui-tabs.is-card::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--vui-border);
+  content: '';
+}
+
+.vui-tabs.is-card .vui-tab-title {
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+}
+
+.vui-tabs.is-card .vui-tab-item:not(.is-active) .vui-tab-title:hover {
+  border-color: var(--vui-border);
+  background: var(--vui-surface-hover);
+}
+
+.vui-tabs.is-card .vui-tab-item.is-active .vui-tab-title {
+  position: relative;
+  border-color: var(--vui-border);
+  background: var(--vui-surface);
+  color: var(--vui-primary);
+}
+
+/* 激活页签顶部的品牌色提亮条，替代默认变体的底部下划线 */
+.vui-tabs.is-card .vui-tab-item.is-active .vui-tab-title::before {
+  position: absolute;
+  top: -1px;
+  right: 12px;
+  left: 12px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--vui-primary);
+  content: '';
+}
+
+/* ---- 胶囊分段 ---- */
+.vui-tabs.is-segment {
+  width: max-content;
+  max-width: 100%;
+  padding: 4px;
+  border-bottom: 0;
+  border-radius: 10px;
+  background: var(--vui-segment-bg);
+  gap: 2px;
+}
+
+.vui-tabs.is-segment .vui-tab-title {
+  height: 30px;
+  padding: 0 16px;
+  border-bottom: 0;
+  border-radius: 7px;
+}
+
+.vui-tabs.is-segment .vui-tab-item:not(.is-active) .vui-tab-title:hover {
+  background: color-mix(in srgb, var(--vui-surface) 55%, transparent);
+}
+
+.vui-tabs.is-segment .vui-tab-item.is-active .vui-tab-title {
+  background: var(--vui-surface);
+  box-shadow: var(--vui-shadow-card);
+  color: var(--vui-primary);
+}
+
+/* ==========================================================================
+ * 树形表格的行内展开开关（VTable treeProps）
+ *
+ * 箭头画成 CSS 三角而不是引 VIcon：它跟着 currentColor 走，行 hover 与禁用态
+ * 不用另配颜色；展开态只是旋转 90°，与折叠态共用同一份几何，不会有两个图标
+ * 大小对不上的问题。占位符（叶子行）与按钮同宽，保证同层文字左边缘对齐。
+ * ========================================================================== */
+.vui-table-cell.is-tree-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 名字部分自己吃掉省略号：flex 子项默认 min-width:auto，不写 min-width:0 会把箭头挤出单元格 */
+.vui-table-tree-label {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vui-table-expander {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--vui-text-faint);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.vui-table-expander:hover {
+  background: var(--vui-surface-hover);
+  color: var(--vui-primary);
+}
+
+.vui-table-expander:focus-visible {
+  outline: 2px solid var(--vui-primary);
+  outline-offset: 1px;
+}
+
+.vui-table-expander.is-placeholder {
+  cursor: default;
+  pointer-events: none;
+}
+
+.vui-table-expander-icon {
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, 1px);
+  transition: transform 160ms ease;
+}
+
+.vui-table-expander.is-expanded .vui-table-expander-icon {
+  transform: rotate(135deg) translate(-1px, 1px);
 }

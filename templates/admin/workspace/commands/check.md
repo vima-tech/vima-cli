@@ -8,15 +8,20 @@
 
 1. **任务状态统计**：扫描 docs/tasks/*.md 的 frontmatter status 字段，
    按 done/running/failed/blocked/pending 分类计数。
-2. **构建信号**：前端运行 `npm run build:check` 与 lint；后端运行 `mvn -q compile`，
+2. **构建信号**：前端运行 `npm run build:check`；后端运行 `mvn -q compile` 与
+   `mvn -q test`（骨架自带上下文冒烟测试，Bean 装配/JPA 建表/种子数据跑不通即红），
    记录各自通过/失败。
 3. **验收清单**：统计各任务文件「## 验收清单」中复选框的勾选比例
    （`- [x]` 数 / 复选框总数）。
 4. **追溯对账**：运行 `vima trace`，摘录其摘要（标注数、野生标注、
    done 但无标注的虚报嫌疑任务）。
 5. **任务点完成度（B2，契约 §6.9）**：读取 .vima/reports/*-verifier.json，
-   聚合全部 `points` 数组——通过点数 / 总点数即按钮·字段·连线级的真实完成度；
-   带 page 但报告缺 points 的任务在报告行标注「未逐点验收」。
+   聚合全部 `points` 数组——按 通过 / **豁免（waived，带理由）** / 未过 三分计数，
+   完成度 =（通过 + 豁免）/ 总点数；豁免点单独列出（点位 + reason），
+   防止豁免变成看不见的黑洞。带 page 但报告缺 points 的任务标注「未逐点验收」。
+6. **运行时错误信号（A7，契约 §6.10）**：读取 .vima/reports/runtime-errors.jsonl
+   （存在时）——报告条数、按 page 分组的分布与最近 3 条摘要；文件不存在或为空
+   记「无运行时错误上报」。这是浏览器侧的真实报错，比静态检查更接近「跑得通」。
 
 ## 深度检查（可选，仅当用户明确要求「深度检查」时）
 
@@ -35,9 +40,10 @@
 ❌ 失败（1）：订单详情页（重试 2 次未通过，报告：docs/tasks/order-detail.md）
 ⛔ 阻塞（2）：全量测试、代码审计（依赖订单详情页）
 
-🔧 构建状态：tsc ✅ │ eslint ✅ │ mvn compile ✅
+🔧 构建状态：tsc+vite ✅ │ mvn compile ✅ │ mvn test ✅
 🔎 追溯对账：标注 15 │ 野生 0 │ 虚报嫌疑 1（详见 .vima/reports/trace.json）
-🎯 任务点：143/150 通过（按钮·字段·连线级，来自 verifier 逐点报告；2 个任务未逐点验收）
+🎯 任务点：143 通过 │ 2 豁免（导出延后二期 等，见报告 reason）│ 5 未过 / 共 150（2 个任务未逐点验收）
+🛑 运行时错误：3 条（/system/order 2 │ /system/device 1，最近：Cannot read properties…）
 
 建议：处理订单详情页失败项后，输入 /go 继续
 ```

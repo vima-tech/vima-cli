@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import request from '@/utils/request'
 import { confirmAsync } from '@/utils/feedback'
+import { intFlag } from '@/utils/form'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -12,6 +13,8 @@ const dialogTitle = ref('新增配置')
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
+  configName: '',
+  configKey: '',
 })
 
 const form = reactive({
@@ -23,12 +26,16 @@ const form = reactive({
   status: 1,
 })
 
+// VSwitch 只吃布尔，后端字段是 0/1，中间必须过一层（原因见 utils/form.ts）
+const statusOn = intFlag(form, 'status')
+
+// 配置值与备注是两列自由列，剩余宽度在两者之间分，不会像原来那样全砸给一列
 const columns = [
-  { key: 'configName', title: '配置名称' },
-  { key: 'configKey', title: '配置键' },
-  { key: 'configValue', title: '配置值' },
-  { key: 'remark', title: '备注' },
-  { key: 'status', title: '状态', width: 80, customSlot: 'status' },
+  { key: 'configName', title: '配置名称', width: 220 },
+  { key: 'configKey', title: '配置键', width: 260, ellipsisTooltip: true },
+  { key: 'configValue', title: '配置值', ellipsisTooltip: true },
+  { key: 'remark', title: '备注', ellipsisTooltip: true },
+  { key: 'status', title: '状态', width: 90, customSlot: 'status' },
   { title: '操作', key: 'operator', customSlot: 'operator' },
 ]
 
@@ -71,10 +78,24 @@ const handleSubmit = async () => {
 
 const fetchData = async () => {
   loading.value = true
-  const res: any = await request.get('/system/config/list', { params: queryParams })
-  tableData.value = res.data?.records || []
-  total.value = res.data?.total || 0
-  loading.value = false
+  try {
+    const res: any = await request.get('/system/config/list', { params: queryParams })
+    tableData.value = res.data?.records || []
+    total.value = res.data?.total || 0
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleSearch = () => {
+  queryParams.pageNum = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  queryParams.configName = ''
+  queryParams.configKey = ''
+  handleSearch()
 }
 
 onMounted(fetchData)
@@ -83,8 +104,21 @@ onMounted(fetchData)
 <template>
   <div class="vui-page">
     <VCard title="系统配置">
+      <VForm layout="inline" class="v-searchbar">
+        <VFormItem label="配置名称">
+          <VInput v-model="queryParams.configName" placeholder="请输入配置名称" clearable @keyup.enter="handleSearch" />
+        </VFormItem>
+        <VFormItem label="配置键">
+          <VInput v-model="queryParams.configKey" placeholder="请输入配置键" clearable @keyup.enter="handleSearch" />
+        </VFormItem>
+        <VFormItem class="v-searchbar-actions">
+          <VButton type="primary" @click="handleSearch">搜索</VButton>
+          <VButton @click="handleReset">重置</VButton>
+        </VFormItem>
+      </VForm>
+
       <div class="toolbar">
-        <VButton type="primary" @click="handleAdd">新增配置</VButton>
+        <VButton v-auth="'system:config:add'" type="primary" @click="handleAdd">新增配置</VButton>
       </div>
 
       <VTable :loading="loading" :data-source="tableData" :columns="columns">
@@ -92,8 +126,8 @@ onMounted(fetchData)
           <VTag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '正常' : '禁用' }}</VTag>
         </template>
         <template #operator="{ row }">
-          <VButton size="small" @click="handleEdit(row)">编辑</VButton>
-          <VButton size="small" type="danger" @click="handleDelete(row.id)">删除</VButton>
+          <VButton v-auth="'system:config:edit'" size="sm" @click="handleEdit(row)">编辑</VButton>
+          <VButton v-auth="'system:config:remove'" size="sm" type="danger" @click="handleDelete(row.id)">删除</VButton>
         </template>
       </VTable>
 
@@ -120,7 +154,7 @@ onMounted(fetchData)
           <VTextarea v-model="form.remark" placeholder="请输入备注" />
         </VFormItem>
         <VFormItem label="状态">
-          <VSwitch v-model="form.status" :active-value="1" :inactive-value="0" active-text="正常" inactive-text="禁用" />
+          <VSwitch v-model="statusOn" />
         </VFormItem>
       </VForm>
       <template #footer>
@@ -130,9 +164,3 @@ onMounted(fetchData)
     </VLayer>
   </div>
 </template>
-
-<style scoped>
-.toolbar {
-  margin-bottom: 16px;
-}
-</style>

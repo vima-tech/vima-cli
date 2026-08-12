@@ -24,7 +24,11 @@ public class OperLogAspect {
     private final LogService logService;
     private final ObjectMapper objectMapper;
 
-    @Pointcut("execution(* com.{{projectPkg}}.controller..*(..)) && !execution(* com.{{projectPkg}}.controller.AuthController.*(..)) && !execution(* com.{{projectPkg}}.controller.HealthController.*(..))")
+    // MessageController.stream 必须排除，且不只是"不值得记"：它是 SSE 长连接端点，
+    // 请求在连接存续期内不结束；这里若写一条操作日志，OSIV 的 EntityManager 就会
+    // 拿住一条数据库连接陪跑整个长连接，每个订阅漏一条，连接池很快被打满全站卡死
+    // （详见 MessagePushService 的注释）。SSE 订阅是基础设施通道，业务操作日志不记它。
+    @Pointcut("execution(* com.{{projectPkg}}.controller..*(..)) && !execution(* com.{{projectPkg}}.controller.AuthController.*(..)) && !execution(* com.{{projectPkg}}.controller.HealthController.*(..)) && !execution(* com.{{projectPkg}}.controller.MessageController.stream(..))")
     public void controllerPointcut() {}
 
     @Around("controllerPointcut()")

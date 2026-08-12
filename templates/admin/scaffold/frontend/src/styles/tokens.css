@@ -1,0 +1,169 @@
+/**
+ * 设计令牌 —— 企业蓝 v3
+ *
+ * 取值 1:1 冻结自 juvenile-guard 管理端 `src/styles/tokens.css`（v3 主题的 :root 段），
+ * 与 vendor/vima-ui-admin 的 --vui-* 同源，因此外壳与组件是同一套视觉。
+ *
+ * 分工：
+ *   --vui-*  组件库自己的取色入口（vendor/vima-ui-admin/dist/styles/tokens.css）；
+ *   --v-*    本工程外壳层（顶栏 / 侧栏 / 工作区 / 业务页）用的令牌，组件库看不见。
+ * 两者品牌色同值。换品牌时两处都要改：--v-primary 与 --vui-primary。
+ *
+ * 纪律：页面和外壳只引用 var(--v-*)，不写裸色值。写死一个 #hex，换品牌时它就会留在原地。
+ */
+
+:root {
+  /* ---------- 色板 ---------- */
+  /* 顶栏用海军蓝，内容区用雾蓝与白，靠文字、边框、交互层级建立系统感。 */
+  --v-navy-900: #173b5f;
+  --v-navy-800: #205783;
+  --v-navy-700: #2c739e;
+  --v-navy-500: #4a8fba;
+  --v-primary: #2f73c5;
+  --v-primary-strong: #235c9b;
+  --v-cyan: #48b7cf;
+
+  --v-bg: #e9f0f7;
+  --v-bg-soft: #f3f7fb;
+  --v-surface: #ffffff;
+  --v-border: rgba(213, 223, 236, 0.94);
+  --v-border-strong: #ccd8e7;
+
+  --v-text-title: #0e1b33;
+  --v-text-body: #33425f;
+  --v-text-sub: #51617d;
+  --v-text-weak: #7d8ba2;
+  --v-text-faint: #9aa8bf;
+
+  --v-success: #4cd964;
+  --v-warning: #ff9500;
+  --v-error: #ff3b30;
+  --v-info: #7d8ba2;
+
+  /*
+   * 危险动作色。取值与框架 .vui-button-danger 的实心色同源（#d75a58），
+   * 表格行内的删除按钮退成描边形态时用它，hover 再回到实心——两种形态必须同一个红，
+   * 否则「行里点删除」和「弹窗里确认删除」看着像两件事。
+   */
+  --v-danger: #d75a58;
+  --v-danger-border: #eebfbe;
+
+  /* 语义强调色（状态标签 / chip） */
+  --v-accent-blue: #2f73c5;
+  --v-accent-cyan: #48b7cf;
+  --v-accent-green: #35c17e;
+  --v-accent-amber: #ff9500;
+  --v-accent-red: #ff3b30;
+  --v-accent-indigo: #5a6cf0;
+  --v-accent-violet: #8b5cf6;
+
+  /* 深色面（顶栏 / 弹层遮罩）上的文字层级 */
+  --v-on-dark: #ffffff;
+  --v-on-dark-strong: #f4f8fc;
+  --v-on-dark-body: #dbeaf5;
+  --v-on-dark-accent: #e7f6fb;
+
+  /* 中性色（上传控件、占位框等） */
+  --v-neutral-50: #fafafa;
+  --v-neutral-100: #f0f0f0;
+  --v-neutral-200: #e6e6e6;
+  --v-neutral-300: #d9d9d9;
+  --v-neutral-400: #bfbfbf;
+
+  /* 语义弱背景（提示条、选中项、错误块） */
+  --v-info-soft: #e7f0fd;
+  --v-error-soft: #fff2f0;
+  --v-error-soft-border: #ffccc7;
+  --v-error-strong: #d93026;
+
+  /* ---------- 渐变 ---------- */
+  --v-hero-grad: linear-gradient(135deg, #173b5f 0%, #205783 54%, #2c739e 100%);
+  --v-hero-glow: radial-gradient(circle, rgba(72, 183, 207, 0.22), rgba(72, 183, 207, 0) 68%);
+  --v-page-grad:
+    radial-gradient(circle at 92% 9%, rgba(47, 115, 197, 0.075), transparent 25%),
+    linear-gradient(180deg, #f1f5fa 0%, #e9f0f7 42%, #e5edf6 100%);
+  /* 顶部主视觉的网格底纹，构成「科技感」的核心手法之一 */
+  --v-grid-fx:
+    linear-gradient(115deg, transparent 42%, rgba(142, 211, 227, 0.07) 42.5%, transparent 43%),
+    repeating-linear-gradient(0deg, rgba(139, 194, 220, 0.05) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(139, 194, 220, 0.05) 0 1px, transparent 1px 28px);
+  /* 品牌渐变只用于标识与主视觉；业务主操作保持纯色，避免页面过度装饰。 */
+  --v-brand-grad: linear-gradient(135deg, #235c9b 0%, #347fc7 62%, #48a0b9 120%);
+
+  /* ---------- 侧栏 ---------- */
+  --v-side-bg: linear-gradient(180deg, #ecf2f7 0%, #e7eef5 56%, #e2ebf3 100%);
+  --v-side-title: #173f6b;
+  --v-side-text: #5c7088;
+  --v-side-item-text: #253d59;
+  --v-side-divider: rgba(35, 92, 155, 0.13);
+
+  /* ---------- 形状 ---------- */
+  --v-radius-card: 16px;
+  --v-radius-ctl: 13px;
+  --v-radius-sm: 9px;
+  --v-radius-pill: 999px;
+
+  /* ---------- 投影 ---------- */
+  --v-shadow-card: 0 1px 2px rgba(8, 38, 80, 0.04), 0 14px 30px -24px rgba(8, 38, 80, 0.48);
+  --v-shadow-btn: 0 12px 24px -14px rgba(35, 92, 155, 0.64), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --v-shadow-layer: 0 24px 60px -30px rgba(23, 59, 95, 0.52);
+  --v-shadow-hero-inset: inset 0 -1px 0 rgba(158, 215, 231, 0.2);
+
+  /* ---------- 字阶 ---------- */
+  /* 全是系统/预装字体，不下载 webfont：首屏不闪、离线可用。 */
+  --v-font-sans: "MiSans", "HarmonyOS Sans SC", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+  --v-font-mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", "Microsoft YaHei", monospace;
+  /* 基准 14px，与 vendor 组件库同基准（外壳不再比组件大半号）；标题层级 16/20/26 递进。 */
+  --v-font-display: 26px;
+  --v-font-page-title: 20px;
+  --v-font-title: 16px;
+  --v-font-body: 14px;
+  --v-font-small: 13px;
+  --v-font-xs: 12px;
+  --v-weight-title: 800;
+  --v-weight-semibold: 600;
+  --v-weight-medium: 500;
+
+  /* ---------- 间距 ---------- */
+  --v-gap-xs: 4px;
+  --v-gap-sm: 8px;
+  --v-gap-md: 12px;
+  --v-gap-lg: 16px;
+  --v-gap-xl: 20px;
+
+  /* ---------- 外壳尺寸 ----------
+   * 顶栏刻意压薄：浏览器自身 chrome 已占去一截屏高，应用自有横条越少越矮，
+   * 首屏留给业务内容越多。58 = 用户卡 42 + 上下 8；页签本体 34（shell.css）。
+   * 页签默认独立一条（bar-height）；「个人设置」可改为并入顶栏，那时只剩 header-height。 */
+  --v-shell-header-height: 58px;
+  --v-shell-side-width: 272px;
+  --v-shell-side-width-collapsed: 76px;
+  --v-shell-bar-height: 46px;
+
+  /* ---------- 动效 ---------- */
+  --v-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --v-duration: 0.35s;
+}
+
+/* 页面入场：克制，只在页面根用一次 */
+@keyframes v-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 状态点呼吸 */
+@keyframes v-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

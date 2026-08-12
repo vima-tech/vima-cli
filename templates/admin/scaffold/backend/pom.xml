@@ -52,25 +52,11 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
         
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!--
+          此处不引 jjwt：登录态用的是存在 Redis 的不透明随机串，不签发 JWT。
+          详见 security/TokenService 的类注释——需要"能立刻作废已发出的凭证"，
+          而签名 JWT 在过期前撤不掉。
+        -->
 
         <!-- springdoc OpenAPI（接口文档：/swagger-ui/index.html） -->
         <dependency>

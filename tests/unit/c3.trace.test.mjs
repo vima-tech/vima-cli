@@ -42,8 +42,9 @@ test('黄金夹具：2 有效标注 / 0 野生 / 1 虚报（shared-base）→ wa
   assert.deepEqual(report.wild, []);
   assert.deepEqual(report.unmarked, ['shared-base']);
   assert.match(r.stdout, /✅ 有效 @vima 标注 2 处/);
-  assert.match(r.stdout, /⚠️ 虚报嫌疑 1 个/);
-  assert.match(r.stdout, /shared-base/);
+  // ⚠️ 虚报清单走 stderr（契约 §3 输出流向）
+  assert.match(r.stderr, /⚠️ 虚报嫌疑 1 个/);
+  assert.match(r.stderr, /shared-base/);
 });
 
 test('--strict：虚报嫌疑升级为阻断 → exit 2', async (t) => {
@@ -61,8 +62,8 @@ test('野生标注：代码塞 @vima not-a-task → exit 2，报告含 file:line
   assert.deepEqual(report.wild, [{ taskId: 'not-a-task', file: 'src/wild.ts', line: 1 }]);
   assert.equal(report.summary.wildTaskIds, 1);
   assert.equal(report.summary.markers, 2); // 有效标注不受野生影响
-  assert.match(r.stdout, /❌ 野生标注 1 处/);
-  assert.match(r.stdout, /not-a-task → src\/wild\.ts:1/);
+  assert.match(r.stderr, /❌ 野生标注 1 处/);
+  assert.match(r.stderr, /not-a-task → src\/wild\.ts:1/);
 });
 
 test('--dir 追加扫描目录：默认目录之外的标注也被收进对账', async (t) => {

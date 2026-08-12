@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { getRoleList, createRole, updateRole, deleteRole, getRoleMenuIds, assignRoleMenus } from '@/api/system'
 import { getMenuTree } from '@/api/system'
 import { confirmAsync, toastSuccess } from '@/utils/feedback'
+import { intFlag } from '@/utils/form'
+import { formatDateTime } from '@/utils/datetime'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -30,18 +32,22 @@ const form = reactive({
   remark: '',
 })
 
+// VSwitch 只吃布尔，后端字段是 0/1，中间必须过一层（原因见 utils/form.ts）
+const statusOn = intFlag(form, 'status')
+
 const rules = {
   roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
   roleKey: [{ required: true, message: '请输入角色标识', trigger: 'blur' }],
 }
 
+// 备注是唯一自由列；创建时间 170px 配合 formatDateTime 的 `2026-08-12 19:17:15`
 const columns = [
-  { key: 'roleName', title: '角色名称', width: 150 },
-  { key: 'roleKey', title: '角色标识', width: 150 },
-  { key: 'sort', title: '排序', width: 80 },
-  { key: 'status', title: '状态', width: 80, customSlot: 'status' },
-  { key: 'remark', title: '备注' },
-  { key: 'createTime', title: '创建时间', width: 180 },
+  { key: 'roleName', title: '角色名称', width: 170 },
+  { key: 'roleKey', title: '角色标识', width: 190, ellipsisTooltip: true },
+  { key: 'sort', title: '排序', width: 90 },
+  { key: 'status', title: '状态', width: 90, customSlot: 'status' },
+  { key: 'remark', title: '备注', ellipsisTooltip: true },
+  { key: 'createTime', title: '创建时间', width: 170, customSlot: 'createTime' },
   { title: '操作', key: 'operator', customSlot: 'operator' },
 ]
 
@@ -59,6 +65,10 @@ const handleAdd = () => {
   dialogTitle.value = '新增角色'
   dialogVisible.value = true
 }
+
+// 编辑时角色标识只读：后端 updateRole 本就不落库 roleKey（防 admin 通配标识被改），
+// 前端再放开输入就是"能填、存完不生效"的假象
+const isEdit = computed(() => form.id !== undefined)
 
 const handleEdit = (row: any) => {
   Object.assign(form, row)
@@ -102,11 +112,24 @@ const handleAssignMenu = async (row: any) => {
   }
 }
 
+// checkedKeys 只含全选节点；后端 getMenuTreeByRoleId 从 parentId=0 逐层组树，
+// 父菜单 id 不入库时整个分支会从侧栏消失，所以提交前把勾选节点的所有祖先（含半选父菜单）补上。
+const withAncestors = (nodes: any[], checked: Set<number>, ancestors: number[] = [], out = new Set<number>()) => {
+  for (const node of nodes) {
+    if (checked.has(node.id)) {
+      ancestors.forEach((id) => out.add(id))
+      out.add(node.id)
+    }
+    if (node.children?.length) withAncestors(node.children, checked, [...ancestors, node.id], out)
+  }
+  return out
+}
+
 const handleMenuSubmit = async () => {
   try {
     await assignRoleMenus({
       roleId: currentRoleId.value!,
-      menuIds: selectedMenuIds.value,
+      menuIds: [...withAncestors(menuTree.value, new Set(selectedMenuIds.value))],
     })
     menuDialogVisible.value = false
     toastSuccess('菜单分配成功')
@@ -145,33 +168,44 @@ onMounted(fetchData)
 <template>
   <div class="vui-page">
     <VCard title="角色管理">
-      <VForm inline>
+      <!-- layout="inline" 才是 VForm 的行内布局开关；没有 inline 这个 prop（见 ui-docs/VForm.md） -->
+      <VForm layout="inline" class="v-searchbar">
         <VFormItem label="角色名称">
           <VInput v-model="queryParams.roleName" placeholder="请输入角色名称" clearable />
         </VFormItem>
         <VFormItem label="角色标识">
           <VInput v-model="queryParams.roleKey" placeholder="请输入角色标识" clearable />
         </VFormItem>
-        <VFormItem>
+        <VFormItem class="v-searchbar-actions">
           <VButton type="primary" @click="handleSearch">搜索</VButton>
           <VButton @click="handleReset">重置</VButton>
         </VFormItem>
       </VForm>
 
       <div class="toolbar">
-        <VButton type="primary" @click="handleAdd">新增角色</VButton>
+        <VButton v-auth="'system:role:add'" type="primary" @click="handleAdd">新增角色</VButton>
       </div>
 
       <VTable :loading="loading" :data-source="tableData" :columns="columns">
+        <template #createTime="{ row }">
+          <span>{{ formatDateTime(row.createTime) }}</span>
+        </template>
         <template #status="{ row }">
           <VTag :type="row.status === 1 ? 'success' : 'danger'">
             {{ row.status === 1 ? '正常' : '禁用' }}
           </VTag>
         </template>
         <template #operator="{ row }">
-          <VButton size="small" @click="handleEdit(row)">编辑</VButton>
-          <VButton size="small" @click="handleAssignMenu(row)">分配菜单</VButton>
-          <VButton size="small" type="danger" @click="handleDelete(row.id)">删除</VButton>
+          <VButton v-auth="'system:role:edit'" size="sm" @click="handleEdit(row)">编辑</VButton>
+          <VButton v-auth="'system:role:edit'" size="sm" @click="handleAssignMenu(row)">分配菜单</VButton>
+          <!-- admin 是内置超管角色，后端拒删（RoleService），前端直接不给入口 -->
+          <VButton
+            v-if="row.roleKey !== 'admin'"
+            v-auth="'system:role:remove'"
+            size="sm"
+            type="danger"
+            @click="handleDelete(row.id)"
+          >删除</VButton>
         </template>
       </VTable>
 
@@ -189,13 +223,14 @@ onMounted(fetchData)
           <VInput v-model="form.roleName" placeholder="请输入角色名称" />
         </VFormItem>
         <VFormItem label="角色标识" prop="roleKey">
-          <VInput v-model="form.roleKey" placeholder="请输入角色标识" />
+          <VInput v-model="form.roleKey" placeholder="请输入角色标识" :disabled="isEdit" />
+          <p v-if="isEdit" class="form-hint">角色标识创建后不可修改（admin 为内置超管通配标识）</p>
         </VFormItem>
         <VFormItem label="排序">
           <VInputNumber v-model="form.sort" :min="0" />
         </VFormItem>
         <VFormItem label="状态">
-          <VSwitch v-model="form.status" :active-value="1" :inactive-value="0" active-text="正常" inactive-text="禁用" />
+          <VSwitch v-model="statusOn" />
         </VFormItem>
         <VFormItem label="备注">
           <VTextarea v-model="form.remark" placeholder="请输入备注" />
@@ -208,7 +243,13 @@ onMounted(fetchData)
     </VLayer>
 
     <VLayer v-model="menuDialogVisible" title="分配菜单" area="500px">
-      <VTree :data="menuTree" :props="{ label: 'name', children: 'children' }" show-checkbox node-key="id" :default-checked-keys="selectedMenuIds" @check="(keys: any) => selectedMenuIds = keys" />
+      <VTree
+        :data="menuTree"
+        show-checkbox
+        default-expand-all
+        :checked-keys="selectedMenuIds"
+        @update:checked-keys="(keys: any) => (selectedMenuIds = keys)"
+      />
       <template #footer>
         <VButton @click="menuDialogVisible = false">取消</VButton>
         <VButton type="primary" @click="handleMenuSubmit">确定</VButton>
@@ -218,7 +259,9 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 16px;
+.form-hint {
+  margin-top: 4px;
+  color: var(--v-text-weak);
+  font-size: var(--v-font-xs);
 }
 </style>

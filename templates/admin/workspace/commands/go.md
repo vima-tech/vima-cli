@@ -55,10 +55,13 @@
 
 - **共享层批次先写令牌**（§10.7 策略二）：派发 layer=shared 批次前，写入
   `.vima/shared-write-token`（内容为 ISO 8601 过期时刻，取当前时间 + 30 分钟）；
-  本批验收完成后**立即删除**该文件。业务批次不写令牌——guard-shared.sh 会对
+  本批验收完成后**立即删除**该文件。业务批次不写令牌——guard-shared.mjs 会对
   共享目录写入一视同仁地拦截。
-- **派发当前批次**：在同一轮回复内为批内每个任务各发起一个 vima-builder 子代理
-  Task 调用（同一轮多个 Task 调用 = 并行执行），派发前把任务 status 置 running。
+- **派发当前批次**：先对批内每个任务运行 `vima context <taskId>`（A8 确定性上下文
+  打包——任务/契约/页面块/组件文档切片/编码规范汇编成单文件），再在同一轮回复内为
+  批内每个任务各发起一个 vima-builder 子代理 Task 调用（同一轮多个 Task 调用 =
+  并行执行），派发指令中把 `.vima/context/<taskId>.md` 列为**第一必读**；
+  派发前把任务 status 置 running。
 - 等待本批全部 Builder 返回结果摘要，逐任务派发 vima-verifier 校验。
 - 逐个处理结果：
   a. Builder 成功且 Verifier 通过 → frontmatter status 置 done；

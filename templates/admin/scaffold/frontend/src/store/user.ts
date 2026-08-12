@@ -12,11 +12,12 @@ export const useUserStore = defineStore('user', () => {
   const username = computed(() => userInfo.value?.username || '')
   const realName = computed(() => userInfo.value?.realName || '')
   const roles = computed(() => userInfo.value?.roles || [])
-  const permissions = computed(() => userInfo.value?.permissions || [])
   /** 后端 user-info 返回的权限点集合；admin 为 ["*"]（通配） */
   const perms = computed<string[]>(() => userInfo.value?.perms || [])
   /** 后端 user-info 返回的可见菜单 path 列表，用于侧边栏过滤 */
   const menuPaths = computed<string[]>(() => userInfo.value?.menuPaths || [])
+  /** 后端 user-info 返回的 path → icon，让「菜单管理」里配的图标落到侧边栏 */
+  const menuIcons = computed<Record<string, string>>(() => userInfo.value?.menuIcons || {})
 
   async function login(username: string, password: string) {
     const res: any = await loginApi({ username, password })
@@ -51,10 +52,6 @@ export const useUserStore = defineStore('user', () => {
     return roles.value.includes(role) || roles.value.includes('admin')
   }
 
-  function hasPermission(permission: string) {
-    return permissions.value.includes('*:*:*') || permissions.value.includes(permission)
-  }
-
   /** perms 权限判断："*" 通配（admin），否则精确匹配权限点 */
   function hasPerm(perm: string) {
     return perms.value.includes('*') || perms.value.includes(perm)
@@ -67,15 +64,14 @@ export const useUserStore = defineStore('user', () => {
     username,
     realName,
     roles,
-    permissions,
     perms,
     menuPaths,
+    menuIcons,
     login,
     fetchUserInfo,
     logout,
     resetState,
     hasRole,
-    hasPermission,
     hasPerm,
   }
 })

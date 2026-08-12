@@ -16,7 +16,7 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/guard-shared.sh" }
+          { "type": "command", "command": "node .claude/hooks/guard-shared.mjs" }
         ]
       }
     ],
@@ -24,7 +24,7 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/post-write.sh" }
+          { "type": "command", "command": "node .claude/hooks/post-write.mjs" }
         ]
       }
     ]

@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 public class RoleService {
     private final RoleRepository roleRepository;
     private final MenuRepository menuRepository;
+    /** 角色的启用状态与菜单授权会影响一批用户的权限，改动后需整体失效权限缓存。 */
+    private final PermissionService permissionService;
 
     public PageResponse<Role> listRoles(String roleName, String roleKey, int pageNum, int pageSize) {
         Specification<Role> spec = Specification.where(null);
@@ -62,11 +64,22 @@ public class RoleService {
         existing.setStatus(role.getStatus());
         existing.setRemark(role.getRemark());
         
-        return roleRepository.save(existing);
+        Role saved = roleRepository.save(existing);
+        // status 可能被停用，持该角色的用户权限随之变化
+        permissionService.evictAll();
+        return saved;
     }
 
     public void deleteRole(Long id) {
+        Role role = roleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("角色不存在"));
+        // roleKey=admin 是 PermissionService 写死的超管通配标识，删掉它系统就没有超管了。
+        // updateRole 不复制 roleKey（改不掉），删除是唯一能碰掉它的口子，必须堵上。
+        if (PermissionService.ADMIN_ROLE_KEY.equals(role.getRoleKey())) {
+            throw new IllegalArgumentException("内置管理员角色不可删除");
+        }
         roleRepository.deleteById(id);
+        permissionService.evictAll();
     }
 
     public List<Long> getRoleMenuIds(Long roleId) {
@@ -82,5 +95,7 @@ public class RoleService {
         List<Menu> menus = menuRepository.findAllById(menuIds);
         role.setMenus(new HashSet<>(menus));
         roleRepository.save(role);
+        // 授权变更直接改写这批人的按钮级权限，必须立刻生效
+        permissionService.evictAll();
     }
 }

@@ -6,6 +6,7 @@ import com.{{projectPkg}}.dto.UserDTO;
 import com.{{projectPkg}}.service.UserService;
 import com.{{projectPkg}}.utils.ExcelUtil;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -53,7 +54,7 @@ public class UserController {
 
     @PreAuthorize("@perm.has('system:user:add')")
     @PostMapping
-    public ApiResponse<UserDTO> create(@RequestBody UserDTO dto) {
+    public ApiResponse<UserDTO> create(@Valid @RequestBody UserDTO dto) {
         try {
             return ApiResponse.success(userService.createUser(dto));
         } catch (Exception e) {
@@ -63,7 +64,7 @@ public class UserController {
 
     @PreAuthorize("@perm.has('system:user:edit')")
     @PutMapping
-    public ApiResponse<UserDTO> update(@RequestBody UserDTO dto) {
+    public ApiResponse<UserDTO> update(@Valid @RequestBody UserDTO dto) {
         return ApiResponse.success(userService.updateUser(dto));
     }
 

@@ -159,3 +159,36 @@ test('computeBatches：shared 多任务按拓扑序各占一个 serial 批', () 
   );
   assert.deepEqual(batches.map((b) => b.mode), ['serial', 'serial', 'parallel']);
 });
+
+test('computeBatches：conflictsWith 同层不同批（A8 贪心首适应），批容量与冲突同时满足', () => {
+  const mk = (id, layer, deps = [], conflicts) => ({
+    id,
+    fm: { taskId: id, layer, dependsOn: deps, status: 'pending', ...(conflicts ? { conflictsWith: conflicts } : {}) },
+  });
+  // a 与 c 冲突（单向声明即可，对称生效）；同层 3 个任务
+  const tasks = [
+    mk('a', 'business', [], ['c']),
+    mk('b', 'business'),
+    mk('c', 'business'),
+  ];
+  const batches = computeBatches(tasks);
+  assert.deepEqual(
+    batches.map((x) => x.tasks),
+    [['a', 'b'], ['c']],
+    'a 与 c 不得同批；b 与 a 首适应同批',
+  );
+  // 无冲突时同一输入仍是一批（防守：冲突逻辑不改变无冲突行为）
+  const plain = computeBatches([mk('a', 'business'), mk('b', 'business'), mk('c', 'business')]);
+  assert.deepEqual(plain.map((x) => x.tasks), [['a', 'b', 'c']]);
+});
+
+test('computeBatches：conflictsWith 指向不存在的任务 → PLAN_CONFLICT exit 2（A8）', () => {
+  const mk = (id, conflicts) => ({
+    id,
+    fm: { taskId: id, layer: 'business', dependsOn: [], status: 'pending', ...(conflicts ? { conflictsWith: conflicts } : {}) },
+  });
+  assert.throws(
+    () => computeBatches([mk('a', ['ghost'])]),
+    (err) => err.code === 'PLAN_CONFLICT' && /ghost/.test(err.message),
+  );
+});

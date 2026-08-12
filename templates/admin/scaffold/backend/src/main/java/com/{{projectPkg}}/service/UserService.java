@@ -8,6 +8,7 @@ import com.{{projectPkg}}.entity.User;
 import com.{{projectPkg}}.repository.DeptRepository;
 import com.{{projectPkg}}.repository.RoleRepository;
 import com.{{projectPkg}}.repository.UserRepository;
+import com.{{projectPkg}}.security.TokenStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +29,10 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final DeptRepository deptRepository;
     private final PasswordEncoder passwordEncoder;
+    /** 改角色/禁用/删号后要让该用户的权限缓存立刻失效，否则最长会滞后一个 TTL。 */
+    private final PermissionService permissionService;
+    /** 禁用/删除/重置密码后要顺手把人踢下线，不能让已发出的登录态继续可用。 */
+    private final TokenStore tokenStore;
 
     public PageResponse<UserDTO> listUsers(String username, String realName, Long deptId, int pageNum, int pageSize) {
         Specification<User> spec = buildSpec(username, realName, deptId);
@@ -71,6 +76,8 @@ public class UserService {
             user.setRoles(new HashSet<>(roles));
         }
 
+        // 同名用户被删过又重建时，缓存里可能还留着上一任的权限，先清掉
+        permissionService.evict(dto.getUsername());
         return toDTO(userRepository.save(user));
     }
 
@@ -89,11 +96,25 @@ public class UserService {
             user.setRoles(new HashSet<>(roles));
         }
 
-        return toDTO(userRepository.save(user));
+        UserDTO saved = toDTO(userRepository.save(user));
+
+        // 角色可能变了，缓存必须重建
+        permissionService.evict(user.getUsername());
+        // 被禁用的人不该还留在登录态里继续操作
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            tokenStore.removeTokenByUsername(user.getUsername());
+        }
+        return saved;
     }
 
     public void deleteUser(Long id) {
+        // 先取用户名：删完就查不到了，而缓存与登录态都是按用户名索引的
+        User user = userRepository.findById(id).orElse(null);
         userRepository.deleteById(id);
+        if (user != null) {
+            permissionService.evict(user.getUsername());
+            tokenStore.removeTokenByUsername(user.getUsername());
+        }
     }
 
     public void resetPassword(Long userId, String newPassword) {
@@ -101,6 +122,8 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        // 管理员重置了密码，旧登录态一并作废，逼其用新密码重登
+        tokenStore.removeTokenByUsername(user.getUsername());
     }
 
     /** 导出：按当前查询条件取全量用户（不分页），并填充部门名称。 */
@@ -139,6 +162,7 @@ public class UserService {
         user.setDeptId(deptId);
         user.setStatus(1);
         userRepository.save(user);
+        permissionService.evict(username);
     }
 
     private Specification<User> buildSpec(String username, String realName, Long deptId) {

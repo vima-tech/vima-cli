@@ -91,10 +91,10 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   assert.ok(!readme.includes('{{'), 'README.md 不应残留 {{ 模板变量');
   assert.ok(readme.includes('my-admin'), 'README.md 应替换出项目名 my-admin');
 
-  // Sidebar.vue：{{projectAbbr}} 已替换为项目缩写（my-admin → "MY"），无残留。
+  // Sidebar.vue：抬头是图标不是项目缩写（{{projectAbbr}} 变量已删除，英文缩写对使用者无语义）
   const sidebar = await readFile(path.join(proj, 'src/components/layout/Sidebar.vue'), 'utf8');
-  assert.ok(!sidebar.includes('{{projectAbbr'), 'Sidebar.vue 不应残留 {{projectAbbr}}');
-  assert.ok(sidebar.includes('MY'), 'Sidebar.vue 应替换出项目缩写 MY（my-admin）');
+  assert.ok(!sidebar.includes('{{project'), 'Sidebar.vue 不应残留 {{project 模板变量');
+  assert.ok(/v-side-heading-mark[^>]*><VIcon /.test(sidebar), 'Sidebar.vue 抬头标记应为 VIcon 图标');
 
   // manifest（契约 §6.4：managed 先空数组）
   const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
@@ -160,4 +160,23 @@ test('create -i 强制交互：非 TTY 下即使给了 --template 也 exit 3（�
   const r = vima(box, 'create', 'x-app', '-i', '--template', 'admin', '--no-git', '--no-install');
   assert.equal(r.status, 3, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
   assert.ok(!(await fileExists(path.join(box, 'x-app'))), '交互失败前不得生成项目目录');
+});
+
+test('preview 模板冒烟：script/lib/h5 起盘成功、manifest 落盘、无模板变量残留（D3 防漂移）', async (t) => {
+  for (const id of ['script', 'lib', 'h5']) {
+    const box = await sandbox(t);
+    const r = vima(box, 'create', `demo-${id}`, '--template', id, '--no-git', '--no-install');
+    assert.equal(r.status, 0, `${id}: stderr: ${r.stderr}`);
+    assert.match(r.stdout, /preview/, `${id}: 应打印 preview 警告（A5）`);
+    const proj = path.join(box, `demo-${id}`);
+    const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
+    assert.equal(manifest.templateId, id);
+    // 全部文本文件不得残留 {{projectName}}/{{projectPkg}}/{{createdAt}} 占位
+    for (const rel of await walkFiles(proj, { exclude: ['node_modules', '.git'] })) {
+      const buf = await readFile(path.join(proj, rel));
+      if (buf.includes(0)) continue; // 二进制透传文件跳过
+      assert.ok(!buf.toString('utf8').includes('{{project'), `${id}: ${rel} 残留模板变量`);
+      assert.ok(!buf.toString('utf8').includes('{{createdAt'), `${id}: ${rel} 残留模板变量`);
+    }
+  }
 });

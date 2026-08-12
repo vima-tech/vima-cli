@@ -22,7 +22,7 @@
 | `size` | `string` | `md` | 否 | 表格密度。 |
 | `rowClassName` | `string \| ((row: RowData, index: number) => string)` | — | 否 | 行类名或行类名计算函数。 |
 | `treeProps` | `Record<string, string>` | `() => ({})` | 否 | 树形数据的字段映射。 |
-| `defaultExpandAll` | `boolean` | `false` | 否 | 是否默认展开全部树节点。 |
+| `defaultExpandAll` | `boolean` | `false` | 否 | 是否展开全部树节点；绑定响应式布尔值即可当「全部展开/全部折叠」开关用，单行展开态由表格自己维护。 |
 | `resize` | `boolean` | `false` | 否 | 是否允许拖动列边缘调整宽度。 |
 | `draggable` | `boolean` | `false` | 否 | 启用表头列拖拽排序 |
 | `exportAllData` | `RowData[]` | `undefined` | 否 | 全量数据，用于导出全部数据。如果提供此属性，导出时会使用此数据而非 dataSource |

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +21,16 @@ public class DictService {
     private final DictDataRepository dictDataRepository;
 
     public PageResponse<DictType> listDictTypes(String dictName, String dictCode, int pageNum, int pageSize) {
-        Page<DictType> page = dictTypeRepository.findAll(PageRequest.of(pageNum - 1, pageSize, Sort.by("id").descending()));
+        Specification<DictType> spec = Specification.where(null);
+
+        if (dictName != null && !dictName.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("dictName"), "%" + dictName + "%"));
+        }
+        if (dictCode != null && !dictCode.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("dictCode"), "%" + dictCode + "%"));
+        }
+
+        Page<DictType> page = dictTypeRepository.findAll(spec, PageRequest.of(pageNum - 1, pageSize, Sort.by("id").descending()));
         return PageResponse.<DictType>builder()
                 .records(page.getContent())
                 .total(page.getTotalElements())

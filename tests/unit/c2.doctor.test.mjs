@@ -32,16 +32,16 @@ async function makeProject(t) {
     '.claude/agents/vima-builder.md': '# builder\n',
     '.claude/agents/vima-verifier.md': '# verifier\n',
     '.claude/agents/vima-planner.md': '# planner\n',
-    '.claude/hooks/guard-shared.sh': '#!/bin/bash\nexit 0\n',
-    '.claude/hooks/post-write.sh': '#!/bin/bash\nexit 0\n',
+    '.claude/hooks/guard-shared.mjs': '// stub\nprocess.exit(0)\n',
+    '.claude/hooks/post-write.mjs': '// stub\nprocess.exit(0)\n',
   };
   for (const [rel, content] of Object.entries(files)) {
     const p = path.join(tmp, rel);
     await mkdir(path.dirname(p), { recursive: true });
     await writeFile(p, content);
   }
-  await chmod(path.join(tmp, '.claude/hooks/guard-shared.sh'), 0o755);
-  await chmod(path.join(tmp, '.claude/hooks/post-write.sh'), 0o755);
+  await chmod(path.join(tmp, '.claude/hooks/guard-shared.mjs'), 0o755);
+  await chmod(path.join(tmp, '.claude/hooks/post-write.mjs'), 0o755);
   return tmp;
 }
 
@@ -87,7 +87,7 @@ test('doctor：taskStats 与 frontmatter 不一致 → ④ ❌、提示 vima syn
 
 test('doctor：hooks 缺可执行位 → ⑦ ❌ 且 exit 2', async (t) => {
   const tmp = await makeProject(t);
-  await chmod(path.join(tmp, '.claude/hooks/guard-shared.sh'), 0o644);
+  await chmod(path.join(tmp, '.claude/hooks/guard-shared.mjs'), 0o644);
 
   const proc = runCli(tmp, ['doctor']);
   assert.equal(proc.status, 2);

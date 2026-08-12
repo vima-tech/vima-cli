@@ -3,6 +3,7 @@ package com.{{projectPkg}}.service;
 import com.{{projectPkg}}.dto.PageResponse;
 import com.{{projectPkg}}.entity.Message;
 import com.{{projectPkg}}.repository.MessageRepository;
+import com.{{projectPkg}}.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class MessageService {
     private final MessageRepository messageRepository;
+    private final MessagePushService messagePushService;
+    private final UserRepository userRepository;
 
     public PageResponse<Message> listMessages(Long userId, Integer status, int pageNum, int pageSize) {
         Page<Message> page;
@@ -51,6 +54,13 @@ public class MessageService {
     }
 
     public Message sendMessage(Message message) {
-        return messageRepository.save(message);
+        Message saved = messageRepository.save(message);
+        // 入库成功后实时下发。接收方不在线时 push 是空操作，消息仍能从列表拉到——
+        // SSE 只负责"在线时立刻看到"，不承担可靠送达。
+        // 推送注册表按 username 组织（原因见 MessagePushService），这里查一次收件人用户名；
+        // 本方法跑在普通短请求里，查询用完即还连接，没有 SSE 那个攥连接的问题
+        userRepository.findById(saved.getUserId())
+                .ifPresent(user -> messagePushService.push(user.getUsername(), "sys-message", saved));
+        return saved;
     }
 }

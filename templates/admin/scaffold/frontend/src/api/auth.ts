@@ -11,7 +11,6 @@ export interface UserInfo {
   realName: string
   avatar?: string
   roles: string[]
-  permissions: string[]
   /** 权限点集合，admin 为 ["*"]（通配） */
   perms: string[]
   /** 当前用户可见菜单 path 列表 */

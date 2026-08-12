@@ -63,6 +63,11 @@ export function getMenuTree() {
   return request.get('/system/menu/tree')
 }
 
+/** 代码中真实存在的权限码清单（后端从 @PreAuthorize 注解扫描），权限标识下拉的唯一数据源 */
+export function getPermOptions() {
+  return request.get('/system/menu/perm-options')
+}
+
 export function createMenu(data: any) {
   return request.post('/system/menu', data)
 }

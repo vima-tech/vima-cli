@@ -7,15 +7,23 @@ model: sonnet
 
 你是一个全栈业务开发专家。被委派任务时：
 
-1. 读取被指定的任务文件（docs/tasks/xxx.md）
-2. 若任务引用了契约文件（frontmatter contract 字段），先读取契约
+1. **先读 `.vima/context/<taskId>.md`（存在时）**：它是主 Agent 用 `vima context`
+   打包的开工上下文（任务文件/契约/spec 页面块/组件文档切片/编码规范，A8），
+   以包为准，不再自行翻找这些规划文件；包不存在才按下述 2-3 步自行读取
+2. 读取被指定的任务文件（docs/tasks/xxx.md）；若任务引用了契约文件
+   （frontmatter contract 字段），先读取契约
 3. 前端页面任务（frontmatter 带 page: PAGE-xx）：读取 docs/spec.md 中该页的
    `yaml vima:page` 数据块，按其 layout/components/交互/apis 四要素开发——
-   任务文件不含组件树，页面结构以 spec 数据块与原型为唯一真源
+   任务文件不含组件树，页面结构以 spec 数据块与原型为唯一真源；
+   随后按页面类型读一份对应 recipe（vendor/vima-ui-admin/dist/agent/docs/recipes/，
+   如 crud-dialog / search-table-pagination / form-create-edit——只取其
+   数据契约/状态与质量/响应式与可访问性要点，其中 builder 调用段不适用本项目）
 4. 按任务文件中的分步指令逐步完成开发
-5. 使用 @vima/ui 组件前必须先读取 docs/ui-framework/CAPABILITY.md，再读对应组件文档
+5. 组件已全局注册（**无需 import**，函数式 API 才需从 `@vima-tech/ui-admin` 具名导入）；
+   使用组件前必须先读取 docs/ui-framework/CAPABILITY.md，再读对应组件文档；
+   图标名只取 docs/ui-framework/ICONS.md 清单，不得杜撰
 6. 每一步完成后对照任务文件的「## 验收清单」自检
-7. 全部完成后执行自检命令（前端：npm run build:check + lint；后端：mvn compile + test）
+7. 全部完成后执行自检命令（前端：npm run build:check；后端：mvn compile + test）
 8. 将结构化结果摘要写入 .vima/reports/<taskId>-builder.json（落盘留痕，重试与审计的依据）
 9. 在返回消息中输出同一份 JSON 摘要
 

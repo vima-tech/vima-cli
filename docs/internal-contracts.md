@@ -2,7 +2,16 @@
 
 > 本文是全部模块的**唯一接口权威**。与设计文档冲突时：文件格式/接口签名以本文为准，
 > 业务语义以 `docs/design/vima-cli-design-v2.md`（下称 §N）为准。
-> 吸收自 PACT 的增补项记为 A1–A5（见 §12 与 docs/design/v2.1-amendments.md）。
+> 增补项记为 A1–A8（A1–A5 吸收自 PACT，A6–A7 吸收自 AI-First 评估，A8 吸收自市场对标；
+> 见 §12 与 docs/design/v2.1-amendments.md）。
+> 更新日期：2026-08-12（对应设计文档 v2.0.5；本文随设计文档修订演进，不单独编号）。
+
+## 目录
+
+§1 阅读顺序 · §2 仓库结构与文件所有权 · §3 全局约定（3.1 错误码登记表）· §4 lib/util API ·
+§5 lib/model API · §6 文件格式 Schema（6.1–6.11）· §7 spec 结构化数据块 · §8 validate 规则表 ·
+§9 plan 批次算法 · §10 trace 规则 · §11 render 约定 · §12 增补项 A1–A8 · §13 测试与 fixtures ·
+§14 命令行为裁定补遗
 
 ## 1. 阅读顺序
 
@@ -11,20 +20,23 @@
 ## 2. 仓库结构与文件所有权
 
 ```
-bin/vima.mjs lib/cli.mjs lib/util/errors.mjs   [已完成，任何 agent 不得修改]
+bin/vima.mjs lib/cli.mjs lib/util/errors.mjs   [核心路由与错误通道：并行开发期冻结，
+                                                集成后改动须同步本文 §3/§4] + tests/cli.test.mjs
 lib/util/{fs,yaml,md}.mjs lib/model/*.mjs      [F  基础库]
-tests/unit/{yaml,md,model}.test.mjs            [F]
+tests/unit/{f.yaml,f.md,f.model}.test.mjs      [F]（命名按 §13 <owner>.<topic> 规范）
 templates/admin/planning/*.md                  [D1 规划资产] + tests/fixtures/golden/**
-templates/admin/workspace/**                   [D2 工作环境资产]
+templates/admin/workspace/**                   [D2 工作环境资产] + tests/unit/d2.workspace.test.mjs
 templates/*/template.json templates/*/scaffold/** [D3 模板与骨架]
 docs/pact-absorption.md docs/design/v2.1-amendments.md [A  吸收分析]
 lib/commands/{create,init,upgrade}.mjs         [C1] + tests/unit/c1.*.test.mjs
 lib/commands/{plan,sync,doctor}.mjs            [C2] + tests/unit/c2.*.test.mjs
-lib/commands/{validate,approve,trace}.mjs      [C3] + tests/unit/c3.*.test.mjs
+lib/commands/{validate,approve,trace,context}.mjs [C3] + tests/unit/c3.*.test.mjs
 lib/commands/render-{review,prototype}.mjs
 templates/admin/planning/{audit-view,prototype}.mjs
 templates/admin/planning/{review,prototype}.template.html [C4] + tests/unit/c4.*.test.mjs
-tests/e2e.test.mjs README.md                   [集成阶段统一编写，agent 不写]
+scripts/{dev.sh,sync.mjs}                      [开发工具：沙箱演练与模板→沙箱增量同步，不随 npm 包发布]
+scripts/gen-from-manifest.mjs                  [A6/A8 同源生成器：ai-manifest → ICONS.md + components.d.ts + llms-full.txt]
+tests/e2e.test.mjs tests/helpers.mjs README.md [集成阶段统一编写，agent 不写]
 ```
 
 只写你名下的文件。需要别人模块的行为时按本文签名假定，不去实现它。
@@ -35,19 +47,75 @@ tests/e2e.test.mjs README.md                   [集成阶段统一编写，agent
 - 退出码（lib/util/errors.mjs 已定）：0 成功；1 未预期错误；2 校验/检查不通过；
   3 用法错误；4 前置条件不满足。
 - 错误一律 `throw new VimaError(code, msg, {path, exitCode})` 或用 `usageError/checkFailed/precondition` 工厂。
+  code 全集登记于 §3.1；stderr 首行稳定格式 `vima <cmd>: <CODE>: <message> (<path>)`，
+  code=USAGE 时追加一行 `提示: 运行 vima <cmd> --help 查看用法`（未知命令为
+  `提示: 运行 vima help 查看全部命令`）；DEBUG 匹配 `vima*`/`*` 时再附完整堆栈（§14），
+  非 VimaError 的未预期异常同样只输出 message、堆栈受 DEBUG 门控。
 - 命令模块接口：`export async function run(argv, ctx) → number`，
   `argv` 为命令名之后的参数数组，`ctx = { cwd, cliRoot }`。
-  命令内部用 `parseArgs({ args: argv, options: {...}, allowPositionals: true })`。
-- stdout 给人读（简体中文，允许 emoji 状态符 ✅❌⚠️）；`--json` 时 stdout 只输出 JSON。
+  命令内部用 `parseArgs({ args: argv, options: {...}, allowPositionals: true })`；
+  parseArgs 抛出的英文异常一律经 `usageFromParseArgs(err)`（§4）翻译为中文 usage 错误（exit 3）。
+- 输出流向（stdout/stderr 分工，简体中文，允许 emoji 状态符 ✅❌⚠️）：
+  - **结果性输出走 stdout**：命令产物与成功摘要（plan 批次表、sync 差异预览、approve 任务汇总表、
+    validate 的「校验完成」统计行与待确认清单、trace 的 ✅ 摘要、render 的 ✅ 行、create/init 的
+    完成输出与环境预检块）；doctor 的体检报告整体（含 ❌ 行）即产物，全走 stdout；
+    `--json` 时 stdout 只输出 JSON。
+  - **失败诊断与警告走 stderr**：validate 的 ❌ 错误块与 ⚠️ 警告块、trace 的 ❌ 野生与 ⚠️ 虚报清单、
+    approve 的 ❌ 前置未满足块、render 的 ❌ 校验/--check 失败清单、create/init 的独立 ⚠️ 提示
+    （git/npm 失败、已存在跳过）。保证 `vima validate > report.txt` 不吞错误。
+- 顶层路由（lib/cli.mjs）：`vima help [command]` / `--help` / `-h` → stdout exit 0
+  （help 的 topic 未知 → exit 3）；`vima <cmd> --help|-h`（在 `--` 分隔符之前出现即生效）→
+  该命令用法 stdout exit 0；无参数 `vima` → 完整用法输出到 stderr、exit 3（用法错误）；
+  未知命令 → 一行错误 + 提示（不倾倒全量帮助）、exit 3；`version|--version|-v` → 裸版本号 stdout exit 0。
+  顶层 help 的 create 行须标注模板成熟度（admin=stable，其余 preview，A5 诚实分级）。
 - 所有写盘：`atomicWriteFile`；所有 JSON 落盘：`stableStringify`。
 - 渲染器/生成器**禁止** `Date.now()`、`new Date()`、`Math.random()`——字节确定性是验收项。
   例外：create/init/approve/sync 记录真实时间戳的字段（createdAt 等）允许 `new Date().toISOString()`。
 - 路径统一 `node:path`；项目根定位：含 `docs/lifecycle.json` 或 `.vima/manifest.json` 的当前目录
   （不向上递归查找，v2.0 简化）。
 
+### 3.1 错误码登记表（VimaError code 全集）
+
+stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本表；测试断言以 code 为准（文案可改，code 不可静默改）。
+
+| code | exit | 抛出点 | 含义 |
+|---|---|---|---|
+| USAGE | 3 | usageError 工厂（全部命令） | 用法/输入/参数解析错误 |
+| PREREQ | 4 | create | 环境依赖预检不满足（必需工具缺失/版本不足） |
+| DIR_EXISTS | 4 | create | 目标目录已存在且未加 --force |
+| TEMPLATE_PREVIEW | 4 | init | preview 模板拒绝 init（A5 能力诚实分级） |
+| ALREADY_INIT | 4 | init | 已初始化且未加 --force |
+| NO_MANIFEST | 4 | upgrade | 缺 .vima/manifest.json |
+| NO_TEMPLATE_ID | 4 | upgrade | manifest 缺 templateId |
+| NO_TASKS | 4 | plan | 缺 docs/tasks/ 目录（防在非 vima 项目静默产出空计划） |
+| NO_RENDERER | 4 | render-review / render-prototype | 模板未声明对应渲染器 |
+| NO_LIFECYCLE | 4 | model/lifecycle | 缺 docs/lifecycle.json |
+| NO_SPEC | 4 | model/spec | 缺 docs/spec.md |
+| NO_TEMPLATE | 3 | model/template | 未知模板 id |
+| TASK_FM | 2 | model/tasks | 任务 frontmatter 缺字段/取值非法（§6.1） |
+| YAML_PARSE | 2 | util/yaml、util/md（vima:* 块） | YAML 受限子集解析失败（含行号） |
+| PLAN_DEP | 2 | plan computeBatches | dependsOn 指向不存在的任务 |
+| PLAN_CONFLICT | 2 | plan computeBatches | conflictsWith 指向不存在的任务（A8） |
+| PLAN_CYCLE | 2 | plan computeBatches | 依赖成环（message 含环路径） |
+| CONTEXT_BUDGET | 2 | context | 上下文包总字节超出 --budget 预算（A8；包仍写盘） |
+| BAD_RENDERER | 1 | render-review / render-prototype | 渲染器缺少约定导出 |
+| YAML_STRINGIFY | 1 | util/yaml | 超出 YAML 子集无法序列化 |
+| LIFECYCLE_PARSE | 1 | model/lifecycle | lifecycle.json JSON 解析失败 |
+| MANIFEST_PARSE | 1 | model/manifest | manifest.json JSON 解析失败 |
+| TEMPLATE_PARSE | 1 | model/template | template.json JSON 解析失败 |
+
 ## 4. lib/util API（F 实现，签名冻结）
 
 ```js
+// lib/util/errors.mjs
+export const EXIT = { OK: 0, ERROR: 1, CHECK_FAILED: 2, USAGE: 3, PRECONDITION: 4 }
+export class VimaError extends Error          // (code, message, { path, exitCode })
+export function usageError(message)           // → VimaError('USAGE', …, exit 3)
+export function checkFailed(code, message, path)   // → exit 2
+export function precondition(code, message, path)  // → exit 4
+export function formatError(cmd, err)         // → `vima <cmd>: <CODE>: <message> (<path>)`
+export function usageFromParseArgs(err)       // node:util parseArgs 异常 → 中文 usageError（§3）
+
 // lib/util/fs.mjs
 export async function ensureDir(dir)
 export async function fileExists(p)            // → boolean
@@ -127,6 +195,8 @@ dependsOn: [shared-base]      # 可为空数组
 retryCount: 0
 contract: docs/contracts/device-api.md   # admin 业务任务必填；pipeline 可省
 page: PAGE-01                 # A2：前端页面任务引用 spec 页面块（可选字段）
+conflictsWith: [user-list-fe] # A8 可选：与这些任务共享代码路径，plan 保证不同批并行；
+                              # 字符串数组，引用必须存在（V-TASK-04 / PLAN_CONFLICT）
 updatedAt: 2026-08-12T10:00:00Z
 ---
 ```
@@ -177,15 +247,15 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
 
 v2.0.0 骨架**只用内置 builtin 目录拷贝**（不执行 npm create/spring init 外部命令——
 偏离 §3.5，理由：确定性与离线可测，记入偏离清单）。preview 模板可省 planning/workspace 字段。
-**sharedDirs 是共享层保护面的单一真源**：guard-shared.sh 的目录判定与全部红线文案
+**sharedDirs 是共享层保护面的单一真源**：guard-shared.mjs 的目录判定与全部红线文案
 （CLAUDE.project.md / vima-builder.md / 任务模板约束重申）必须与它同步——设计 §10.7 的
 `src/hooks/、src/types/、backend common` 属旧口径，v2.0 裁定以骨架真实目录为准
 （前端 components/utils/vendor；后端 config/security 包）。
 `planning.codingStandards` → init 安装为 `docs/coding-standards.md`（managed，
 §5.2「详细规范」指针的落点）。
 模板变量：拷贝 scaffold 时替换文件内容与文件名中的 `{{projectName}}`、`{{projectPkg}}`
-（projectName 去掉非字母数字后的小写形式）、`{{projectAbbr}}`（projectName 去掉非字母数字后
-取前 2 字符大写，空回退 `VM`）、`{{createdAt}}`。
+（projectName 去掉非字母数字后的小写形式）、`{{createdAt}}`。
+（曾有 `{{projectAbbr}}` 供侧栏 Logo 缩写，英文缩写对使用者无语义，已改为图标并删除该变量。）
 落地改名规则：scaffold 源文件名 `_gitignore` 拷贝到生成项目时改名为 `.gitignore`
 （npm 发包会剥离 `.gitignore` 文件，模板侧用下划线名规避）。
 
@@ -199,7 +269,10 @@ v2.0.0 骨架**只用内置 builtin 目录拷贝**（不执行 npm create/spring
                             "docs/raw/", "docs/coverage-matrix.md"] } }
 ```
 
-init 安装清单的 managed 部分含 `docs/ui-framework/**`（组件文档：CAPABILITY.md + 每组件一份
+init 安装清单的 managed 部分含 `AGENTS.md`（← workspace/AGENTS.project.md 变量替换，
+A8 跨工具指针文件：声明真源为 CLAUDE.md + 三条最低红线，用户定制走 CLAUDE.md）、
+`docs/ui-framework/**`（组件文档：CAPABILITY.md 索引档 + ICONS.md 图标清单 +
+llms-full.txt 单文件全量档 + 每组件一份
 `<Name>.md`，拷自模板 `ui-docs/`，生成自组件库 `api.generated.json`），全量计入校验和；
 `--skip-scan` 表示跳过这套拷贝。managed 另含 `docs/coding-standards.md`（§6.3 codingStandards）。
 init 额外接受 `--template/-t <id>`（仅当项目无 manifest/lifecycle 记录时用于指定模板；
@@ -266,6 +339,55 @@ prototype.manifest.json 该页条目逐点展开（components 的每个 item 与
 每个 modal field、每条 link 各一条），每点独立给证据；其他任务可省。
 `/check` 聚合全部报告的 points 输出任务点级完成度（B2）；报告是审计与
 增量修复的依据，Agent 不得只写任务级结论。
+
+**豁免语义（A8）**：checklist/points 条目可带 `waived: true` + 非空 `reason`
+（必须写明豁免理由与用户裁定来源）。waived 条目不算 fail、不阻塞 result=pass；
+`/check` 按 通过/豁免/未过 三分计数并逐条列出豁免点。**Verifier 不得自行发明豁免**
+——没有用户明确裁定的未实现项照常 fail。
+
+### 6.10 .vima/reports/runtime-errors.jsonl（A7 运行时证据，admin 骨架产出）
+
+JSON Lines（每行一个 JSON 对象），由骨架 vite dev 中间件 `/__vima/runtime-error`
+接收浏览器侧上报追加写入；服务端补 `receivedAt`（真实时间戳，允许 new Date）：
+
+```json
+{ "kind": "error|unhandledrejection|vue", "message": "...",
+  "source": "文件:行:列（kind=error 时）", "info": "Vue errorInfo（kind=vue 时）",
+  "page": "/pathname?search#hash", "receivedAt": "<ISO>" }
+```
+
+- 上报端（骨架 main.ts，仅 `import.meta.env.DEV`）：window error / unhandledrejection /
+  Vue app.config.errorHandler 三通道；同错误去重、每次页面加载最多 20 条（防错误风暴）。
+- 消费端：`/check` 报告条数与最近条目；Verifier 验收带 page 任务时可按 `page` 字段取证。
+- 文件在 `.vima/reports/`（骨架 .gitignore 已忽略）；排查完成后可直接删除，随时重建。
+- 构建产物（vite build）不含上报代码路径（插件 apply: 'serve' + DEV 守卫）。
+
+### 6.11 .vima/context/<taskId>.md（A8，`vima context` 输出）
+
+任务开工的**确定性上下文包**（单 markdown 文件，无时间戳，字节稳定）：
+
+```
+<!-- 生成说明注释（真源变更后重跑重建） -->
+# 任务上下文包：<taskId> — <title>
+（分节字节计量表）
+## 任务文件（docs/tasks/<id>.md）        ← 原文全文（frontmatter + body）
+## 契约（<fm.contract>）                 ← 契约文件原文；缺失时标注跳过
+## spec 页面块（PAGE-xx）                ← 该页 vima:page 块原文（yaml 围栏）；无 page 字段跳过
+## 组件文档切片                          ← 按受限词表映射出的组件，各附 docs/ui-framework/<名>.md 全文
+## 编码规范（docs/coding-standards.md）  ← 原文；缺失时标注跳过
+```
+
+**受限词表 → 组件映射**（打包切片的唯一依据，与 spec 词表同步演进）：
+block：table→VTable；pagination→VPagination；search/form→VForm+VFormItem；
+tabs→VTab+VTabItem；cards→VCard；toolbar→VButton。
+item/field type：input→VInput；select→VSelect；textarea→VTextarea；number→VInputNumber；
+date→VDatePicker；time→VTimePicker；radio→VRadioGroup+VRadio；
+checkbox→VCheckboxGroup+VCheckbox；switch→VSwitch；button→VButton；upload→VUpload；
+tree→VTree。modals 非空 → 追加 VLayer。未知词静默跳过（词表由 V-SPEC-04 把关）。
+
+stdout 输出分节字节计量与总字节；`--budget <bytes>` 总字节超限 → 包仍写盘（便于排查）
+但 CONTEXT_BUDGET exit 2；`--stdout` 打包内容直接输出不写盘。文档缺失（如规划期无
+docs/ui-framework）一律「标注跳过」不报错——存在性问题归 validate/doctor。
 
 ## 7. spec 结构化数据块（唯一机器真源，§13.2/§13.3）
 
@@ -380,23 +502,29 @@ apis:
 | V-TASK-01 | error | frontmatter 字段齐全且取值合法（§6.1；business 任务必须有 contract） |
 | V-TASK-02 | error | 每个任务 body 含「## 验收清单」且至少 1 个复选框 |
 | V-TASK-03 | error | contract 指向的文件存在 |
-| V-TASK-04 | error | dependsOn 的 taskId 均存在 |
+| V-TASK-04 | error | dependsOn 与 conflictsWith（A8）引用的 taskId 均存在 |
 | V-TASK-05 | error | A2 单一真源：带 page 字段的任务 body 不得含「组件树」或「## 页面结构」手写段（页面结构以 spec 数据块+原型为准） |
 | V-TASK-06 | error | page 字段值存在于 spec pages；spec 缺失/不可解析而任务带 page 时同样报 error（不得静默跳过） |
 | V-TASK-07 | warn | 任务点覆盖度（B3）：带 page 的任务，验收清单复选框数 < 该页任务点数（交互数 [items 带 action + rowActions] + 弹窗字段数）→ 提醒清单可能漏点 |
 | V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口） |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
+| V-CODE-01 | error | 代码↔契约对账·前端（A6）：**带 `@vima` 标注**的 src/ 文件中 `request.<get\|post\|put\|delete\|patch>(路径字面量)` 归一后必须 ∈ 契约 apis。归一：非 `/api` 开头补 `/api` 前缀（request baseURL）；模板串 `${expr}` 与契约 `{id}` 都归一为 `{*}`。单向对账（防野生接口）；实现完整性归 Verifier。无标注文件（底座/共享层）不参与 |
+| V-CODE-02 | error | 代码↔契约对账·后端（A6）：**带 `@vima` 标注**的 backend/src *.java 中，类级 `@RequestMapping` 基路径 + `@Get/Post/Put/Delete/PatchMapping` 子路径拼接归一后必须 ∈ 契约 apis。Mapping 路径只认 value=/path=/首个位置字符串参数（仅 produces= 等具名属性视为无子路径）。仅 code 组全量校验时跑（--artifact 不含） |
 
 `vima validate`：全部 error 通过 → exit 0 并把 `checklists.PLANNING.artifactsValidated=true` 写回
 lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规则。报告落盘 §6.8。
 
 ## 9. plan 批次算法（C2；§19.9）
 
-1. loadTasks；dependsOn 引用不存在 → exit 2（V-TASK-04 同源检查）。
+0. `docs/tasks/` 目录不存在 → VimaError('NO_TASKS', exit 4)，不写任何报告
+   （防在非 vima 项目静默产出空计划并凭空创建 .vima/reports/）。
+1. loadTasks；dependsOn 引用不存在 → exit 2（V-TASK-04 同源检查）；
+   conflictsWith 引用不存在 → PLAN_CONFLICT exit 2（A8）。
 2. 环检测（全图 DFS）：发现环 → stderr 输出环路径，exit 2。
 3. 批次 0..k：layer=shared 任务按拓扑序，**每任务单独一个 serial 批**。
 4. business 任务按 dependsOn 做拓扑分层（依赖只算 business+shared；shared 视为已满足）；
-   每层一个 parallel 批；层内 >5 个时按任务 id 排序切成 ≤5 的子批。
+   层内按任务 id 排序做**贪心首适应**切批：批容量 ≤5 且批内任务互不 conflictsWith
+   （A8 声明式冲突——两任务合法共享代码路径时不同批，补文件所有权模型盲区）。
 5. pipeline 任务按拓扑序放末尾，每任务一个 serial 批。
 6. 任务在批内按 id 排序；写 §6.5 至 .vima/reports/batch-plan.json（--json 时输出 stdout）。
    plan 是只读命令（报告文件除外）。
@@ -414,8 +542,9 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 ## 11. render 约定（C4；§13.2/§13.3/§19.6/§19.7）
 
 - 命令流程：loadSpec + loadContracts → 动态 import 模板 renderer → 产物 atomicWriteFile。
-  渲染前先跑 V-SPEC-03/04/05（复用 C3 导出的规则函数；若 C3 未就绪则在渲染器内做同规则内联校验），
-  四要素缺失 → exit 2 输出缺失清单（§19.6「先过 validate」）。
+  渲染前先跑 V-SPEC-03/04/05：静态导入复用 validate.mjs 的 `validatePages`
+  （并行开发期的动态探测 + 内联兜底已随集成移除），四要素缺失 → exit 2 输出缺失清单
+  （§19.6「先过 validate」）。
 - renderer 接口（模板资产，admin 实现）：
   ```js
   // templates/admin/planning/audit-view.mjs
@@ -448,19 +577,28 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   Agent 改 spec 后重渲染，不要在文档外口头拍板」提示。内容为常量文案，不依赖输入。
 - **区块标记对账约定**（§13.3 机械化路径的 hook 半，v2.1.0 提前）：前端页面根组件
   模板须含 `data-page="PAGE-xx"`；每个 layout 区块容器元素带 `data-block="<词>"`；
-  每个弹窗挂载点带 `data-modal="MODAL-xx"`。post-write.sh 见 §14。
+  每个弹窗挂载点带 `data-modal="MODAL-xx"`。post-write.mjs 见 §14。
 - `--check`：内存渲染与磁盘现有文件逐字节比较，不一致 → exit 2（不写盘）；文件缺失 → exit 2。
 - 成功渲染后写回 lifecycle `reviewRendered/prototypeRendered = true`（lifecycle 存在时）。
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 吸收自 PACT 的增补项（已获用户确认，A agent 写成 v2.1-amendments.md）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估，均见 v2.1-amendments.md）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。
 - **A3 轻量冷读门**：go.md 第二道闸门提供可选深模式——零知识子代理只读 spec+契约输出必问问题清单。
 - **A4 决策留否决项**：spec 第八章决策表（编号 D-01…，列：决策/理由/已否决方案/否决理由），V-DEC-01。
 - **A5 能力诚实分级**：template.json status 字段；preview 模板 create 警告、init 拒绝（exit 4）。
+- **A6 规范执行者阶梯**：编码规范逐条标执行者标签（无标签不入册）；post-write 机检扩展
+  （幻包名/vui-page/字面量色值/操作列 width/图标名，§14）；V-CODE-01/02 代码↔契约对账（§8）；
+  hooks 为 node 直跑 .mjs；ICONS.md 与 components.d.ts 由 ai-manifest 同源生成。
+- **A7 运行时证据**：骨架 vite dev 错误落盘 `.vima/reports/runtime-errors.jsonl`（§6.10）
+  + `/check` 聚合；后端 `@SpringBootTest` 上下文冒烟测试使 `mvn test` 成为真实信号。
+- **A8 市场对标采纳**：init 安装 AGENTS.md 跨工具指针（§6.4）；post-write 图标拦截给
+  编辑距离近似候选（§14）；gen 脚本追加 llms-full.txt 全量档；验收词汇补 waived
+  （§6.9，豁免带理由落盘）；任务 `conflictsWith` 字段（§6.1/§8/§9，声明式冲突不同批）；
+  `vima context` 确定性上下文打包 + 字节预算机检（§6.11，CONTEXT_BUDGET）。
 
 ## 13. 测试与 fixtures
 
@@ -468,7 +606,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 黄金夹具 `tests/fixtures/golden/`（D1 编写，必须能全绿通过 validate/plan/render/trace）：
   ```
   docs/spec.md                 八章 + entities + 2 个 page（PAGE-01 列表含 MODAL-01；PAGE-02 详情）
-                               + roles(2)/menus(2 含 1 个 uncovered 示例？不——黄金夹具须全绿：全部菜单有角色)
+                               + roles(2)/menus(2)——黄金夹具须全绿，全部菜单有角色覆盖、不含 uncovered 示例
                                + 1 条 flow + 第八章决策表（≥1 行，含已否决方案）
   docs/contracts/device-api.md 含 vima:contract（≥3 个 api，覆盖 PAGE 页面 apis 全集）
   docs/tasks/{shared-base,device-api-be,device-list-fe,full-test}.md
@@ -479,14 +617,20 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   src/api/device.ts            首行注释 // @vima device-list-fe
   backend/src/main/java/demo/DeviceController.java   // @vima device-api-be
   ```
-  夹具中 status：shared-base=done（有标注? shared-base 无标注 → 制造 1 个虚报 warn 供 trace 测试），
+  夹具中 status：shared-base=done 且刻意不带 @vima 标注（制造 1 个虚报 warn 供 trace 测试），
   其余 pending。
 - 单测不得依赖网络；可执行 `node bin/vima.mjs`（用 `node:child_process` spawnSync）。
 - e2e（集成阶段统一写）：临时目录 create --no-git --no-install → init → 覆盖黄金夹具 →
   validate → render-review/-prototype（+--check）→ plan → trace → approve → doctor → upgrade。
 - workspace 文字资产测试（`tests/unit/d2.workspace.test.mjs`）：A3 三条 grep 判据、
-  guard-shared.sh 目录集 ⊆ template.json sharedDirs、全部模板 status ∈ {stable,preview}
+  guard-shared.mjs 目录集 ⊆ template.json sharedDirs、全部模板 status ∈ {stable,preview}
   且 admin=stable——防文字资产与配置漂移。
+- CLI 路由测试（`tests/cli.test.mjs`）：help / `help <cmd>` / 子命令 `--help` / 未知命令 /
+  无参数 / version 的输出流与退出码矩阵；parseArgs 中文翻译；USAGE 提示行；DEBUG 堆栈门控；
+  顶层 help 的模板成熟度标注与 template.json status 一致（防 A5 文案漂移）。
+- 公共 helper（`tests/helpers.mjs`）：`BIN`（bin/vima.mjs 绝对路径）与
+  `runCli(args, opts) → { status, stdout, stderr, out }`（out=stdout+stderr 合并，
+  统一用 `process.execPath` 而非 PATH 上的 node，保证 engines 约束下测试跑在当前解释器）。
 
 ## 14. 命令行为裁定补遗（v2.0 实现层，设计文档相应节加注）
 
@@ -500,11 +644,29 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - **doctor**：CLAUDE.md 行数检查为 **warn**（§5.4「告警」，>50 触发，不改变退出码）；
   README 一致性检查 = 用 sync 导出的生成器内存重建后与磁盘字节比对（不一致 → warn，
   提示 `vima sync`）；环境预检**复用 create.mjs 导出的同一份检查函数**（§3.6）。
-- **guard-shared.sh**：DEVELOPING 阶段追加拦截 `docs/contracts/**` 无令牌写入
+- **guard-shared.mjs**：DEVELOPING 阶段追加拦截 `docs/contracts/**` 无令牌写入
   （§9.5 契约纪律 4）；PLANNING/MAINTAINING 不拦；lifecycle 缺失/损坏时放行（防误伤）。
-- **post-write.sh（§10.5 第三道防线）**：src/ 下 .vue/.ts(.tsx) 检查
-  底层库深路径导入（…/vima-ui-admin/dist/…）与原生 confirm()/alert()，命中 exit 2
-  反馈 Agent 修复；CLAUDE.md >50 行告警保持 exit 0。
+- **post-write.mjs（§10.5 第三道防线 + A6 机检扩展）**：src/ 下 .vue/.ts(.tsx) 检查
+  底层库深路径导入（…/vima-ui-admin/dist/…）、幻包名 `@vima/ui` 导入与原生
+  confirm()/alert()，命中 exit 2 反馈 Agent 修复；CLAUDE.md >50 行告警保持 exit 0。
+  **业务页面规范机检（A6，仅带 `data-page` 的 .vue，内置壳层页不涉及）**：
+  ①页面根须挂 `.vui-page` 类；②字面量色值（#hex/rgb/hsl）只允许出现在自定义属性
+  定义片段（`--x: …`）中，属性值须 var() 引用；③操作列（title「操作」或
+  key/customSlot 以 operator 结尾）禁止手写字面量 width（宽度由 VTable 按行内按钮
+  文案自动计算，L1 已吸收）。**VIcon 图标名机检（A6，全部 .vue）**：`name`/`type`
+  静态字面量必须 ∈ vendor/vima-ui-admin/dist/ai-manifest.json 的 icons（含别名，
+  忽略大小写）；动态绑定 `:name` 不查；manifest 缺失时跳过；**拦截时按编辑距离给出
+  前 3 个近似候选（A8，报错即纠错）**。任一命中 → exit 2
+  逐项反馈；hooks 均为 node 直跑的 .mjs（settings.json `node .claude/hooks/<name>.mjs`），
+  定位「防误不防恶意」。
+- **context（A8，`vima context <taskId>`）**：按 §6.11 打包任务开工上下文到
+  `.vima/context/<taskId>.md`（atomicWriteFile，无时间戳字节稳定）；stdout 输出分节
+  字节计量；`--budget <bytes>` 超限 → 包仍写盘、CONTEXT_BUDGET exit 2；`--stdout`
+  输出包内容不写盘；docs/tasks 缺失 → NO_TASKS exit 4；未知 taskId → USAGE exit 3；
+  资产缺失（契约文件/ui-framework/coding-standards）→ 标注跳过不报错。
+  /go 派发 Builder 前先跑本命令，Builder 把包列为第一必读（上游编译、下游不自由检索）。
+- **init 的 AGENTS.md（A8）**：workspace/AGENTS.project.md 存在时渲染为项目根
+  `AGENTS.md`（managed）——agents.md 标准的指针文件；缺失时静默跳过（其他模板不受影响）。
   **区块标记机械对账**（§13.3 v2.1.0 提前落地的 hook 半）：写入的 .vue 文件含
   `data-page="PAGE-xx"` 时，读 docs/review/prototype.manifest.json 对账——
   ①PAGE-xx 必须存在于 manifest（否则提示 spec/原型未同步或标记拼错）；

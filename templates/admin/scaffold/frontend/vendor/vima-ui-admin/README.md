@@ -250,8 +250,10 @@ Esc 放弃草稿、重置复原、最后一列勾选框禁用。
 
 ### 弹层关闭约定
 
-`VLayer` 支持 Esc 与遮罩关闭；`shadeClose` 默认为 `true`。编辑、填写类弹窗若需防止误关，显式设置
-`:shade-close="false"`，并在业务层处理未保存内容提示。
+弹窗一律**不响应点击遮罩关闭**，避免误关丢失填写内容：`VLayer` 的 `shadeClose`、`VDrawer` 的
+`closeOnClickModal`、`messageBox` 的 `closeOnClickModal` 默认均为 `false`，`layer.confirm` 不再监听
+背板点击。关闭入口只有关闭按钮、页脚按钮与 Esc。确需恢复遮罩关闭的浏览型弹窗，显式设置
+`:shade-close="true"` / `:close-on-click-modal="true"`。
 
 ---
 

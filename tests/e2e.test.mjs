@@ -17,7 +17,8 @@ let sandbox;
 let proj;
 
 function vima(args, cwd = proj) {
-  const r = spawnSync('node', [BIN, ...args], { cwd, encoding: 'utf8' });
+  // process.execPath 而非 PATH 上的 node：nvm 多版本/CI matrix 下保证跑在当前解释器（契约 §13）
+  const r = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
 }
 
@@ -56,7 +57,7 @@ test('②init：工作环境就绪（宪法<50 行、hooks 可执行、lifecycle
   const lc = JSON.parse(await readFile(path.join(proj, 'docs/lifecycle.json'), 'utf8'));
   assert.equal(lc.currentPhase, 'PLANNING');
   assert.equal(lc.templateId, 'admin');
-  for (const h of ['guard-shared.sh', 'post-write.sh']) {
+  for (const h of ['guard-shared.mjs', 'post-write.mjs']) {
     const st = await stat(path.join(proj, '.claude/hooks', h));
     assert.ok(st.mode & 0o100, `${h} 需可执行`);
   }

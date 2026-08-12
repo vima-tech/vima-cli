@@ -13,7 +13,7 @@
 | `modelValue` | `boolean` | `false` | 否 | 浮层是否可见 |
 | `title` | `string` | — | 否 | 浮层标题 |
 | `area` | `string \| number \| Array<string \| number>` | — | 否 | 面板宽高 |
-| `shadeClose` | `boolean` | `true` | 否 | 点击遮罩是否关闭 |
+| `shadeClose` | `boolean` | `false` | 否 | 点击遮罩是否关闭 |
 | `closeBtn` | `boolean \| number \| string` | `true` | 否 | 是否显示关闭按钮 |
 | `loading` | `boolean` | `false` | 否 | 是否显示处理遮罩 |
 | `type` | `string \| number` | `1` | 否 | 兼容层类型 |

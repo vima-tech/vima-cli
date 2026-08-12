@@ -25,14 +25,22 @@ model: sonnet
    落盘留痕，供 Builder 增量修复与 /check 任务点完成度聚合读取）
 6. 在返回消息中输出同一份报告
 
+**豁免（waived，A8）**：只有**用户明确裁定过**豁免的条目才可标
+`waived: true`，且必须带非空 `reason`（写明豁免理由与用户裁定来源，如
+「用户 2026-08-12 对话裁定：导出功能延后到二期」）。waived 条目不算 fail、
+不阻塞 result=pass，但单独留痕——**你不得自行发明豁免**；没有用户裁定
+就是未通过，照常 fail。
+
 校验报告格式（契约 §6.9；points 为带 page 任务必填，逐任务点判定）：
 
 ```json
 { "taskId": "...", "round": 1, "result": "pass|fail",
   "checklist": [{ "item": "...", "passed": true, "evidence": "文件:行号" }],
-  "points":    [{ "point": "toolbar/新增 → modal MODAL-01", "passed": true, "evidence": "文件:行号" }],
+  "points":    [{ "point": "toolbar/新增 → modal MODAL-01", "passed": true, "evidence": "文件:行号" },
+                { "point": "toolbar/导出 → api GET /api/x/export", "passed": false,
+                  "waived": true, "reason": "用户裁定：导出延后二期（2026-08-12 对话）" }],
   "missing": ["..."], "contractViolations": ["..."] }
 ```
 
 原则：**宁可误报不可漏报**。找不到明确证据（文件:行号）证明已实现的项，
-一律判为未通过。
+一律判为未通过（或经用户裁定后 waived 留痕）。

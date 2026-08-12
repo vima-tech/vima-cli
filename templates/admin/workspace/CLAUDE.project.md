@@ -1,9 +1,10 @@
 # {{projectName}} 项目宪法
 
 # 项目技术栈
-- 前端：Vue 3 + TypeScript + Vite + @vima/ui
+- 前端：Vue 3 + TypeScript + Vite + @vima-tech/ui-admin（vendored 组件库，组件已全局注册）
 - 后端：Java 21 + Spring Boot + JPA
-- 数据库：PostgreSQL
+- 数据库：PostgreSQL（业务数据）
+- 缓存：Redis（登录态 token 与权限缓存，必需组件；本地用 backend/docker-compose.yml 拉起）
 - 系统底座已内置（认证/RBAC 按钮级权限/用户/角色/菜单/部门/字典/配置/文件/日志/消息/定时任务/在线用户/Excel 导入导出/API 文档）——只做业务需求，底座不重复实现、不进 spec
 
 # 核心编码约定
@@ -17,6 +18,7 @@
   config/security 包，同 template.json sharedDirs）——共享层对业务任务只读，确需修改走 sharedChangeRequest
 - 禁止使用原生 confirm()/alert()
 - 禁止在组件中写全局样式
+- 禁止写死颜色/圆角/间距（取 src/styles/tokens.css 的 `--v-*` 令牌）；页面根必须是 `.vui-page`
 
 # 工作协议
 - 每次对话开始，先读取 docs/lifecycle.json，按当前阶段（PLANNING/DEVELOPING/MAINTAINING）模式工作
