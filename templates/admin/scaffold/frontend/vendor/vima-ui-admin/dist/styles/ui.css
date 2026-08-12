@@ -1541,6 +1541,10 @@
   white-space: nowrap;
 }
 
+/*
+ * 末行同样保留下边框：数据填不满滚动区时（列表页常态），末行下方是一片空白，
+ * 少了这一横就没有收口，数据像悬在半空。表格底部是分页时它顺势成为两者的分隔线。
+ */
 .vui-table-native td {
   height: 49px;
   padding: 0;
@@ -1549,10 +1553,6 @@
   color: var(--vui-text-body);
   font-size: 14px;
   vertical-align: middle;
-}
-
-.vui-table-native tbody tr:last-child td {
-  border-bottom: 0;
 }
 
 .vui-table-native tbody tr:hover td {
@@ -1706,15 +1706,6 @@
   border-end-start-radius: 0;
   border-end-end-radius: 0;
   box-shadow: none;
-}
-
-/*
- * 末行下边框在这个组合下要还回来。上面那条 tbody tr:last-child { border-bottom: 0 }
- * 是为了不和卡片底边框叠成双线；缝合后表格自己的底边框已经让给分页，
- * 末行下方要么是空白填充区、要么直接接分页，不会叠线，反而缺了收口的一横。
- */
-.vui-table:has(+ .vui-pagination) .vui-table-native tbody tr:last-child td {
-  border-bottom: 1px solid #e5ebf1;
 }
 
 .vui-table:has(+ .vui-pagination) + .vui-pagination {

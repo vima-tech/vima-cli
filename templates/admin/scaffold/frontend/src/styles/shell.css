@@ -1245,16 +1245,13 @@
   background: color-mix(in srgb, var(--v-primary) 9%, var(--v-surface));
 }
 
-.v-workspace-bar.is-standalone .v-workspace-tab:hover {
+.v-workspace-bar.is-standalone .v-workspace-tab:not(.is-active):hover {
   color: var(--v-text-title);
   background: color-mix(in srgb, var(--v-primary) 5%, var(--v-surface));
 }
 
-.v-workspace-bar.is-standalone .v-workspace-tab.is-active {
-  color: var(--v-primary-strong);
-}
-
-.v-workspace-bar.is-standalone .v-workspace-tab-mark {
+/* 只压暗未选中的圆点；选中项的蓝青渐变与外发光由上面的 .is-active 规则点亮 */
+.v-workspace-bar.is-standalone .v-workspace-tab:not(.is-active) .v-workspace-tab-mark {
   background: linear-gradient(135deg, var(--v-text-faint), var(--v-text-faint));
 }
 
