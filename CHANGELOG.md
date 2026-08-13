@@ -4,6 +4,69 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-13
+
+> 2.1.0 曾在仓库内准备但从未发布到 npm（npm 上的上一版是 2.0.3），其内容并入本版本。
+
+### 破坏性变更
+
+- **`vima upgrade` 更名为 `vima update`**（增补项 A15）。该命令的行为（manifest 三方比较、
+  更新项目里的 vima 生成物、用户改过的文件旁路写 `.vima-new`）一行未改，只换了名字——
+  `upgrade` 让位给「升级 CLI 自身」。
+  **迁移**：把脚本里的 `vima upgrade` 改成 `vima update`。旧用法不会报错：
+  `vima upgrade` 与 `vima upgrade --dry-run` 在新语义下都只是打印版本报告，
+  且在 vima 项目目录内会追加一行指向 `vima update` 的提示。唯一有实际动作差异的是
+  `vima upgrade --yes`——旧语义下无行为，新语义下会执行 CLI 自升级。
+
+### 新增
+
+- **`vima upgrade`：升级 CLI 自身**（增补项 A15）。此前全仓没有任何联网查版本或执行安装器的
+  代码，用户想升级 vima 本体只能自己记 `npm i -g @vima-tech/cli@latest`。
+  - 查 `https://registry.npmjs.org/@vima-tech/cli/latest`（Node 20 内建 fetch，5s 超时，
+    零运行时依赖不破）；查不到版本报 `REGISTRY_UNREACHABLE`（exit 2），不静默降级为「已是最新」；
+  - 按 `cliRoot` 的路径与文件存在性识别安装方式（npm / pnpm / bun 全局 · npx 临时运行 ·
+    源码或 npm link 开发态），不执行外部命令探测；
+  - **默认只报告不安装**——它是全仓唯一联网、唯一会改 cwd 之外文件的命令，`--yes` 才跑安装器；
+  - 源码态与 npx 态不可自升级：不带 `--yes` 只报告（exit 0），带 `--yes` →
+    `UPGRADE_UNSUPPORTED`（exit 4）；安装器非零退出 → `INSTALL_FAILED`（exit 2）。
+
+以下校验与生成端改动吸收自 sustain-v3 修补期实战：一次「契约从 spec 反向生成」导致的规格事故——209 个契约端点里
+大量虚构路径、占位参数、空请求体，却**全数通过了当时的 19 条校验**。根因是整套规则都是
+spec ↔ 契约 ↔ 任务之间的内部一致性，同源产物必然自洽，闭环从头到尾没碰过真源。
+
+- **V-SRC-01**（warn，需配置）：端点溯源锚点——全表**唯一的外部锚点**。在
+  `docs/lifecycle.json` 写 `endpointAnchor: "<相对路径>"` 指向真源端点清单后启用，
+  契约每个 path 归一后须在锚点中出现；未配置整条跳过，不影响既有项目。
+- **V-CON-05**（warn）：占位符特征检测——参数名匹配 `^q\d+$`、POST/PUT 空 `request: []`。
+  零配置、纯形态判断。实测某项目 20 份契约里 14 份中招。
+- **V-CON-06**（error/warn）：契约三方计数一致——人读小节 ↔ 机读 `apis` 逐接口对应（error），
+  头部「接口 N 个」↔ 机读条目数（warn）。三处会各自漂移且此前无人发现。
+- **V-TASK-08**（warn）：任务正文引用的接口须落在作用域内（带 page 取该页 apis，
+  否则取 contract 契约 apis）。V-TASK-07 只数复选框个数不看内容，产物重建后验收清单
+  会长期停在已删除的端点上。含否定式措辞（真源无/已废弃/不请求…）的行不计入。
+- **V-TASK-09**（warn）：任务内嵌「契约声明的 N 个接口」与契约条目数一致。
+- **V-YAML-01**（warn）：flow 上下文里的裸花括号。路径参数须写 `{id}`（V-CODE 归一只认
+  花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`——本解析器容忍 flow 序列、
+  却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区，
+  且报错与真实病因相去甚远。块级序列（`- GET /api/x/{id}`）本就合法，不在此列。
+- **`vima render-matrix`**：覆盖矩阵的生成端。此前 V-COV-01 强制它存在且无空单元格，
+  却没有任何命令生成它——矩阵靠手写，产物一变就烂，校验只能发现「烂了」不能修。
+  现从 spec 页面块 / 契约 apis / 任务 frontmatter 确定性推导，支持 `--check` 验漂移。
+- **doctor ⑩ 评审批准时效**：`tasksApproved` 只能由 `vima approve` 置位却没有失效路径——
+  产物在批准后被大改，标志位仍是 true，下一次 `/go` 会拿着没人看过的规格直接进 DEVELOPING。
+  现按 mtime 判定：批准早于 spec/契约最后改动即报 error。
+
+### 改进
+- YAML 解析错误现在**带文件名与文件绝对行号**。此前 `extractBlocks` 调 `parseYaml` 未传 path，
+  错误只有块内相对行号，19 份契约里得靠 grep 才能定位；且 `collectPendingConfirm` 的调用
+  既无 try/catch 也无 path 归属，解析错误会绕过 `loadContracts` 的补偿直接逃逸。
+- `validate` 现在**一次报出全部契约解析错误**（`loadContracts` 新增 tolerant 模式）。
+  此前首个坏契约即中止，修一个才发现下一个。
+
+### 修复
+- `render-matrix` 的任务列只收「不带 page 字段」的模块级任务，避免共用同一契约的兄弟页面
+  任务互相串到彼此行里。
+
 ## [2.0.3] - 2026-08-13
 
 ### 新增
