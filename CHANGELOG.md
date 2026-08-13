@@ -4,6 +4,51 @@
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-08-13
+
+### 变更
+
+- **/go 批间连续性（增补项 A17）**：修复真实项目反馈的「每个批次执行完即阻塞、
+  需再次输入 /go 才续跑」。三处停顿源对症落地：
+  - 会话预算从「3 个批次或 8 个任务先到为准」改为**单一任务计数**（8 任务/次，
+    批次数不设上限）——shared/pipeline 串行批每批仅 1 任务，按批计数会在 3 个
+    任务后过早截断，而预算防的编排者上下文成本只与任务数成正比；
+  - 批次检查点提交补**授权口径**：用户输入 /go 即构成对全部检查点提交的明确授权，
+    不逐批征询（消除与「未经明确要求不得提交」类环境规则的每批一撞）；提交仍被
+    拒绝时跳过并注明「未形成回滚点」，不中断调度；
+  - 新增**合法停点白名单**：预算耗尽 / 全部任务终态 / 闸门或 failed 需用户裁定 /
+    用户中断之外，批次之间不得停轮等待。
+  仅工作区文字资产（go.md、CLAUDE.project.md）与设计文案（§7.5/§10.2）变更，
+  零文件格式/模块接口变更；d2 新增防漂移断言。
+
+### 新增
+
+- **多端应用模型 Wave 1（增补项 A16）**：一后端 × 多前端成为一等公民——
+  「营养诊疗 = 院内后台 + 患者端小程序」这类系统可在同一项目内完成规划与机检闭环。
+  - **端册**：`.vima/manifest.json` 升 schemaVersion 2，新增 `apps[]`/`backend`
+    （唯一真源，新增 `lib/model/apps.mjs` resolveApps 统一解析，v1 自动合成兼容）；
+    admin 模板 template.json 改 `apps[] + backend + planning.kinds` 新形态
+    （kind 词表/分栏能力/原型外壳/成熟度配置化，含 mp-native 定义，status=preview）。
+  - **创建**：`vima create --apps <id:kind,...>`（N=1 落项目根不变、N≥2 落
+    `apps/<id>/`；preview kind 入册跳骨架可先行 PLANNING；逐端 npm install；
+    新模板变量 `{{appId}}`）；`--force` 重跑不再清空 manifest（新码 TEMPLATE_MISMATCH）。
+  - **机检**：新增 V-SPEC-13（端归属/nav 同端）、V-SPEC-14（端覆盖）、
+    V-CON-07（consumers 授权闭环，spec/代码两级拦越权）、V-TASK-10（任务端归属）；
+    端化 V-SPEC-04（per-kind 词表）/V-SPEC-08/V-SPEC-12（regions 门控）/
+    V-CON-03（谁消费谁承接）/V-CODE-01（端册扫描 + 越权调用）/V-COV-01（矩阵端列）。
+  - **人审**：原型逐端渲染（`prototype.<appId>.html`，mp-native 375px 手机壳 +
+    tabbar 外壳 + list/banner/detail/actionbar 词渲染；`--app` 单端重渲）；
+    manifest 统一为顶层 `apps` 映射（§6.7）；审计视图单文件按端分组 + 端徽标；
+    render-matrix 多端首列「端」。
+  - **接线**：guard-shared/post-write 双 hook 保护面与机检面读端册（v1 字面量回退）；
+    trace/context（按端组件文档 + componentMap + 规范 kind 切片）/doctor（新增
+    ⑪ 端册完整性，PLANNING 期骨架缺失仅告警不假阻塞）/approve（逐端新鲜度 +
+    修复 cliRoot 缺参导致的词表误报）/sync（任务表端列）全部端册化。
+  - 新增双端黄金夹具 `tests/fixtures/golden-multi/` 与多端 e2e 链路；
+    单端项目全链路行为与产物保持不变（黄金夹具回归全绿）。
+  骨架资产（微信原生 mp-native scaffold、vendored Vant Weapp、automator 版 A7）
+  与 `vima app add/list`、update v1→v2 迁移分别属 Wave 2/3，见 v2.1-amendments A16。
+
 ## [3.0.0] - 2026-08-13
 
 > 2.1.0 曾在仓库内准备但从未发布到 npm（npm 上的上一版是 2.0.3），其内容并入本版本。
