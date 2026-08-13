@@ -157,3 +157,125 @@ test('管理后台外壳与人审增强：菜单树 / 角色视角 / 审核指�
   assert.match(review2, /待确认清单（AI 推断项，共 1 处）/);
   assert.ok(proto2.includes('class="wf-pend"'), '原型出现待确认徽标');
 });
+
+test('render-review：A13 渲染五视图⑤ 与本期不做红线区，且空清单不省略整段', async () => {
+  const html = await readFile(path.join(root, reviewRel), 'utf8');
+  // ⑤ 业务规则视图：按 entity 分组 + type 徽标 + 适用接口
+  assert.match(html, /id="view-rules"/, '缺⑤业务规则视图');
+  assert.match(html, /<span class="num">⑤<\/span>业务规则/);
+  assert.match(html, /class="rule-type">validation</, '缺 type 徽标');
+  assert.match(html, /id="RULE-04"/, '规则条目须带锚点 ID');
+  assert.match(html, /全局规则（不限接口）/, '无 apis 的规则须标为全局规则');
+  // 本期不做红线区
+  assert.match(html, /id="view-redline"/, '缺本期不做红线区');
+  assert.match(html, /不做设备数据导出/);
+  assert.match(html, /实现了其中任何一条即判越界 fail/);
+  // 目录与统计
+  assert.match(html, /href="#view-rules">⑤ 业务规则/);
+  assert.match(html, /href="#view-redline">🚧 本期不做/);
+  // 审核指引升为五步
+  assert.match(html, /⑤ 业务规则<\/strong>——逐条看边界值与错误码/);
+
+  // 空清单：整段仍渲染，文案区分「声明为空」与「没声明」
+  const spec = path.join(root, 'docs', 'spec.md');
+  const before = await readFile(spec, 'utf8');
+  await writeFile(spec, before.replace(/```yaml vima:non-goals\n[\s\S]*?```/, '```yaml vima:non-goals\nnon-goals: []\n```'));
+  const r = vima(root, 'render-review');
+  assert.equal(r.status, 0, r.stderr);
+  const empty = await readFile(path.join(root, reviewRel), 'utf8');
+  assert.match(empty, /id="view-redline"/, '空清单时红线区不得整段省略');
+  assert.match(empty, /本期未声明 non-goals/);
+  // 还原，避免影响后续用例共享的副本
+  await writeFile(spec, before);
+  assert.equal(vima(root, 'render-review').status, 0);
+});
+
+// ── A14 分栏版面（regions）──────────────────────────────────────────────────
+// 用独立副本，避免污染上方共享夹具的字节基线。
+
+test('A14 向后兼容：黄金夹具无 regions → 不产生分栏结构、manifest 不写该键', async () => {
+  const html = await readFile(path.join(root, protoRel), 'utf8');
+  // 注意：类名在内联样式表里必然出现，故只能断言标记本身
+  assert.ok(!html.includes('class="wf-cols"'), '未声明 regions 的页面不出现分栏容器');
+  assert.ok(!html.includes('class="wf-col"'), '未声明 regions 的页面不出现列');
+  const manifest = JSON.parse(await readFile(path.join(root, manifestRel), 'utf8'));
+  for (const p of manifest.pages) {
+    assert.ok(!('regions' in p), `${p.id} 不应写入 regions 键`);
+  }
+});
+
+test('A14 分栏渲染：声明 regions → 原型按列、审计视图出版面草图', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c4-rg-'));
+  await cp(GOLDEN, dir, { recursive: true });
+  const specPath = path.join(dir, 'docs', 'spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  // 给 PAGE-01 加 regions：把它的 layout 拆成左右两列
+  const page = spec.match(/```yaml vima:page\n([\s\S]*?)\n```/)[1];
+  const layout = page.match(/^layout: \[(.+)\]$/m)[1].split(',').map((w) => w.trim());
+  const left = layout.slice(0, 1);
+  const right = layout.slice(1);
+  const regions =
+    `regions:\n` +
+    `  - columns:\n` +
+    `      - { name: 筛选栏, width: 260px, blocks: [${left.join(', ')}] }\n` +
+    `      - { name: 主区, width: 1fr, blocks: [${right.join(', ')}] }`;
+  await writeFile(specPath, spec.replace(/^layout: \[.+\]$/m, (m) => `${m}\n${regions}`));
+
+  assert.equal(vima(dir, 'render-prototype').status, 0);
+  assert.equal(vima(dir, 'render-review').status, 0);
+
+  const proto = await readFile(path.join(dir, protoRel), 'utf8');
+  assert.ok(proto.includes('class="wf-cols"'), '原型出现分栏容器');
+  assert.ok(proto.includes('flex:0 0 260px'), '固定列按 px 落 flex');
+  assert.ok(proto.includes('flex:1 1 0'), '弹性列按 fr 落 flex');
+  assert.ok(proto.includes('筛选栏'), '列名渲染');
+
+  const review = await readFile(path.join(dir, reviewRel), 'utf8');
+  assert.ok(review.includes('版面草图'), '审计视图出现版面草图标题');
+  assert.ok(review.includes('class="sk-cols"'), '草图含分栏带');
+
+  const manifest = JSON.parse(await readFile(path.join(dir, manifestRel), 'utf8'));
+  const p1 = manifest.pages.find((p) => p.id === 'PAGE-01');
+  assert.equal(p1.regions[0].columns.length, 2, 'manifest 透传 regions 的列');
+});
+
+test('A14 V-SPEC-12：regions 与 layout 不一致 / 列宽非法 → 阻断渲染', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c4-rgbad-'));
+  await cp(GOLDEN, dir, { recursive: true });
+  const specPath = path.join(dir, 'docs', 'spec.md');
+  const spec = await readFile(specPath, 'utf8');
+
+  // ① 区块集合与 layout 不一致（漏掉其余区块）
+  await writeFile(
+    specPath,
+    spec.replace(/^layout: \[(.+)\]$/m, (m, inner) => {
+      const first = inner.split(',')[0].trim();
+      return `${m}\nregions:\n  - columns:\n      - { name: 只有一列, width: 1fr, blocks: [${first}] }`;
+    }),
+  );
+  const bad1 = vima(dir, 'render-prototype');
+  assert.notEqual(bad1.status, 0, '不一致时拒绝渲染');
+  assert.match(bad1.stderr, /V-SPEC-12/, '报 V-SPEC-12');
+
+  // ② 列宽非法
+  await writeFile(
+    specPath,
+    spec.replace(/^layout: \[(.+)\]$/m, (m, inner) => {
+      const all = inner.split(',').map((w) => w.trim()).join(', ');
+      return `${m}\nregions:\n  - columns:\n      - { name: 宽度非法, width: 50%, blocks: [${all}] }`;
+    }),
+  );
+  const bad2 = vima(dir, 'validate', '--artifact', 'docs/spec.md');
+  assert.match(bad2.stdout + bad2.stderr, /V-SPEC-12/, '列宽非法报 V-SPEC-12');
+});
+
+test('表格横向滚动容器：宽表不撑破所在列（分栏页尤其关键）', async () => {
+  const html = await readFile(path.join(root, protoRel), 'utf8');
+  // 每个 table 区块都必须套 .wf-tw 滚动容器，且容器在 table 之外、wf-tag 之内不受裁剪
+  const tables = (html.match(/<table>/g) ?? []).length;
+  const wraps = (html.match(/<div class="wf-tw">/g) ?? []).length;
+  assert.ok(tables > 0, '夹具含表格区块');
+  assert.equal(wraps, tables, '每个表格都有横向滚动容器');
+  const adjacent = (html.match(/<div class="wf-tw"><table>/g) ?? []).length;
+  assert.equal(adjacent, tables, '滚动容器紧邻表格，无表格直接挂在 wf-block 下');
+});

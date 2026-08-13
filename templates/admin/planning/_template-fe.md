@@ -75,6 +75,9 @@ updatedAt: 2026-01-01T00:00:00Z
 ## 约束重申
 
 - 禁止修改 src/components/、src/utils/、vendor/（**共享层只读**）；
+- **禁止改动路由表与侧栏菜单**：`src/router/` 与 `src/components/layout/Sidebar.vue` 是全站单点热文件，
+  由共享层任务一次性登记全部页面（页面清单在 PLANNING 期已确定）。页面任务只创建自己的
+  `src/views/<PageName>/`，**不注册路由、不加菜单项**——并行批次里多个任务同时改这两个文件必然互相覆盖；
 - 若确需修改共享层，在结果摘要中声明 `sharedChangeRequest`（原因 + 期望改动 + 影响面），
   由主 Agent 走串行补偿批次处理（§10.7），**不得直接改**；
 - 禁止修改契约文件与其他任务的文件。

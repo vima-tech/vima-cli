@@ -8,9 +8,10 @@
 
 ## spec.md（docs/spec.md）
 
-- [ ] **V-SPEC-01**（error）：八章齐全，标题前缀逐字为
+- [ ] **V-SPEC-01**（error）：九章齐全，标题前缀逐字为
   `## 1. 系统概述`、`## 2. 数据模型`、`## 3. 页面清单`、`## 4. 接口清单`、
-  `## 5. 业务规则`、`## 6. 权限设计`、`## 7. 技术栈`、`## 8. 关键决策记录`。
+  `## 5. 业务规则`、`## 6. 权限设计`、`## 7. 技术栈`、`## 8. 关键决策记录`、
+  `## 9. 本期不做`。
 - [ ] **V-SPEC-02**（error）：`vima:entities` 数据块存在；每个 entity 有非空 fields。
 - [ ] **V-SPEC-03**（error）：每个 `vima:page` 页面级粒度四要素齐全——
   layout 非空、components 非空、apis 非空；每个交互 `action ∈ {nav, modal, api}`
@@ -18,12 +19,23 @@
 - [ ] **V-SPEC-04**（error）：layout 与 components[].block 用词
   ⊆ `{toolbar, search, table, form, cards, tabs, pagination}`。
 - [ ] **V-SPEC-05**（error）：nav 的 target 指向存在的 PAGE-xx；modal 的 target
-  在本页 modals 中定义；PAGE/MODAL/ROLE/MENU/FLOW 全部 ID 全文档唯一。
+  在本页 modals 中定义；PAGE/MODAL/ROLE/MENU/FLOW/RULE/NG 全部 ID 全文档唯一。
 - [ ] **V-SPEC-06**（error）：每个 role.menus 非空且指向存在的 MENU；
   无角色覆盖且未标 `uncovered: true` 的菜单视为权限盲区，校验失败。
 - [ ] **V-SPEC-07**（error）：每页 apis ⊆ 契约 apis（跨文件交叉引用，按 `METHOD /path` 比对）。
 - [ ] **V-SPEC-08**（error）：菜单功能点接口闭环——menu.features[].api（存在时）必须在契约中
   （「功能点 → 接口 → 契约」链条不许断）。
+- [ ] **V-SPEC-09**（error）：业务规则结构化（A13）——`vima:rules` 块存在且 rules 非空；
+  每条规则四要素齐全：`id` 匹配 `RULE-\d{2}`、`type` ∈
+  `{validation, transition, calculation, constraint}`、`entity` 非空且存在于
+  `vima:entities`、`desc` 非空（写清边界值与错误码）。
+- [ ] **V-SPEC-10**（error）：规则接口闭环（A13）——rule.apis 存在时每条必须在契约中
+  （不关联具体接口的全局规则请整体省略 apis 字段，不要写空数组）。
+- [ ] **V-SPEC-11**（error）：本期不做显式声明（A13）——第九章 `vima:non-goals` 块存在
+- [ ] **V-SPEC-12**（error）：分栏版面（A14）——页面声明 `regions` 时，每带须且只须有一个非空 `blocks`（全宽带）或 `columns`（分栏带）；列 `width` 形如 `264px`/`1fr`，全部区块词 ∈ 词表；且 regions 铺开后的区块集合与 `layout` 一致（未声明 regions 的页面不触发）
+  且含 `non-goals` 键；每条 `id` 匹配 `NG-\d{2}`、`desc` 非空。
+  **本期确实没有 non-goals 也必须显式写 `non-goals: []`**——「声明为空」与「没声明」
+  必须可区分，省略块一律 error。
 - [ ] **V-DEC-01**（error）：第八章含 markdown 表格且表头含「已否决方案」列。
 
 ## 契约（docs/contracts/*.md）

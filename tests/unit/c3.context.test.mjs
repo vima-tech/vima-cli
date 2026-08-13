@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from '../../lib/util/fs.mjs';
-import { componentsOfPage } from '../../lib/commands/context.mjs';
+import { componentsOfPage, rulesForTask } from '../../lib/commands/context.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.resolve(HERE, '..', '..');
@@ -107,4 +107,54 @@ test('componentsOfPage：受限词表映射（契约 §6.11）——去重排序
     'VButton', 'VForm', 'VFormItem', 'VInput', 'VLayer', 'VPagination', 'VSelect', 'VTable',
   ]);
   assert.deepEqual(componentsOfPage({ layout: [], components: [], modals: [] }), []);
+});
+
+// ── A13：业务规则切片 + 本期不做（契约 §6.11）──
+
+test('rulesForTask（A13）：apis 交集命中 + 全局规则始终入选 + 按 id 升序（归一大小写）', () => {
+  // 期望值手工推演（独立事实源，A10）：任务 apis = {GET /api/a}
+  //   RULE-03 apis=[POST /api/b] → 无交集，落选
+  //   RULE-01 apis=[get /api/a]  → 归一为 GET /api/a，命中
+  //   RULE-02 无 apis            → 全局规则，入选
+  //   RULE-04 apis=[DELETE /api/z] → 落选
+  const rules = [
+    { id: 'RULE-03', apis: ['POST /api/b'] },
+    { id: 'RULE-01', apis: ['get /api/a'] },
+    { id: 'RULE-02' },
+    { id: 'RULE-04', apis: ['DELETE /api/z'] },
+  ];
+  assert.deepEqual(
+    rulesForTask(rules, new Set(['GET /api/a'])).map((r) => r.id),
+    ['RULE-01', 'RULE-02'],
+  );
+  // 任务 apis 为空：只剩全局规则
+  assert.deepEqual(rulesForTask(rules, new Set()).map((r) => r.id), ['RULE-02']);
+  assert.deepEqual(rulesForTask([], new Set(['GET /api/a'])), []);
+  assert.deepEqual(rulesForTask(undefined, new Set()), []);
+});
+
+test('context：包内含业务规则切片与本期不做两节（前端与后端任务都拿得到）', async (t) => {
+  const root = await cloneGolden(t);
+  for (const taskId of ['device-list-fe', 'device-api-be']) {
+    const r = vima(root, 'context', taskId, '--stdout');
+    assert.equal(r.code, 0, `${taskId} stderr: ${r.stderr}`);
+    assert.match(r.stdout, /## 业务规则切片/, `${taskId} 缺业务规则切片`);
+    assert.match(r.stdout, /\*\*RULE-01\*\*〔validation〕Device/, `${taskId} 缺 RULE-01`);
+    // RULE-06 无 apis → 全局规则，任何任务都应拿到
+    assert.match(r.stdout, /\*\*RULE-06\*\*.*\n\s+适用范围：全局规则（不限接口）/, `${taskId} 缺全局规则`);
+    assert.match(r.stdout, /## 本期不做（范围红线）/, `${taskId} 缺本期不做`);
+    assert.match(r.stdout, /\*\*NG-01\*\*：不做设备数据导出/, `${taskId} 缺 NG-01`);
+    assert.match(r.stdout, /Verifier 会记 fail/, `${taskId} 缺越界后果说明`);
+  }
+});
+
+test('context：空 non-goals 声明渲染为「已显式声明」而非缺声明（两者必须可区分）', async (t) => {
+  const root = await cloneGolden(t);
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text.replace(/```yaml vima:non-goals\n[\s\S]*?```/, '```yaml vima:non-goals\nnon-goals: []\n```'));
+  const r = vima(root, 'context', 'device-list-fe', '--stdout');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  assert.match(r.stdout, /本期无 non-goals 声明：spec 第九章已显式写/);
+  assert.doesNotMatch(r.stdout, /第九章未声明 vima:non-goals/);
 });

@@ -472,3 +472,105 @@ test('覆盖度：删一条验收项 → V-TASK-07 warn（B3），仍 exit 0；�
   assert.equal(hit.length, 1, JSON.stringify(report.warnings));
   assert.match(hit[0].message, /仅 5 项，少于页面 PAGE-01 的任务点数 6/);
 });
+
+// ── A13 业务规则结构化 + 本期不做（V-SPEC-09/10/11）──
+
+test('V-SPEC-09：vima:rules 块缺失 / entity 不存在 / type 非法 → exit 2 逐条命中', async (t) => {
+  // ① 块缺失（改 kind 使其不再被识别为 rules 块）
+  let root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '```yaml vima:rules', '```yaml vima:rules-disabled');
+  let r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2, `stdout: ${r.stdout}`);
+  let report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-09' && /缺少 vima:rules 数据块/.test(e.message)),
+    JSON.stringify(report.errors),
+  );
+
+  // ② entity 指向不存在的实体
+  root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md',
+    '    entity: Device\n    apis: [GET /api/device/detail]',
+    '    entity: NoSuchEntity\n    apis: [GET /api/device/detail]');
+  r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-09' && /RULE-05.*NoSuchEntity.*不存在/.test(e.message)),
+    JSON.stringify(report.errors),
+  );
+
+  // ③ type 不在词表内
+  root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '    type: transition', '    type: 状态流转');
+  r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-09' && /RULE-04.*type.*不合法/.test(e.message)),
+    JSON.stringify(report.errors),
+  );
+});
+
+test('V-SPEC-10：rule.apis 指向契约外的接口 → exit 2；全局规则（无 apis）不受此规则约束', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md',
+    '\n    apis: [GET /api/device/detail]\n    desc: 查询不存在',
+    '\n    apis: [GET /api/device/ghost]\n    desc: 查询不存在');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hit = report.errors.filter((e) => e.rule === 'V-SPEC-10');
+  // 只有被改坏的 RULE-05 命中；RULE-06 是无 apis 的全局规则，不参与接口闭环校验
+  assert.equal(hit.length, 1, JSON.stringify(report.errors));
+  assert.match(hit[0].message, /RULE-05.*GET \/api\/device\/ghost.*不在任何契约中/);
+});
+
+test('V-SPEC-11：删掉第九章 → 同时报 V-SPEC-01 与 V-SPEC-11；仅删块也报 V-SPEC-11', async (t) => {
+  // ① 整章删除
+  let root = await cloneGolden(t);
+  const chapter9 = await readFile(path.join(root, 'docs/spec.md'), 'utf8');
+  const cut = chapter9.indexOf('\n## 9. 本期不做');
+  assert.ok(cut > 0, '夹具第九章缺失');
+  await writeFile(path.join(root, 'docs/spec.md'), `${chapter9.slice(0, cut)}\n`);
+  let r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  let report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-01' && /9\. 本期不做/.test(e.message)),
+    JSON.stringify(report.errors));
+  assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-11'), JSON.stringify(report.errors));
+
+  // ② 保留章标题、只让块失效 → 仅 V-SPEC-11
+  root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '```yaml vima:non-goals', '```yaml vima:non-goals-disabled');
+  r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  report = await readReport(root);
+  assert.ok(!report.errors.some((e) => e.rule === 'V-SPEC-01'), '章标题仍在，不应报 V-SPEC-01');
+  assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-11'), JSON.stringify(report.errors));
+});
+
+test('V-SPEC-11：空清单显式写 non-goals: [] → 放行（「声明为空」与「没声明」可区分）', async (t) => {
+  const root = await cloneGolden(t);
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  const replaced = text.replace(/```yaml vima:non-goals\n[\s\S]*?```/, '```yaml vima:non-goals\nnon-goals: []\n```');
+  assert.notEqual(replaced, text, '变异未生效');
+  await writeFile(p, replaced);
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const report = await readReport(root);
+  assert.ok(!report.errors.some((e) => e.rule === 'V-SPEC-11'), JSON.stringify(report.errors));
+});
+
+test('V-SPEC-05：RULE/NG 的 ID 并入全文档唯一性检查（A13 扩容）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '  - id: RULE-02', '  - id: RULE-01');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-05' && /RULE ID "RULE-01" 与 RULE 重复/.test(e.message)),
+    JSON.stringify(report.errors),
+  );
+});

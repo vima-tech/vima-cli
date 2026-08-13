@@ -21,9 +21,20 @@ model: sonnet
       modal field、每条 link 各一条，逐点给出 passed 与 `文件:行号` 证据；
       **不得把整页折叠成一条结论**。语义判断力集中在标记覆盖不到的内容
       （业务规则、字段映射、交互行为），不一致记入对应 point 的 fail
-5. 将校验报告写入 .vima/reports/<taskId>-verifier.json（**含轮次号 round**，
+5. **业务规则逐条核对（A13，前后端任务同样必做）**：上下文包「业务规则切片」
+   （或 spec 第五章 `vima:rules`）里的每条 `RULE-xx` 各占一条 point，
+   `point` 写成 `RULE-xx <desc 摘要>`，逐条给出 `文件:行号` 证据证明该规则
+   在代码里真的被实现（校验注解、状态判断、计算式、约束检查）。
+   规则**不分前后端**——前端任务核对的是表单校验与交互层面的落实，
+   后端任务核对的是 Service/参数校验层面的落实。找不到证据即 fail。
+6. **越界判定（A13）**：对照上下文包「本期不做（范围红线）」的每条 `NG-xx`
+   检查实现有没有做了本期明确不做的事（多出来的按钮、接口、字段、页面都算）。
+   发现越界追加一条 `point: "NG-xx 越界：<越界处>"` 且 `passed: false`。
+   **越界不适用 waived**——要豁免应当先让用户改 spec 第九章把边界挪走，
+   而不是在验收环节放行；边界的真源永远是 spec，不是对话。
+7. 将校验报告写入 .vima/reports/<taskId>-verifier.json（**含轮次号 round**，
    落盘留痕，供 Builder 增量修复与 /check 任务点完成度聚合读取）
-6. 在返回消息中输出同一份报告
+8. 在返回消息中输出同一份报告
 
 **豁免（waived，A8）**：只有**用户明确裁定过**豁免的条目才可标
 `waived: true`，且必须带非空 `reason`（写明豁免理由与用户裁定来源，如
@@ -38,7 +49,11 @@ model: sonnet
   "checklist": [{ "item": "...", "passed": true, "evidence": "文件:行号" }],
   "points":    [{ "point": "toolbar/新增 → modal MODAL-01", "passed": true, "evidence": "文件:行号" },
                 { "point": "toolbar/导出 → api GET /api/x/export", "passed": false,
-                  "waived": true, "reason": "用户裁定：导出延后二期（2026-08-12 对话）" }],
+                  "waived": true, "reason": "用户裁定：导出延后二期（2026-08-12 对话）" },
+                { "point": "RULE-01 设备名称 2-50 字符，违者 40001", "passed": true,
+                  "evidence": "backend/src/.../DeviceService.java:42" },
+                { "point": "NG-01 越界：实现了本期不做的数据导出", "passed": false,
+                  "evidence": "src/views/device/index.vue:88" }],
   "missing": ["..."], "contractViolations": ["..."] }
 ```
 

@@ -107,6 +107,40 @@ apis: [GET /api/device/detail]
 - 批量删除一次最多 100 条，超出返回 40002。
 - 维护中设备禁止删除，返回 40003。
 - 查询不存在的设备返回 40004。
+- 任何删除均为软删除，列表默认过滤已删除记录（全局规则，不限接口）。
+
+```yaml vima:rules
+rules:
+  - id: RULE-01
+    type: validation
+    entity: Device
+    apis: [POST /api/device]
+    desc: 设备名称必填且长度 2-50 字符，违者返回 40001
+  - id: RULE-02
+    type: validation
+    entity: Device
+    apis: [POST /api/device]
+    desc: 设备类型必须为 DeviceType 枚举之一，违者返回 40001
+  - id: RULE-03
+    type: constraint
+    entity: Device
+    apis: [POST /api/device/batch-delete]
+    desc: 批量删除一次最多 100 条，超出返回 40002
+  - id: RULE-04
+    type: transition
+    entity: Device
+    apis: [POST /api/device/batch-delete]
+    desc: status=维护中 的设备禁止删除，返回 40003
+  - id: RULE-05
+    type: validation
+    entity: Device
+    apis: [GET /api/device/detail]
+    desc: 查询不存在的设备返回 40004
+  - id: RULE-06
+    type: constraint
+    entity: Device
+    desc: 任何删除均为软删除，列表查询默认过滤已删除记录
+```
 
 ### 业务流程
 
@@ -159,3 +193,14 @@ menus:
 | 决策 ID | 决策 | 理由 | 已否决方案 | 否决理由 |
 |---------|------|------|-----------|---------|
 | D-01 | 设备详情用独立页面 PAGE-02 承载 | 详情字段完整、后续可扩展监控信息，独立页面便于加菜单权限 | 在列表页用详情弹窗展示 | 弹窗承载不下后续监控扩展，且无法按菜单单独授权 |
+
+## 9. 本期不做
+
+本期范围边界——以下内容明确不实现，实现即越界（A13）。
+
+```yaml vima:non-goals
+non-goals:
+  - { id: NG-01, desc: 不做设备数据导出（Excel/CSV），运维用数据库直连临时应对 }
+  - { id: NG-02, desc: 不做移动端适配，本期仅保证桌面浏览器 }
+  - { id: NG-03, desc: 不做设备监控指标采集与告警，后续版本另立需求 }
+```

@@ -22,6 +22,32 @@ test('A3 冷读门：go.md 满足三条验收 grep 判据（v2.1-amendments A3�
   assert.ok(goMd.includes('pendingConfirm'), '可推断项裁定分支须标 pendingConfirm');
 });
 
+test('A9/A10/A11 吸收项满足验收 grep 判据（v2.1-amendments A9–A11，mattpocock 对标）', async () => {
+  // A9 提问三规则：planning-guide §5 + vima-planner 镜像
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  for (const kw of ['先查后问', '推荐答案', '前置未定不问']) {
+    assert.ok(guide.includes(kw), `planning-guide.md 须含提问规则「${kw}」`);
+  }
+  const planner = await readFile(path.join(ADMIN, 'workspace/agents/vima-planner.md'), 'utf8');
+  assert.ok(planner.includes('推荐答案'), 'vima-planner.md 须镜像提问三规则（每问必附推荐答案）');
+
+  // A10 同构断言禁令：coding-standards 后端节〔L5·verifier〕+ _template-be 步骤措辞
+  const standards = await readFile(path.join(ADMIN, 'planning/coding-standards.md'), 'utf8');
+  assert.ok(standards.includes('独立事实源'), 'coding-standards 须要求期望值来自独立事实源');
+  assert.ok(standards.includes('同构'), 'coding-standards 须点名同构断言');
+  const beTpl = await readFile(path.join(ADMIN, 'planning/_template-be.md'), 'utf8');
+  assert.ok(beTpl.includes('独立事实源'), '_template-be 步骤 5 须提示期望值来源');
+
+  // A11 红绿修复纪律：CLAUDE.project.md 工作协议
+  const claude = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
+  assert.ok(claude.includes('跑红'), 'CLAUDE.project.md 须要求先固化能跑红的命令');
+  assert.ok(claude.includes('转绿'), 'CLAUDE.project.md 修复判定须为同一命令转绿');
+
+  // A12 原型先行节拍：planning-guide §5 里程碑 2 逐模块「草→渲→看→定」
+  assert.ok(guide.includes('草→渲→看→定'), 'planning-guide 须含 A12 节拍');
+  assert.ok(guide.includes('在原型上看过并确认'), 'A12 页面对齐完成判据 = 用户在原型上看过并确认');
+});
+
 test('guard-shared.mjs 保护面与 template.json sharedDirs 逐项同步（契约 §6.3 单一真源）', async () => {
   const guard = await readFile(path.join(ADMIN, 'workspace/hooks/guard-shared.mjs'), 'utf8');
   const tpl = JSON.parse(await readFile(path.join(ADMIN, 'template.json'), 'utf8'));
@@ -209,4 +235,42 @@ test('vima context 集成的文字资产落位（A8）：go.md 派发前打包�
   assert.ok(goMd.includes('vima context'), 'go.md 派发批次前须运行 vima context');
   const builder = await readFile(path.join(ADMIN, 'workspace/agents/vima-builder.md'), 'utf8');
   assert.ok(builder.includes('.vima/context/'), 'builder 须以上下文包为第一必读');
+});
+
+test('A13 规格边界机检：planning-guide 终点清单 H + vima-verifier 规则/越界纪律（v2.1-amendments A13）', async () => {
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('A–H'), '终点清单须扩为 A–H（新增本期不做）');
+  assert.ok(guide.includes('vima:rules'), 'planning-guide 须要求业务规则写入 vima:rules 块');
+  assert.ok(guide.includes('本期不做'), 'planning-guide 须含终点清单 H 本期不做');
+  assert.ok(guide.includes('non-goals: []'), '须写明「确实没有也要显式写空数组」');
+
+  const verifier = await readFile(path.join(ADMIN, 'workspace/agents/vima-verifier.md'), 'utf8');
+  assert.ok(verifier.includes('RULE-'), 'vima-verifier 须逐条核对 RULE-xx');
+  assert.ok(verifier.includes('本期不做'), 'vima-verifier 须做 non-goals 越界判定');
+  assert.ok(verifier.includes('越界不适用 waived'), '越界不得走豁免（边界真源是 spec 而非对话）');
+
+  // spec 骨架：第五章 rules 块 + 第九章 non-goals 块，且章标题纪律同步为九章
+  const skeleton = await readFile(path.join(ADMIN, 'planning/spec.admin.md'), 'utf8');
+  assert.ok(skeleton.includes('```yaml vima:rules'), 'spec 骨架第五章须预置 vima:rules 块');
+  assert.ok(skeleton.includes('## 9. 本期不做'), 'spec 骨架须含第九章');
+  assert.ok(skeleton.includes('```yaml vima:non-goals'), 'spec 骨架第九章须预置 vima:non-goals 块');
+  assert.ok(skeleton.includes('九个章标题一字不改'), '骨架填充纪律须同步为九章');
+
+  // checklist 逐条镜像新规则编号（契约 §8 的 D1 镜像纪律）
+  const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
+  for (const rule of ['V-SPEC-09', 'V-SPEC-10', 'V-SPEC-11']) {
+    assert.ok(checklist.includes(rule), `validate.checklist 须镜像 ${rule}`);
+  }
+  assert.ok(checklist.includes('## 9. 本期不做'), 'checklist 的 V-SPEC-01 章节表须同步为九章');
+});
+
+test('A13 消费端接线不漏：builder 包内分节枚举与 check 聚合口径同步（防半截实现）', async () => {
+  const builder = await readFile(path.join(ADMIN, 'workspace/agents/vima-builder.md'), 'utf8');
+  assert.ok(builder.includes('业务规则切片'), 'vima-builder 的上下文包分节枚举须含业务规则切片');
+  assert.ok(builder.includes('本期不做'), 'vima-builder 的上下文包分节枚举须含本期不做');
+  assert.ok(builder.includes('顺便也支持一下'), 'builder 须被明确告知越界红线');
+
+  const check = await readFile(path.join(ADMIN, 'workspace/commands/check.md'), 'utf8');
+  assert.ok(check.includes('RULE-'), '/check 聚合口径须覆盖规则点');
+  assert.ok(check.includes('越界'), '/check 须单列越界项');
 });

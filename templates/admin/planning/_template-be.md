@@ -67,7 +67,8 @@ updatedAt: 2026-01-01T00:00:00Z
 2. DTO + 校验注解；
 3. Service 层（业务规则实现）；
 4. Controller 层（严格按契约）；
-5. 单元测试（Service 层核心规则）；
+5. 单元测试（Service 层核心规则；期望值取自契约示例 / spec 业务规则等**独立事实源**，
+   不得照抄实现的计算作断言——A10 同构断言禁令）；
 6. **代码级追溯（A1）**：本任务产出的每个业务代码文件头部加注释 `// @vima <taskId>`
    （如 `// @vima example-api-be`），`vima trace` 据此对账；
 7. 自检：对照验收清单逐项核对 + mvn -q compile + mvn -q test。

@@ -1,7 +1,8 @@
 // 线框原型渲染器（admin 模板资产；设计 §13.3，契约 §11 / §6.7）
 // 语义占位线框（刻意无样式感）：input=带 label 虚线盒；button=方框标签；
 // table=真实列头（取契约 response 字段）+2 行灰占位；modal=卡片默认 hidden、按钮触发显示；
-// pagination/tabs/cards/form=灰盒虚线。区块按 layout 顺序渲染。
+// pagination/tabs/cards/form=灰盒虚线。区块按 layout 顺序渲染；
+// 页面声明 regions（A14 分栏）时改为按列渲染——每列一叠区块，列宽取 <n>px / <n>fr。
 // 交互三种：nav→href="#page-PAGE-xx"、modal→data-modal 按钮、api→徽标（title 属性 METHOD /path）。
 // 铁律：确定性渲染——禁 Date/Math.random；所有数据经 escapeHtml；同一输入字节一致；
 //       html 末尾单个换行；单文件零外部请求。同时产出 §6.7 manifest（pages 按 id 排、links 按 kind,to 排）。
@@ -35,6 +36,13 @@ function normApiKey(s) {
 function apiBadge(api) {
   const key = normApiKey(api);
   return `<span class="wf-api" title="${esc(key)}">${esc(key)}</span>`;
+}
+
+/** 分栏列宽 → flex 简写：<n>px 为固定列，<n>fr 为按比例弹性列（A14；V-SPEC-12 已保证格式）。 */
+function flexOf(width) {
+  const w = String(width ?? '1fr');
+  if (w.endsWith('fr')) return `${Number.parseFloat(w) || 1} 1 0`;
+  return `0 0 ${w}`;
 }
 
 /** pendingConfirm 待确认徽标（§13.1 信息源分级的人眼投影，契约 §11）。 */
@@ -124,6 +132,7 @@ ${(spec.flows ?? []).length > 0 ? '<div class="wf-menu-group">对齐产物</div>
       title: p.title ?? p.id,
       menu: p.menu ?? null,
       layout: p.layout ?? [],
+      ...(Array.isArray(p.regions) && p.regions.length > 0 ? { regions: p.regions } : {}),
       components: p.components ?? [],
       modals: p.modals ?? [],
       links: buildLinks(p),
@@ -212,10 +221,30 @@ function renderPage(p, ctx) {
     if (!queues.has(k)) queues.set(k, []);
     queues.get(k).push(comp);
   }
+  const take = (word) => (queues.get(String(word)) ?? []).shift() ?? { block: word };
+  const bandsOf = (word) => renderBlock(String(word), take(word), ctx);
+  const regions = Array.isArray(p.regions) && p.regions.length > 0 ? p.regions : null;
   let blocks = '';
-  for (const word of p.layout ?? []) {
-    const comp = (queues.get(String(word)) ?? []).shift() ?? { block: word };
-    blocks += `${renderBlock(String(word), comp, ctx)}\n`;
+  if (regions) {
+    // A14：纵向若干带，每带为全宽带（blocks）或分栏带（columns）
+    blocks = `${regions
+      .map((band) => {
+        if (Array.isArray(band?.blocks) && band.blocks.length > 0) {
+          return band.blocks.map(bandsOf).join('\n');
+        }
+        const cols = (Array.isArray(band?.columns) ? band.columns : [])
+          .map((col) => {
+            const width = String(col?.width ?? '1fr');
+            const inner = (Array.isArray(col?.blocks) ? col.blocks : []).map(bandsOf).join('\n');
+            const cap = `<div class="wf-col-cap"><span>${esc(col?.name ?? '')}</span><span class="wf-col-w">${esc(width)}</span></div>`;
+            return `<div class="wf-col" style="flex:${esc(flexOf(width))}">\n${cap}\n${inner}\n</div>`;
+          })
+          .join('\n');
+        return `<div class="wf-cols">\n${cols}\n</div>`;
+      })
+      .join('\n')}\n`;
+  } else {
+    for (const word of p.layout ?? []) blocks += `${bandsOf(word)}\n`;
   }
   const modals = (p.modals ?? []).map((mo) => renderModal(mo)).join('\n');
   // 角色视角联动：页面卡带其菜单归属角色（data-roles），JS 按角色淡出不可见页面
@@ -293,11 +322,13 @@ function renderTable(comp, ctx) {
     : '';
   const cols = fields ? fields.length : 1;
   const phRow = `<tr>${'<td><span class="wf-ph"></span></td>'.repeat(cols)}${opsCell}</tr>`;
+  // 列头多或行操作多时表格自然宽度会超出所在列（分栏页尤其明显），
+  // 故套一层横向滚动容器——不能直接给 .wf-block 加 overflow，那会裁掉浮在上边框的 wf-tag。
   return `<div class="wf-block wf-table"><span class="wf-tag">table</span>${key ? apiBadge(key) : ''}
-<table><thead><tr>${head}${opsHead}</tr></thead><tbody>
+<div class="wf-tw"><table><thead><tr>${head}${opsHead}</tr></thead><tbody>
 ${phRow}
 ${phRow}
-</tbody></table></div>`;
+</tbody></table></div></div>`;
 }
 
 /** 表单区块：items 逐项占位 + 数据源接口徽标。 */

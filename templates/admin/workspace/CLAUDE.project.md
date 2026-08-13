@@ -29,6 +29,10 @@
   → `vima validate` → `vima render-review` / `vima render-prototype` → 重大变更请用户在
   原型上确认 → 再改代码；四要素 YAML 块无需改动的（纯视觉/文案/内部重构）直接改代码（§13.4）
 - 维护期修改共享层：先写入 .vima/shared-write-token（ISO 过期时刻），改完立即删除并对调用方跑自检（§10.7）
+- 维护期修 bug：先把症状固化为一条能**跑红**的命令（后端优先写失败测试；前端用
+  npm run build:check 或按 .vima/reports/runtime-errors.jsonl 的上报复现），确认跑红后
+  再修复；修复完成的判定 = 同一条命令**转绿**（A11，信号源见 A7）。复现不了的
+  先向用户要复现路径，不凭代码推测下手
 
 # 详细规范
 - 编码规范：docs/coding-standards.md

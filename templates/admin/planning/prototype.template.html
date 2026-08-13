@@ -88,6 +88,15 @@ a{color:inherit}
   padding:0 .35em;white-space:nowrap}
 
 /* 布局区块：灰盒虚线 */
+/* A14 分栏：一行 N 列，每列一叠区块；窄屏落回纵向堆叠 */
+.wf-cols{display:flex;gap:.6rem;align-items:flex-start;margin:.7rem 0}
+.wf-col{min-width:0;border:1px solid var(--line-soft);background:var(--panel);padding:.2rem .5rem .5rem}
+.wf-col>.wf-block{margin:.9rem 0 .5rem}
+.wf-col-cap{display:flex;justify-content:space-between;gap:.5rem;align-items:baseline;
+  font-family:var(--mono);font-size:.68rem;color:var(--fg-dim);
+  padding:.3rem 0 .1rem;border-bottom:1px solid var(--line-soft)}
+.wf-col-w{color:var(--fg-faint)}
+@media (max-width:900px){.wf-cols{flex-direction:column}.wf-col{flex:1 1 auto!important}}
 .wf-block{position:relative;border:1.5px dashed var(--line);background:var(--bg);
   padding:1.2rem .8rem .8rem;margin:.7rem 0}
 .wf-tag{position:absolute;left:.5rem;top:-.05rem;transform:translateY(-50%);
@@ -112,7 +121,8 @@ a{color:inherit}
 .wf-desc{display:block;font-style:normal;font-weight:400;font-size:.68rem;color:var(--fg-faint)}
 
 /* 表格：真实列头 + 灰占位行 */
-.wf-table table{border-collapse:collapse;width:100%;margin-top:.4rem;font-size:.8rem}
+.wf-tw{overflow-x:auto;margin-top:.4rem;max-width:100%}
+.wf-table table{border-collapse:collapse;width:100%;font-size:.8rem}
 .wf-table th,.wf-table td{border:1px solid var(--line-soft);padding:.35rem .6rem;text-align:left}
 .wf-table thead th{background:var(--ph);font-weight:650}
 .wf-table .wf-missing{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-line)}
@@ -167,6 +177,7 @@ a{color:inherit}
   .wf-side{display:none}
   .wf-page{break-inside:avoid}
   .wf-modal[hidden]{display:block}
+  .wf-tw{overflow:visible}
 }
 </style>
 <noscript><style>

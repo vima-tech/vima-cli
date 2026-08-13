@@ -1,5 +1,6 @@
 // 人类审计视图渲染器（admin 模板资产；设计 §13.2，契约 §11）
-// 四视图：① 角色权限矩阵 ② 菜单功能点 ③ 业务流程泳道 ④ 页面 UI 详情。
+// 五视图：① 角色权限矩阵 ② 菜单功能点 ③ 业务流程泳道 ④ 页面 UI 详情 ⑤ 业务规则（A13）。
+// 另渲染「本期不做」范围红线区（A13：声明为空与没声明必须可区分）。
 // 铁律：确定性渲染——禁 Date/Math.random；所有数据经 escapeHtml；同一输入字节一致；
 //       输出串末尾单个换行；单文件零外部请求（href 仅 # 锚点）；禁 JS 完整可读（本渲染器不产出 JS）。
 import { readFileSync } from 'node:fs';
@@ -69,6 +70,8 @@ function collectPending(spec) {
   walk(spec.roles ?? [], 'roles', null);
   walk(spec.menus ?? [], 'menus', null);
   walk(spec.flows ?? [], 'flows', null);
+  walk(spec.rules ?? [], 'rules', null);          // A13
+  walk(spec.nonGoals ?? [], 'non-goals', null);   // A13
   return out;
 }
 
@@ -83,6 +86,8 @@ export function renderReview(model) {
   const roles = spec.roles ?? [];
   const menus = spec.menus ?? [];
   const flows = spec.flows ?? [];
+  const rules = spec.rules ?? [];          // A13
+  const nonGoals = spec.nonGoals ?? [];    // A13
 
   // 契约索引：接口键 → { ...api, module, file }
   const contractByKey = new Map();
@@ -118,6 +123,8 @@ export function renderReview(model) {
     [menus.length, '菜单'],
     [pages.length, '页面'],
     [flows.length, '流程'],
+    [rules.length, '规则'],
+    [nonGoals.length, '不做'],
     [pending.length, '待确认'],
   ];
   const hero = `<header class="hero">
@@ -136,6 +143,7 @@ export function renderReview(model) {
 <li><strong>② 菜单功能点</strong>——对着你的原始需求过一遍：每个菜单要做的事都列上了吗？没提过的功能是不是被 AI 加戏了？</li>
 <li><strong>③ 业务流程泳道</strong>——把每条流程从头走一遍：角色、入口页面、动作、接口、去向，与实际业务一致吗？</li>
 <li><strong>④ 页面 UI 详情</strong>——配合线框原型（docs/review/prototype.html，可按角色视角切换）逐页体验布局、字段与交互。</li>
+<li><strong>⑤ 业务规则</strong>——逐条看边界值与错误码写清了没有：这些规则会随任务发给 Builder 施工、由 Verifier 逐条核对，散文里没写进数据块的规则不会被任何人执行。</li>
 </ol>
 <p class="guide-act">发现任何不符：<strong>不要在文档外口头拍板</strong>——告诉 Agent 修改 docs/spec.md 对应数据块，
 重跑 <code>vima validate</code> 与 <code>vima render-review</code> / <code>vima render-prototype</code> 后再看本页。
@@ -153,12 +161,23 @@ ${pending.map((p) => `<li>${p.anchor ? `<a class="xref" href="#${esc(p.anchor)}"
 
   // ── 顶部目录 ──
   const toc = `<nav class="toc" aria-label="目录">
-${pending.length > 0 ? '<a class="toc-warn" href="#view-pending">⚠️ 待确认</a>\n' : ''}<a href="#view-roles">① 角色权限矩阵</a>
+${pending.length > 0 ? '<a class="toc-warn" href="#view-pending">⚠️ 待确认</a>\n' : ''}<a class="toc-warn" href="#view-redline">🚧 本期不做</a>
+<a href="#view-roles">① 角色权限矩阵</a>
 <a href="#view-menus">② 菜单功能点</a>
 <a href="#view-flows">③ 业务流程泳道</a>
 <a href="#view-pages">④ 页面 UI 详情</a>
+<a href="#view-rules">⑤ 业务规则</a>
 <span class="toc-sep">页面：</span>${pages.map((p) => `<a href="#${esc(p.id)}">${esc(p.title ?? p.id)}</a>`).join('\n')}
 </nav>`;
+
+  // ── 本期不做 · 范围红线（A13）：声明为空与没声明必须可区分，整段永不省略 ──
+  const redline = `<section class="view redline" id="view-redline">
+<h2><span class="num">🚧</span>本期不做（范围红线）</h2>
+<p class="vd">本期<strong>明确不做</strong>的事。这份清单随每个任务的上下文包发给 Builder，并由 Verifier 逐条核对——实现了其中任何一条即判越界 fail。请确认边界是否与你的预期一致：漏写一条，AI 就可能「顺便也支持一下」。</p>
+${nonGoals.length === 0
+    ? '<p class="ng-empty">本期未声明 non-goals（spec 第九章已显式写 <code>non-goals: []</code>）——意味着不设范围红线，Verifier 不会拦截任何越界实现。确属有意请忽略本提示。</p>'
+    : `<ul>\n${nonGoals.map((n) => `<li><span class="ng-id">${esc(n.id)}</span>${esc(n.desc)}${pend(n)}</li>`).join('\n')}\n</ul>`}
+</section>`;
 
   // ── ① 角色权限矩阵：角色 × 菜单；无角色覆盖的菜单整行高亮 ──
   const roleHead = roles
@@ -229,17 +248,91 @@ ${flowCards}
   const pageCards = pages.map((p) => renderPageCard(p, { contractByKey, menuLink, pageLink })).join('\n');
   const viewPages = `<section class="view" id="view-pages">
 <h2><span class="num">④</span>页面 UI 详情</h2>
-<p class="vd">每页一张卡：布局区块序列 / 组件清单 / 交互列表 / 接口映射 / 弹窗定义——细致到程序员可直接实现的精度。布局与交互手感请配合线框原型（docs/review/prototype.html）体验。</p>
+<p class="vd">每页一张卡：版面草图 / 组件清单 / 交互列表 / 接口映射 / 弹窗定义——细致到程序员可直接实现的精度。布局与交互手感请配合线框原型（docs/review/prototype.html）体验。</p>
 ${pageCards}
 </section>`;
 
-  const foot = `<footer class="foot">本审计视图为单文件自包含产物：零外部请求、不含 JS、无时间戳，同一份 spec 渲染字节一致（<code>vima render-review --check</code> 可验漂移）。<br>
-真源：<code>docs/spec.md</code> · 角色 ${esc(roles.length)} · 菜单 ${esc(menus.length)} · 页面 ${esc(pages.length)} · 流程 ${esc(flows.length)}</footer>`;
+  // ── ⑤ 业务规则（A13）：按 entity 分组，type 徽标 + 适用接口徽标 ──
+  const rulesByEntity = new Map();
+  for (const r of rules) {
+    const key = typeof r?.entity === 'string' && r.entity !== '' ? r.entity : '(未指定实体)';
+    if (!rulesByEntity.has(key)) rulesByEntity.set(key, []);
+    rulesByEntity.get(key).push(r);
+  }
+  const ruleCards = [...rulesByEntity.entries()]
+    .map(([entity, list]) => {
+      const rows = list
+        .map((r) => {
+          const scope = Array.isArray(r.apis) && r.apis.length > 0
+            ? r.apis.map((a) => apiBadge(a, contractByKey)).join(' ')
+            : '<span class="dim">全局规则（不限接口）</span>';
+          return `<tr><td id="${esc(r.id)}"><span class="tid">${esc(r.id)}</span></td><td><span class="rule-type">${esc(r.type)}</span></td><td>${esc(r.desc)}${pend(r)}</td><td>${scope}</td></tr>`;
+        })
+        .join('\n');
+      return `<article class="card">
+<h3>${esc(entity)}<span class="tid">实体</span></h3>
+<div class="tw"><table><thead><tr><th>规则</th><th>类型</th><th>说明（含边界值与错误码）</th><th>适用接口</th></tr></thead><tbody>
+${rows}
+</tbody></table></div>
+</article>`;
+    })
+    .join('\n');
+  const viewRules = `<section class="view" id="view-rules">
+<h2><span class="num">⑤</span>业务规则</h2>
+<p class="vd">按实体分组的全部业务规则（spec 第五章 <code>vima:rules</code>）。这些规则会随任务上下文发给 Builder 施工、由 Verifier 逐条核对是否实现——<strong>只写在散文里、没进数据块的规则不会被任何人执行</strong>。逐条核对边界值与错误码是否写清。</p>
+${ruleCards || '<p class="dim">（未声明任何业务规则——vima validate V-SPEC-09 会拦截）</p>'}
+</section>`;
 
-  const content = [hero, guide, toc, ...(pendingList ? [pendingList] : []), viewRoles, viewMenus, viewFlows, viewPages, foot].join('\n');
+  const foot = `<footer class="foot">本审计视图为单文件自包含产物：零外部请求、不含 JS、无时间戳，同一份 spec 渲染字节一致（<code>vima render-review --check</code> 可验漂移）。<br>
+真源：<code>docs/spec.md</code> · 角色 ${esc(roles.length)} · 菜单 ${esc(menus.length)} · 页面 ${esc(pages.length)} · 流程 ${esc(flows.length)} · 规则 ${esc(rules.length)} · 本期不做 ${esc(nonGoals.length)}</footer>`;
+
+  const content = [hero, guide, toc, redline, ...(pendingList ? [pendingList] : []), viewRoles, viewMenus, viewFlows, viewPages, viewRules, foot].join('\n');
   const title = `${projectName} · 审计视图`;
   const html = TEMPLATE.split('{{TITLE}}').join(esc(title)).split('{{CONTENT}}').join(content);
   return html.replace(/\n*$/, '\n');
+}
+
+/** 区块词 → 中文名（人审可读性；词表同 V-SPEC-04）。 */
+const BLOCK_CN = {
+  toolbar: '工具栏', search: '搜索区', table: '表格', form: '表单',
+  cards: '卡片区', tabs: '页签', pagination: '分页',
+};
+
+/** 单个区块的草图条。 */
+function sketchBar(word) {
+  const w = String(word);
+  const cn = BLOCK_CN[w] ?? w;
+  return `<div class="sk-b sk-${esc(w)}"><span class="sk-cn">${esc(cn)}</span><span class="sk-w">${esc(w)}</span></div>`;
+}
+
+/**
+ * 版面草图：声明 regions（A14）时按列画，否则按 layout 纵向堆叠。
+ * 只表达结构与顺序，不表达视觉——真实控件手感看线框原型。
+ */
+function layoutSketch(p) {
+  const regions = Array.isArray(p.regions) && p.regions.length > 0 ? p.regions : null;
+  if (!regions) {
+    return `<div class="sk sk-stack">\n${(p.layout ?? []).map(sketchBar).join('\n')}\n</div>`;
+  }
+  const bands = regions
+    .map((band) => {
+      if (Array.isArray(band?.blocks) && band.blocks.length > 0) {
+        return `<div class="sk-band">\n${band.blocks.map(sketchBar).join('\n')}\n</div>`;
+      }
+      const cols = (Array.isArray(band?.columns) ? band.columns : [])
+        .map((col) => {
+          const width = String(col?.width ?? '1fr');
+          const grow = width.endsWith('fr') ? `${Number.parseFloat(width) || 1} 1 0` : `0 0 ${width}`;
+          return `<div class="sk-col" style="flex:${esc(grow)}">
+<div class="sk-col-cap"><span>${esc(col?.name ?? '')}</span><span class="sk-w">${esc(width)}</span></div>
+${(Array.isArray(col?.blocks) ? col.blocks : []).map(sketchBar).join('\n')}
+</div>`;
+        })
+        .join('\n');
+      return `<div class="sk-cols">\n${cols}\n</div>`;
+    })
+    .join('\n');
+  return `<div class="sk sk-stack">\n${bands}\n</div>`;
 }
 
 /** ④ 中的单页卡片：布局区块序列 + 组件清单表 + 交互列表 + 接口映射 + 弹窗卡。 */
@@ -256,7 +349,8 @@ function renderPageCard(p, { contractByKey, menuLink, pageLink }) {
     return '<span class="dim">—</span>';
   };
 
-  // 布局区块序列
+  // 版面草图（A14）：结构可视化；词序列降为副行，仍给机器口径留痕
+  const sketch = layoutSketch(p);
   const chips = (p.layout ?? [])
     .map((b) => `<span class="chip">${esc(b)}</span>`)
     .join('<span class="chip-arrow">→</span>');
@@ -326,8 +420,9 @@ ${mo.submit?.api ? `<p class="meta">提交接口：${apiBadge(mo.submit.api, con
   return `<article class="page-card" id="${esc(p.id)}">
 <h3>${esc(p.title ?? p.id)}<span class="tid">${esc(p.id)}</span>${pend(p)}</h3>
 <p class="meta">所属菜单：${p.menu ? menuLink(p.menu) : '<span class="dim">—</span>'}</p>
-<h4>布局区块序列</h4>
-<div class="chips">${chips}</div>
+<h4>版面草图</h4>
+${sketch}
+<div class="chips"><span class="chip-lead">区块序列</span>${chips}</div>
 <h4>组件清单</h4>
 <div class="tw"><table><thead><tr><th>区块</th><th>组件</th><th>标签</th><th>数据 / 交互</th></tr></thead><tbody>
 ${compRows.join('\n')}

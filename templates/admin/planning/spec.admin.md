@@ -3,7 +3,7 @@
 <!--
   本文件是 admin 模板的 spec 骨架：PLANNING 开始时复制为 docs/spec.md，逐章填充。
   填充纪律（见 planning-guide.md）：
-  - 八个章标题一字不改（vima validate V-SPEC-01 按标题前缀机检）；
+  - 九个章标题一字不改（vima validate V-SPEC-01 按标题前缀机检）；
   - 只填充、不创作：删除各章 <!-- 填写提示 -\-> 注释，替换示例占位值；
   - 每写完一章立即落盘并跑 vima validate；
   - 信息源分级：raw 原文 > 用户确认 > 推断；推断项必须标 pendingConfirm: true。
@@ -40,7 +40,14 @@ enums:
      - 交互仅三种：action: nav（target=PAGE-xx）、action: modal（target=本页 modals 中的 MODAL-xx）、
        action: api（api="METHOD /path"）（V-SPEC-05）
      - apis 必须 ⊆ 契约 apis（V-SPEC-07）
-     - ID 正则：PAGE-\d{2}、MODAL-\d{2}，全文档唯一。 -->
+     - ID 正则：PAGE-\d{2}、MODAL-\d{2}，全文档唯一。
+     - 多列版面（三列工作台、主从两栏、带 sticky 侧栏的表单页等）另加可选 regions（A14）：
+       regions: 纵向若干「带」，每带二选一——
+         全宽带 `- { blocks: [区块词…] }`
+         分栏带 `- columns: [{ name: 列名, width: 264px|1fr, blocks: [区块词…] }, …]`
+       带的先后即上下顺序，列内顺序即渲染顺序。layout 保持扁平不变（校验与任务点口径不动），
+       regions 铺开后的区块集合必须与 layout 一致，否则 V-SPEC-12 阻断。
+       不写 regions 的页面按 layout 纵向堆叠——单列页面无需声明。 -->
 
 ### PAGE-01 示例列表页
 
@@ -87,10 +94,29 @@ apis: [GET /api/example/list, POST /api/example, POST /api/example/batch-delete]
 
 ## 5. 业务规则
 
-<!-- 填写提示：校验规则、状态流转、计算规则、约束条件——逐模块分小节陈述，
-     规则要可验收（写清边界值与错误码）。
+<!-- 填写提示：校验规则、状态流转、计算规则、约束条件——散文可保留作人读说明，
+     但**机器真源是下方 vima:rules 数据块**（A13），规则要可验收（写清边界值与错误码）。
+     - 每条 id 正则 RULE-\d{2}，全文档唯一
+     - type 四选一：validation|transition|calculation|constraint（V-SPEC-09）
+     - entity 必填，须是 vima:entities 里的实体名（V-SPEC-09）
+     - apis 可选：该规则约束哪些接口，须存在于契约（V-SPEC-10）；**省略 = 全局规则**，
+       会注入全部任务的上下文包
+     - 本块同时喂给 vima context（Builder 施工时逐条可见）与 Verifier（逐条核对是否实现）
      业务流程写在本章「业务流程」小节：每条流程一块 vima:flow，
      串联 角色→页面→动作→接口→下一页（ID 正则 FLOW-\d{2}）。 -->
+
+```yaml vima:rules
+rules:
+  - id: RULE-01
+    type: validation
+    entity: Example
+    apis: [POST /api/example]
+    desc: 名称必填且长度 2-50 字符，违者返回 40001
+  - id: RULE-02
+    type: constraint
+    entity: Example
+    desc: 任何删除均为软删除，列表查询默认过滤已删除记录（全局规则，故省略 apis）
+```
 
 ### 业务流程
 
@@ -138,3 +164,20 @@ menus:
 
 | 决策 ID | 决策 | 理由 | 已否决方案 | 否决理由 |
 |---------|------|------|-----------|---------|
+| D-01 | （示例）详情用独立页面承载 | 字段完整、便于按菜单授权 | 在列表页用弹窗展示 | 弹窗承载不下后续扩展 |
+
+## 9. 本期不做
+
+<!-- 填写提示（A13）：本期明确**不做**的事，逐条写入下方 vima:non-goals 数据块。
+     - 每条 id 正则 NG-\d{2}，全文档唯一；desc 写清「不做什么 + 用户当前怎么应对」
+     - 素材来源：对话中用户说过「这个先不做 / 二期再说」的、以及你判断超出本期范围
+       但用户没明说的（后者须请用户确认后再写）
+     - **确实没有也必须显式写 `non-goals: []`**——V-SPEC-11 拒绝省略块，
+       「声明为空」与「没声明」必须可区分
+     用途：本块随每个任务的上下文包发给 Builder（范围红线），并由 Verifier
+     逐条核对是否越界——实现了这里的任何一条即判 fail。 -->
+
+```yaml vima:non-goals
+non-goals:
+  - { id: NG-01, desc: 不做数据导出，用户临时用数据库直连应对 }
+```
