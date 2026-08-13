@@ -1,100 +1,126 @@
-// C1 单测：vima upgrade（mkdtemp 沙箱 + spawnSync 跑真实 CLI）
+// C1 单测：vima upgrade —— 升级 CLI 自身（A15）
+// 全程不联网：一律注入 VIMA_UPGRADE_LATEST 短路 registry 请求（契约 §13）。
+// 安装器永不会被真正执行——测试跑在本仓库内，cliRoot 有 .git → kind=source → 拒绝安装。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile, appendFile, unlink } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { fileExists } from '../../lib/util/fs.mjs';
+import { runCli, CLI_ROOT } from '../helpers.mjs';
+import { compareSemver, detectInstallKind } from '../../lib/commands/upgrade.mjs';
 
-const BIN = fileURLToPath(new URL('../../bin/vima.mjs', import.meta.url));
-
-function vima(cwd, ...args) {
-  return spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
+/** 期望值来自 package.json 而非实现（A10 同构断言禁令）。 */
+async function cliVersion() {
+  const { readFile } = await import('node:fs/promises');
+  return JSON.parse(await readFile(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
 }
 
-async function sandbox(t) {
-  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c1-upgrade-'));
+async function emptyDir(t) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c1-selfup-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
-/** create + init 出一个就绪项目。 */
-async function initializedProject(t, name = 'up-admin') {
-  const box = await sandbox(t);
-  assert.equal(vima(box, 'create', name, '-t', 'admin', '--no-git', '--no-install').status, 0);
-  const proj = path.join(box, name);
-  const r = vima(proj, 'init');
-  assert.equal(r.status, 0, `init 失败: ${r.stderr}`);
-  return proj;
+function upgrade(args, { cwd, latest }) {
+  return runCli(['upgrade', ...args], { cwd, env: { VIMA_UPGRADE_LATEST: latest } });
 }
 
-test('upgrade：篡改 managed 文件 → 出现 .vima-new 且原文件未被覆盖', async (t) => {
-  const proj = await initializedProject(t);
-  const target = path.join(proj, 'docs/planning-guide.md');
-  const marker = '\n<!-- 用户手改的一行 -->\n';
-  await appendFile(target, marker);
-
-  const r = vima(proj, 'upgrade');
-  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.match(r.stdout, /vima-new/);
-
-  // 新版本写到 .vima-new，原文件保留用户修改
-  assert.ok(await fileExists(`${target}.vima-new`), '应生成 docs/planning-guide.md.vima-new');
-  const disk = await readFile(target, 'utf8');
-  assert.ok(disk.includes(marker.trim()), '用户修改过的原文件不应被覆盖');
-  const fresh = await readFile(`${target}.vima-new`, 'utf8');
-  assert.ok(!fresh.includes(marker.trim()), '.vima-new 应为干净的模板源');
+test('compareSemver：大小与相等（期望值为人工列举，非实现推导）', () => {
+  assert.equal(compareSemver('2.2.0', '2.1.0'), 1);
+  assert.equal(compareSemver('2.1.0', '2.2.0'), -1);
+  assert.equal(compareSemver('2.1.0', '2.1.0'), 0);
+  assert.equal(compareSemver('10.0.0', '9.9.9'), 1, '按数值比较而非字典序');
+  assert.equal(compareSemver('2.1.1', '2.1.0'), 1);
 });
 
-test('upgrade：未修改的 managed 文件被覆盖/保持最新，manifest.vimaVersion 更新', async (t) => {
-  const proj = await initializedProject(t);
-  const before = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
-  const r = vima(proj, 'upgrade');
-  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.match(r.stdout, /升级完成/);
-  const after = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
-  assert.ok(typeof after.vimaVersion === 'string' && after.vimaVersion.length > 0);
-  assert.equal(after.files.managed.length, before.files.managed.length);
-  // 未篡改场景不应产生任何 .vima-new
-  assert.ok(!(await fileExists(path.join(proj, 'docs/planning-guide.md.vima-new'))));
+test('detectInstallKind：按 cliRoot 路径与 .git 判定安装方式（A15 规格 2）', async (t) => {
+  const box = await emptyDir(t);
+
+  // 1. 有 .git → 源码 / npm link 开发态
+  const src = path.join(box, 'src-checkout');
+  await mkdir(path.join(src, '.git'), { recursive: true });
+  assert.equal(await detectInstallKind(src), 'source');
+
+  // 2. npx 缓存路径
+  const npx = path.join(box, '.npm/_npx/abc123/node_modules/@vima-tech/cli');
+  await mkdir(npx, { recursive: true });
+  assert.equal(await detectInstallKind(npx), 'npx');
+
+  // 3. pnpm 全局 store 路径
+  const pnpm = path.join(box, 'store/node_modules/.pnpm/@vima-tech+cli@2.1.0/node_modules/@vima-tech/cli');
+  await mkdir(pnpm, { recursive: true });
+  assert.equal(await detectInstallKind(pnpm), 'pnpm');
+
+  // 4. bun 全局路径
+  const bun = path.join(box, '.bun/install/global/node_modules/@vima-tech/cli');
+  await mkdir(bun, { recursive: true });
+  assert.equal(await detectInstallKind(bun), 'bun');
+
+  // 5. 其余按 npm 全局
+  const npm = path.join(box, 'usr/lib/node_modules/@vima-tech/cli');
+  await mkdir(npm, { recursive: true });
+  assert.equal(await detectInstallKind(npm), 'npm');
 });
 
-test('upgrade：磁盘缺失的 managed 文件按模板源重装', async (t) => {
-  const proj = await initializedProject(t);
-  const target = path.join(proj, '.claude/commands/go.md');
-  await unlink(target);
-  const r = vima(proj, 'upgrade');
-  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.ok(await fileExists(target), '被删除的 managed 文件应被重装');
+test('upgrade：已是最新 → 报告并 exit 0（--yes 也不执行安装器）', async (t) => {
+  const dir = await emptyDir(t);
+  const version = await cliVersion();
+  for (const args of [[], ['--yes']]) {
+    const r = upgrade(args, { cwd: dir, latest: version });
+    assert.equal(r.status, 0, `vima upgrade ${args.join(' ')} 应 exit 0，stderr: ${r.stderr}`);
+    assert.match(r.stdout, /已是最新版本/);
+    assert.match(r.stdout, new RegExp(`当前版本\\s+${version.replace(/\./g, '\\.')}`));
+  }
 });
 
-test('upgrade --dry-run：只打印动作表，不写盘', async (t) => {
-  const proj = await initializedProject(t);
-  const target = path.join(proj, 'docs/planning-guide.md');
-  await appendFile(target, '\n<!-- 用户手改 -->\n');
-  const before = await readFile(path.join(proj, '.vima/manifest.json'), 'utf8');
-
-  const r = vima(proj, 'upgrade', '--dry-run');
+test('upgrade：有新版且默认不装 → 打印升级指令，exit 0', async (t) => {
+  const dir = await emptyDir(t);
+  const r = upgrade([], { cwd: dir, latest: '99.0.0' });
   assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.match(r.stdout, /dry-run/);
-  assert.match(r.stdout, /合并/);
-  // 不写盘：无 .vima-new、manifest 原样
-  assert.ok(!(await fileExists(`${target}.vima-new`)));
-  assert.equal(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'), before);
+  assert.match(r.stdout, /最新版本\s+99\.0\.0/);
+  assert.match(r.stdout, /有新版本 99\.0\.0/);
+  assert.doesNotMatch(r.stdout, /正在执行/, '不带 --yes 绝不执行安装器');
 });
 
-test('upgrade：无 manifest → exit 4 提示先 init', async (t) => {
-  const box = await sandbox(t);
-  const r = vima(box, 'upgrade');
-  assert.equal(r.status, 4);
-  assert.match(r.stderr, /vima init/);
+test('upgrade --yes：源码/开发态不可自升级 → exit 4 UPGRADE_UNSUPPORTED', async (t) => {
+  // 本仓库即源码态（CLI_ROOT 下有 .git），安装器不会被执行
+  const dir = await emptyDir(t);
+  const r = upgrade(['--yes'], { cwd: dir, latest: '99.0.0' });
+  assert.equal(r.status, 4, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
+  assert.match(r.stderr, /^vima upgrade: UPGRADE_UNSUPPORTED: /);
+  assert.match(r.stdout, /git pull/, '应给出源码态的正确升级指令');
 });
 
-test('upgrade --yes：与默认行为一致（非交互实现）', async (t) => {
-  const proj = await initializedProject(t);
-  const r = vima(proj, 'upgrade', '--yes');
+test('upgrade：源码态不带 --yes 只是报告，exit 0（开发者查版本不是错误）', async (t) => {
+  const dir = await emptyDir(t);
+  const r = upgrade([], { cwd: dir, latest: '99.0.0' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /无法自升级/);
+});
+
+test('upgrade --dry-run：A15 过渡兼容，2.x 老用法不报错', async (t) => {
+  const dir = await emptyDir(t);
+  const r = upgrade(['--dry-run'], { cwd: dir, latest: '99.0.0' });
   assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-  assert.match(r.stdout, /升级完成/);
+  assert.match(r.stdout, /最新版本\s+99\.0\.0/);
+});
+
+test('upgrade：在 vima 项目里运行 → 追加指向 vima update 的迁移提示', async (t) => {
+  const dir = await emptyDir(t);
+  await mkdir(path.join(dir, '.vima'), { recursive: true });
+  await writeFile(path.join(dir, '.vima/manifest.json'), '{}\n');
+
+  const inProject = upgrade([], { cwd: dir, latest: '99.0.0' });
+  assert.equal(inProject.status, 0, `stderr: ${inProject.stderr}`);
+  assert.match(inProject.stdout, /vima update/, '项目内应提示产物更新的正确命令');
+
+  const outside = upgrade([], { cwd: await emptyDir(t), latest: '99.0.0' });
+  assert.doesNotMatch(outside.stdout, /vima update/, '非 vima 项目不追加迁移提示');
+});
+
+test('upgrade：多余位置参数 → exit 3 USAGE', async (t) => {
+  const dir = await emptyDir(t);
+  const r = upgrade(['extra'], { cwd: dir, latest: '99.0.0' });
+  assert.equal(r.status, 3);
+  assert.match(r.stderr, /多余的位置参数 "extra"/);
 });

@@ -86,12 +86,12 @@ test('init：CLAUDE.md < 50 行、hooks 可执行位、manifest.managed > 0、li
   }
 });
 
-test('init：重复 init 无 --force → exit 4 并提示 vima upgrade', async (t) => {
+test('init：重复 init 无 --force → exit 4 并提示 vima update', async (t) => {
   const proj = await createAdminProject(t);
   assert.equal(vima(proj, 'init').status, 0);
   const again = vima(proj, 'init');
   assert.equal(again.status, 4);
-  assert.match(again.stderr, /vima upgrade/);
+  assert.match(again.stderr, /vima update/);
 });
 
 test('init --force：可重建，且已存在的 userOwned 文件保留用户版本', async (t) => {
@@ -176,7 +176,7 @@ test('init：安装 docs/coding-standards.md（§5.2 详细规范指针落点，
   assert.equal(vima(proj, 'init').status, 0);
   const text = await readFile(path.join(proj, 'docs/coding-standards.md'), 'utf8');
   assert.match(text, /编码规范/);
-  // 记入 manifest managed（upgrade 可升级）
+  // 记入 manifest managed（update 可更新）
   const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
   assert.ok(
     manifest.files.managed.some((e) => e.path === 'docs/coding-standards.md'),

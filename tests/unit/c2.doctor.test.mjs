@@ -94,7 +94,7 @@ test('doctor：hooks 缺可执行位 → ⑦ ❌ 且 exit 2', async (t) => {
   assert.match(lineOf(proc.stdout, '⑦ hooks'), /^❌/);
 });
 
-test('doctor --json：结构化输出（9 个检查项 + pass 标志）', async (t) => {
+test('doctor --json：结构化输出（10 个检查项 + pass 标志）', async (t) => {
   const tmp = await makeProject(t);
   const proc = runCli(tmp, ['doctor', '--json']);
   assert.equal(proc.status, 0, `stdout: ${proc.stdout}`);
@@ -102,7 +102,7 @@ test('doctor --json：结构化输出（9 个检查项 + pass 标志）', async 
   assert.equal(report.schemaVersion, '1');
   assert.equal(report.vimaProject, true);
   assert.equal(report.pass, true);
-  assert.equal(report.checks.length, 9);
+  assert.equal(report.checks.length, 10);
   for (const c of report.checks) {
     assert.ok(['ok', 'warn', 'error'].includes(c.status), `非法 status: ${c.status}`);
     assert.equal(typeof c.detail, 'string');
@@ -123,4 +123,35 @@ test('doctor：非 vima 项目（无 lifecycle 无 manifest）→ 只跑 ①② 
   const report = JSON.parse(json.stdout);
   assert.equal(report.vimaProject, false);
   assert.deepEqual(report.checks.map((c) => c.id), ['prerequisites', 'claude-md']);
+});
+
+test('doctor ⑩：批准早于产物最后改动 → ❌ 判定批准失效且 exit 2', async (t) => {
+  const tmp = await makeProject(t);
+  const lcPath = path.join(tmp, 'docs', 'lifecycle.json');
+  const lc = JSON.parse(await readFile(lcPath, 'utf8'));
+
+  // ① 批准晚于产物 mtime → ⑩ 应为 ok
+  lc.checklists.PLANNING.tasksApproved = true;
+  lc.checklists.PLANNING.tasksApprovedAt = new Date(Date.now() + 60_000).toISOString();
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+  let report = JSON.parse(runCli(tmp, ['doctor', '--json']).stdout);
+  let approval = report.checks.find((c) => c.id === 'approval');
+  assert.equal(approval.status, 'ok', JSON.stringify(approval));
+
+  // ② 批准早于产物 mtime → ⑩ 应为 error 且整体 exit 2
+  lc.checklists.PLANNING.tasksApprovedAt = '2000-01-01T00:00:00.000Z';
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+  const proc = runCli(tmp, ['doctor', '--json']);
+  assert.equal(proc.status, 2, `stdout: ${proc.stdout}`);
+  report = JSON.parse(proc.stdout);
+  approval = report.checks.find((c) => c.id === 'approval');
+  assert.equal(approval.status, 'error');
+  assert.match(approval.detail, /批准已失效/);
+
+  // ③ 未置位时不判时效
+  lc.checklists.PLANNING.tasksApproved = false;
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+  report = JSON.parse(runCli(tmp, ['doctor', '--json']).stdout);
+  approval = report.checks.find((c) => c.id === 'approval');
+  assert.equal(approval.status, 'ok');
 });

@@ -44,11 +44,18 @@ async function mutate(root, rel, from, to) {
 test('V-CODE-01：带 @vima 标注的前端代码调用契约外接口 → exit 2；模板串参数归一后命中契约 → 放行', async (t) => {
   const root = await cloneGolden(t);
   // 契约补一个带路径参数的接口（顺带验证 {id} ↔ ${expr} 归一）
+  // 人读小节与机读块须同步补（V-CON-06：两处逐接口一一对应）
+  await mutate(
+    root,
+    'docs/contracts/device-api.md',
+    '## 共享类型定义',
+    '## PUT /api/device/{id}\n\n- 请求参数：`{ id: number }`\n- 响应：`ApiResponse<Device>`\n- 错误码：40001 参数校验失败\n\n## 共享类型定义',
+  );
   await mutate(
     root,
     'docs/contracts/device-api.md',
     'apis:',
-    'apis:\n  - method: PUT\n    path: /api/device/{id}\n    request: []\n    response:\n      - { name: id, type: number }\n    errors:\n      - { code: 40001, msg: 参数校验失败 }',
+    'apis:\n  - method: PUT\n    path: /api/device/{id}\n    request:\n      - { name: id, type: number, required: true }\n    response:\n      - { name: id, type: number }\n    errors:\n      - { code: 40001, msg: 参数校验失败 }',
   );
   const p = path.join(root, 'src/api/device.ts');
   let text = await readFile(p, 'utf8');
@@ -572,5 +579,145 @@ test('V-SPEC-05：RULE/NG 的 ID 并入全文档唯一性检查（A13 扩容）'
   assert.ok(
     report.errors.some((e) => e.rule === 'V-SPEC-05' && /RULE ID "RULE-01" 与 RULE 重复/.test(e.message)),
     JSON.stringify(report.errors),
+  );
+});
+
+// ── 修补期实测补充的规则（V-YAML-01 / V-CON-05 / V-CON-06 / V-TASK-08 / V-TASK-09 / V-SRC-01）──
+
+test('V-YAML-01：flow 上下文里的裸花括号 → warn（vima 能读但标准 YAML 读不了）', async (t) => {
+  const root = await cloneGolden(t);
+  // 行内序列里放 {id}：本解析器容忍，PyYAML 之流会崩——正是「能过 vima 却不是合法 YAML」的灰区
+  await mutate(root, 'docs/spec.md', 'apis: [GET /api/device/detail]\n', 'apis: [GET /api/device/detail, GET /api/device/{id}]\n');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  const report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-YAML-01' && /未加引号的花括号/.test(w.message)),
+    JSON.stringify(report.warnings),
+  );
+  assert.equal(r.code, 2, 'V-SPEC-07 会因新接口不在契约而报错，但 V-YAML-01 本身只是 warn');
+});
+
+test('V-YAML-01：块级序列里的 {id} 不误报（block 上下文本就是合法 YAML）', async (t) => {
+  const root = await cloneGolden(t);
+  const report0 = (() => { vima(root, 'validate'); return readReport(root); })();
+  const report = await report0;
+  assert.ok(!report.warnings.some((w) => w.rule === 'V-YAML-01'), '黄金夹具不应有 V-YAML-01');
+});
+
+test('V-CON-05：q1 式占位参数名与写操作空请求体 → warn', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root,
+    'docs/contracts/device-api.md',
+    '      - { name: ids, type: array, required: true }',
+    '      - { name: q1, type: string, required: true }',
+  );
+  const r = vima(root, 'validate', '--artifact', 'docs/contracts');
+  assert.equal(r.code, 0, `占位符只是 warn；stderr: ${r.stderr}`);
+  const report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-CON-05' && /q1/.test(w.message)),
+    JSON.stringify(report.warnings),
+  );
+});
+
+test('V-CON-06：人读小节与机读 apis 数量不一致 → exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/contracts/device-api.md', '## GET /api/device/detail', '## GET /api/device/detail-renamed');
+  const r = vima(root, 'validate', '--artifact', 'docs/contracts');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-CON-06'),
+    JSON.stringify(report.errors),
+  );
+});
+
+test('V-CON-06：头部「接口 N 个」过期 → warn（不阻断）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/contracts/device-api.md', '# 设备管理 API 契约', '# 设备管理 API 契约\n\n创建日期：2026-08-12　模块：`device`　接口 99 个');
+  const r = vima(root, 'validate', '--artifact', 'docs/contracts');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-CON-06' && /接口 99 个/.test(w.message)),
+    JSON.stringify(report.warnings),
+  );
+});
+
+test('V-TASK-08：验收清单引用页面 apis 之外的接口 → warn；否定式提及不误报', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root,
+    'docs/tasks/device-list-fe.md',
+    '## 验收清单',
+    '## 验收清单\n\n- [ ] 表格「导出」调用 GET /api/device/export\n',
+  );
+  const r = vima(root, 'validate', '--artifact', 'docs/tasks');
+  assert.equal(r.code, 0, `V-TASK-08 是 warn；stderr: ${r.stderr}`);
+  let report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-TASK-08' && /GET \/api\/device\/export/.test(w.message)),
+    JSON.stringify(report.warnings),
+  );
+
+  // 同一引用改成否定式说明后不应再报（反面教材不是失效引用）
+  await mutate(
+    root,
+    'docs/tasks/device-list-fe.md',
+    '- [ ] 表格「导出」调用 GET /api/device/export',
+    '- [ ] 页面不提供「导出」按钮（真源无 GET /api/device/export）',
+  );
+  vima(root, 'validate', '--artifact', 'docs/tasks');
+  report = await readReport(root);
+  assert.ok(
+    !report.warnings.some((w) => w.rule === 'V-TASK-08'),
+    `否定式提及不应触发：${JSON.stringify(report.warnings)}`,
+  );
+});
+
+test('V-TASK-09：任务内嵌接口数与契约条目数漂移 → warn', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root,
+    'docs/tasks/device-api-be.md',
+    '## 任务目标',
+    '## 任务目标\n\n实现本模块契约声明的 99 个接口，字段与错误码以契约为唯一来源。\n',
+  );
+  const r = vima(root, 'validate', '--artifact', 'docs/tasks');
+  assert.equal(r.code, 0);
+  const report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-TASK-09' && /99 个接口/.test(w.message)),
+    JSON.stringify(report.warnings),
+  );
+});
+
+test('V-SRC-01：配置 endpointAnchor 后，契约外端点 → warn；未配置则整条跳过', async (t) => {
+  const root = await cloneGolden(t);
+  // 未配置：黄金夹具不应出现 V-SRC-01
+  vima(root, 'validate', '--artifact', 'docs/contracts');
+  let report = await readReport(root);
+  assert.ok(!report.warnings.some((w) => w.rule === 'V-SRC-01'), '未配置锚点时应整条跳过');
+
+  // 配置一份只含两条真实路径的锚点 → 其余契约端点应被判「查无实据」
+  await writeFile(path.join(root, 'docs', 'endpoints.md'), '# 真源端点\n\n- GET /api/device/list\n- POST /api/device\n');
+  const lcPath = path.join(root, 'docs', 'lifecycle.json');
+  const lc = JSON.parse(await readFile(lcPath, 'utf8'));
+  lc.endpointAnchor = 'docs/endpoints.md';
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+
+  const r = vima(root, 'validate', '--artifact', 'docs/contracts');
+  assert.equal(r.code, 0, `V-SRC-01 是 warn；stderr: ${r.stderr}`);
+  report = await readReport(root);
+  const hits = report.warnings.filter((w) => w.rule === 'V-SRC-01');
+  assert.ok(hits.length > 0, JSON.stringify(report.warnings));
+  assert.ok(
+    hits.some((w) => /batch-delete/.test(w.message)),
+    `锚点里没有的端点应被点名：${JSON.stringify(hits)}`,
+  );
+  assert.ok(
+    !hits.some((w) => /GET \/api\/device\/list/.test(w.message)),
+    '锚点里有的端点不应被点名',
   );
 });

@@ -279,3 +279,39 @@ test('表格横向滚动容器：宽表不撑破所在列（分栏页尤其关�
   const adjacent = (html.match(/<div class="wf-tw"><table>/g) ?? []).length;
   assert.equal(adjacent, tables, '滚动容器紧邻表格，无表格直接挂在 wf-block 下');
 });
+
+// ── render-matrix：V-COV-01 的生成端（此前只有校验没有生成器）──
+
+test('render-matrix：生成覆盖矩阵，字节确定，--check 通过；改产物后侦测漂移', async () => {
+  const rel = path.join('docs', 'coverage-matrix.md');
+  const p = path.join(root, rel);
+
+  const r1 = vima(root, 'render-matrix');
+  assert.equal(r1.status, 0, `stderr: ${r1.stderr}`);
+  assert.match(r1.stdout, /覆盖矩阵已生成/);
+  const first = await readFile(p, 'utf8');
+
+  // 字节确定性：同样输入两次渲染完全一致
+  assert.equal(vima(root, 'render-matrix').status, 0);
+  assert.equal(await readFile(p, 'utf8'), first, '两次渲染应字节一致');
+
+  // 结构：四列表头 + 每个 spec 页面一行 + 无空单元格（V-COV-01 口径）
+  assert.match(first, /\| 需求 \| 接口 \| 契约 \| 任务 \|/);
+  for (const line of first.split('\n').filter((l) => l.startsWith('| PAGE') || /^\| .+（PAGE-/.test(l))) {
+    assert.ok(!/\|\s*\|/.test(line), `存在空单元格: ${line}`);
+  }
+
+  // --check 通过；手改后应侦测到漂移
+  assert.equal(vima(root, 'render-matrix', '--check').status, 0);
+  await writeFile(p, `${first}\n<!-- 手改 -->\n`);
+  const drift = vima(root, 'render-matrix', '--check');
+  assert.equal(drift.status, 2);
+  assert.match(drift.stderr, /--check 失败/);
+  await writeFile(p, first); // 复位，避免影响同文件后续用例
+});
+
+test('render-matrix：生成的矩阵能通过 V-COV-01', async () => {
+  assert.equal(vima(root, 'render-matrix').status, 0);
+  const r = vima(root, 'validate', '--artifact', 'docs/coverage-matrix.md');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}\nstdout: ${r.stdout}`);
+});

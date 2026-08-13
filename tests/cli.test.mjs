@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { runCli, CLI_ROOT } from './helpers.mjs';
 
 const ALL_COMMANDS = [
-  'create', 'init', 'upgrade', 'doctor', 'validate', 'render-review',
-  'render-prototype', 'sync', 'plan', 'approve', 'context', 'trace',
+  'create', 'init', 'update', 'upgrade', 'doctor', 'validate', 'render-review',
+  'render-prototype', 'render-matrix', 'sync', 'plan', 'approve', 'context', 'trace',
 ];
 
 async function emptyDir(t) {
@@ -130,7 +130,7 @@ test('错误码矩阵（契约 §3.1）：空目录前置错误以稳定 code �
   const cases = [
     [['plan'], 4, 'NO_TASKS'],
     [['sync'], 4, 'NO_LIFECYCLE'],
-    [['upgrade'], 4, 'NO_MANIFEST'],
+    [['update'], 4, 'NO_MANIFEST'],
     [['render-review'], 4, 'NO_SPEC'],
     [['init', '--template', 'nosuch'], 3, 'NO_TEMPLATE'],
   ];

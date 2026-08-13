@@ -47,15 +47,17 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 |---|---|---|
 | `vima create <name> [-t <id>]` | 多模板起骨架（环境预检 + 变量替换 + git init） | 4=目录冲突/必需依赖缺失 |
 | `vima init` | 部署 Agent 工作环境（宪法/lifecycle/命令/角色/hooks/manifest） | 4=已初始化或 preview 模板 |
-| `vima upgrade [--dry-run]` | 升级 vima 生成物：三方比较，用户文件永不覆盖 | 改动过的受管文件出 `.vima-new` |
+| `vima update [--dry-run]` | 更新 vima 生成物：三方比较，用户文件永不覆盖 | 改动过的受管文件出 `.vima-new` |
 | `vima validate [--artifact <p>]` | PLANNING 产物机械校验（契约 §8 全量规则，零 token） | 2=有 error |
 | `vima render-review [--check]` | spec 数据块 → 人类审计视图（单文件 HTML，四视图） | 2=四要素缺失/漂移 |
 | `vima render-prototype [--check]` | spec 数据块 → 线框原型 + prototype.manifest.json | 2=四要素缺失/漂移 |
+| `vima render-matrix [--check]` | spec/契约/任务 → 需求覆盖矩阵（V-COV-01 的生成端） | 2=漂移 |
 | `vima approve` | 用户评审的机械确认，写 tasksApproved 留痕 | 4=前置未满足/有 pendingConfirm |
 | `vima plan [--json]` | 任务 frontmatter → 拓扑批次计划（环检测） | 2=依赖环/缺依赖 |
 | `vima trace [--strict] [--dir <p>]` | 代码 `@vima <taskId>` 标注 ↔ 任务对账：抓**野生**与**虚报** | 2=野生（--strict 时含虚报） |
 | `vima sync [--dry-run]` | frontmatter → taskStats + tasks/README.md 确定性重建 | — |
 | `vima doctor [--json]` | 九项体检（环境/宪法/状态一致性/对齐产物漂移） | 2=任一 ❌ |
+| `vima upgrade [--yes]` | 升级 vima CLI 自身到 npm 最新版（默认只检查，`--yes` 才安装） | 4=当前安装方式不支持自升级 |
 
 每个命令支持 `vima <command> --help` 或 `vima help <command>` 在终端查看完整用法与示例。
 
@@ -84,7 +86,8 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 | 偏离 | 理由 |
 |---|---|
 | 骨架用内置目录拷贝，不执行 `npm create vue`/`spring init` 外部命令 | 确定性与离线可测（§3.5 的 fallback 语义升为默认） |
-| upgrade 冲突产物为 `<path>.vima-new` 而非 `.diff` | 零依赖下 diff 质量不可靠，完整新版本更可用 |
+| update 冲突产物为 `<path>.vima-new` 而非 `.diff` | 零依赖下 diff 质量不可靠，完整新版本更可用 |
+| §4.5 的 `vima upgrade` 更名为 `vima update`，`upgrade` 改指升级 CLI 自身 | A15：`upgrade` 语义应是「换掉工具自己」，自升级此前无落点 |
 | 模板选择为数字选单而非方向键 | 零依赖（node:readline），行为等价 |
 | 组件库 `@vima-tech/ui-admin` 以 vendored 方式随骨架落地（`vendor/` 含预构建 dist，`file:` 依赖） | 该包不走 npm registry；vendored 保证离线可用与版本锁定（原「未随骨架安装」偏离已解决） |
 | spec 为八章（+第八章 关键决策记录） | A4 吸收项：决策必须留已否决方案 |

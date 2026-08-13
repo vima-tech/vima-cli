@@ -134,10 +134,10 @@ test('⑨sync：重建 taskStats 与 tasks/README.md 生成视图', async () => 
   }
 });
 
-test('⑩upgrade：手改受管文件 → 旁路 .vima-new、原文件保留（§4.5 实现裁定，契约 §14）', async () => {
+test('⑩update：手改受管文件 → 旁路 .vima-new、原文件保留（§4.5 实现裁定，契约 §14）', async () => {
   const target = path.join(proj, '.claude/commands/check.md');
   await appendFile(target, '\n<!-- user tweak -->\n');
-  const r = vima(['upgrade']);
+  const r = vima(['update']);
   assert.equal(r.code, 0, r.out);
   const nv = await readFile(`${target}.vima-new`, 'utf8').catch(() => null);
   assert.ok(nv !== null, '被手改的受管文件应生成 .vima-new 旁路新版本');

@@ -28,7 +28,8 @@ templates/admin/planning/*.md                  [D1 规划资产] + tests/fixture
 templates/admin/workspace/**                   [D2 工作环境资产] + tests/unit/d2.workspace.test.mjs
 templates/*/template.json templates/*/scaffold/** [D3 模板与骨架]
 docs/pact-absorption.md docs/design/v2.1-amendments.md [A  吸收分析]
-lib/commands/{create,init,upgrade}.mjs         [C1] + tests/unit/c1.*.test.mjs
+lib/commands/{create,init,update,upgrade}.mjs  [C1] + tests/unit/c1.*.test.mjs
+                                                （update=更新项目产物；upgrade=升级 CLI 自身，A15）
 lib/commands/{plan,sync,doctor}.mjs            [C2] + tests/unit/c2.*.test.mjs
 lib/commands/{validate,approve,trace,context}.mjs [C3] + tests/unit/c3.*.test.mjs
 lib/commands/render-{review,prototype}.mjs
@@ -85,8 +86,11 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | DIR_EXISTS | 4 | create | 目标目录已存在且未加 --force |
 | TEMPLATE_PREVIEW | 4 | init | preview 模板拒绝 init（A5 能力诚实分级） |
 | ALREADY_INIT | 4 | init | 已初始化且未加 --force |
-| NO_MANIFEST | 4 | upgrade | 缺 .vima/manifest.json |
-| NO_TEMPLATE_ID | 4 | upgrade | manifest 缺 templateId |
+| NO_MANIFEST | 4 | update | 缺 .vima/manifest.json |
+| NO_TEMPLATE_ID | 4 | update | manifest 缺 templateId |
+| UPGRADE_UNSUPPORTED | 4 | upgrade | 安装方式不支持自升级（源码/npm link 态、npx 临时运行）且给了 --yes（A15） |
+| REGISTRY_UNREACHABLE | 2 | upgrade | npm registry 请求失败/超时/响应缺 version（A15；不静默降级为「已是最新」） |
+| INSTALL_FAILED | 2 | upgrade | 全局安装器无法执行或以非零码结束（A15） |
 | NO_TASKS | 4 | plan | 缺 docs/tasks/ 目录（防在非 vima 项目静默产出空计划） |
 | NO_RENDERER | 4 | render-review / render-prototype | 模板未声明对应渲染器 |
 | NO_LIFECYCLE | 4 | model/lifecycle | 缺 docs/lifecycle.json |
@@ -546,6 +550,9 @@ apis:
 | V-CON-02 | warn | 契约 api 未被任何页面 apis 引用（孤儿接口） |
 | V-CON-03 | error | 每个契约 module 至少有一个 frontend 任务与一个 backend 任务通过 contract 字段引用它（admin） |
 | V-CON-04 | error | 契约唯一性：module 名跨文件唯一；`METHOD path` 键跨全部契约唯一（§9.5 唯一事实来源，防后写覆盖先写） |
+| V-CON-05 | warn | 占位符特征：请求参数名匹配 `^q\d+$`，或 POST/PUT 声明空 `request: []`。能通过全部结构性校验却与真实需求无关的模板套壳残留；零配置、纯形态判断 |
+| V-CON-06 | error/warn | 契约三方计数一致：人读 `## <METHOD> /path` 小节与机读 `apis` 逐接口一一对应（error，含键集合比对）；头部「接口 N 个」与机读条目数一致（warn） |
+| V-SRC-01 | warn | 端点溯源（需配置）：`lifecycle.endpointAnchor` 指向真源端点清单时启用，契约每个 path 归一后须在锚点中出现。**全表唯一的外部锚点**——其余规则皆为 spec↔契约↔任务的内部一致性，契约由 spec 反向生成时该闭环恒真、虚构端点查不出 |
 | V-TASK-01 | error | frontmatter 字段齐全且取值合法（§6.1；business 任务必须有 contract） |
 | V-TASK-02 | error | 每个任务 body 含「## 验收清单」且至少 1 个复选框 |
 | V-TASK-03 | error | contract 指向的文件存在 |
@@ -553,7 +560,10 @@ apis:
 | V-TASK-05 | error | A2 单一真源：带 page 字段的任务 body 不得含「组件树」或「## 页面结构」手写段（页面结构以 spec 数据块+原型为准） |
 | V-TASK-06 | error | page 字段值存在于 spec pages；spec 缺失/不可解析而任务带 page 时同样报 error（不得静默跳过） |
 | V-TASK-07 | warn | 任务点覆盖度（B3）：带 page 的任务，验收清单复选框数 < 该页任务点数（交互数 [items 带 action + rowActions] + 弹窗字段数）→ 提醒清单可能漏点 |
-| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口） |
+| V-TASK-08 | warn | 任务正文引用的接口须 ∈ 作用域（带 page 取该页 apis，否则取 contract 契约 apis）。V-TASK-07 只数复选框不看内容，产物重建后清单会长期停在旧端点上。含否定式措辞（真源无/已废弃/不请求…）的行不计入 |
+| V-TASK-09 | warn | 任务正文内嵌「契约声明的 N 个接口」与契约条目数一致（契约一改即漂，此前无规则覆盖） |
+| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成 |
+| V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
 | V-CODE-01 | error | 代码↔契约对账·前端（A6）：**带 `@vima` 标注**的 src/ 文件中 `request.<get\|post\|put\|delete\|patch>(路径字面量)` 归一后必须 ∈ 契约 apis。归一：非 `/api` 开头补 `/api` 前缀（request baseURL）；模板串 `${expr}` 与契约 `{id}` 都归一为 `{*}`。单向对账（防野生接口）；实现完整性归 Verifier。无标注文件（底座/共享层）不参与 |
 | V-CODE-02 | error | 代码↔契约对账·后端（A6）：**带 `@vima` 标注**的 backend/src *.java 中，类级 `@RequestMapping` 基路径 + `@Get/Post/Put/Delete/PatchMapping` 子路径拼接归一后必须 ∈ 契约 apis。Mapping 路径只认 value=/path=/首个位置字符串参数（仅 produces= 等具名属性视为无子路径）。仅 code 组全量校验时跑（--artifact 不含） |
@@ -640,7 +650,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论，均见 v2.1-amendments.md）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定，均见 v2.1-amendments.md）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。
@@ -674,6 +684,11 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   审计视图第⑤视图（§11）、Verifier 逐条核对；spec 新增第九章「本期不做」承载
   `vima:non-goals`（V-SPEC-11 强制显式声明，空清单须写 `non-goals: []`），
   越界实现由 Verifier 记 fail——把「防过度设计」从 vima 自身纪律下推为它生成项目的机检项。
+- **A14 分栏版面**：`vima:page` 可选键 `regions`（带 + 列两级，不递归），V-SPEC-12 强制
+  铺开后区块多重集 == `layout`；`layout` 语义与既有台账不动。
+- **A15 命令语义对调**：`vima update` = 更新项目产物（原 `vima upgrade` 行为原样承接），
+  `vima upgrade` = 升级 CLI 自身（查 registry + 识别安装方式，默认只检查、`--yes` 才安装，
+  §3.1 三个新错误码）。不做自动转发；`--dry-run` 在新语义下天然兼容故老用法不报错。
 
 ## 13. 测试与 fixtures
 
@@ -698,7 +713,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   其余 pending。
 - 单测不得依赖网络；可执行 `node bin/vima.mjs`（用 `node:child_process` spawnSync）。
 - e2e（集成阶段统一写）：临时目录 create --no-git --no-install → init → 覆盖黄金夹具 →
-  validate → render-review/-prototype（+--check）→ plan → trace → approve → doctor → upgrade。
+  validate → render-review/-prototype（+--check）→ plan → trace → approve → doctor → update。
 - workspace 文字资产测试（`tests/unit/d2.workspace.test.mjs`）：A3 三条 grep 判据、
   guard-shared.mjs 目录集 ⊆ template.json sharedDirs、全部模板 status ∈ {stable,preview}
   且 admin=stable——防文字资产与配置漂移。
@@ -711,11 +726,20 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 
 ## 14. 命令行为裁定补遗（v2.0 实现层，设计文档相应节加注）
 
-- **upgrade（偏离 §4.5 的裁定）**：用户已修改的 managed 文件不做 diff+交互合并，
-  改为在旁路写 `<path>.vima-new` 全量新版本，由用户自行比对合并；动作集
+- **update（偏离 §4.5 的裁定；A15 前命令名为 upgrade）**：用户已修改的 managed 文件不做
+  diff+交互合并，改为在旁路写 `<path>.vima-new` 全量新版本，由用户自行比对合并；动作集
   overwrite / conflict(.vima-new) / reinstall（磁盘缺失重装）/ adopt（磁盘已等于新源）/
   unchanged / deprecated（模板源已删，保留不删）/ new（模板新增，仅提示不安装）。
   `--dry-run` 输出动作表不写盘；`--yes` 兼容接受但无行为（实现恒非交互）。
+- **upgrade（自升级，A15）**：全仓唯一联网、唯一会改 cwd 之外文件的命令，因此**默认只检查
+  不安装**（打印 当前版本 / 最新版本 / 安装方式 / 安装位置 / 升级指令，exit 0），`--yes` 才跑
+  安装器（`spawnSync(..., { stdio: 'inherit' })`）。最新版取自
+  `https://registry.npmjs.org/<name>/latest`（Node 20 内建 fetch，5s 超时；
+  环境变量 `VIMA_UPGRADE_LATEST` 非空时短路该请求，供单测兑现「不依赖网络」）。
+  安装方式只按 `cliRoot` 的路径与文件存在性判定，不执行外部命令探测：
+  `.git` 存在 → source（拒装，提示 git pull）；路径含 `_npx` → npx（拒装）；
+  含 `.pnpm`/`pnpm` → pnpm；含 `.bun` → bun；其余 → npm。已是最新时 `--yes` 也不装。
+  cwd 有 `.vima/manifest.json` 时输出末尾追加指向 `vima update` 的迁移提示。
 - **DEBUG 调试（§20.2）**：环境变量 `DEBUG` 匹配 `vima*` 或 `*` 时，错误经
   stderr 追加完整堆栈（首行仍为 `vima <cmd>: <CODE>: <message>` 稳定格式）。
 - **doctor**：CLAUDE.md 行数检查为 **warn**（§5.4「告警」，>50 触发，不改变退出码）；

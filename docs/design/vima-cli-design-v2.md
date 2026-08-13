@@ -120,7 +120,7 @@ claude
 ┌─────────────────────────────────────────────────────────────┐
 │                      用户界面层                              │
 ├─────────────────────────────────────────────────────────────┤
-│  CLI 命令 (vima create/init/upgrade/doctor)                  │
+│  CLI 命令 (vima create/init/update/upgrade/doctor)           │
 │  自然语言对话 │ 斜杠命令 (/go, /check)                       │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -381,7 +381,7 @@ templates/admin/
 
 | 产出物 | 说明 | 管理属性 |
 |--------|------|---------|
-| `CLAUDE.md` | 项目宪法，精简版，控制在 50 行以内 | vima 生成；生成后归用户所有（upgrade 永不覆盖） |
+| `CLAUDE.md` | 项目宪法，精简版，控制在 50 行以内 | vima 生成；生成后归用户所有（update 永不覆盖） |
 | `docs/lifecycle.json` | 生命周期状态文件，初始为 PLANNING，含 templateId | vima 管理 |
 | `docs/planning-guide.md` | 模板专属的 PLANNING 引导（终点清单 + 产物要求） | vima 管理 |
 | `docs/planning-validation/` | 产物机械校验清单与覆盖矩阵示例（validate.checklist.md 等，见 13.1） | vima 管理 |
@@ -432,7 +432,7 @@ export async function initCommand(options) {
 
   // 1. 检查是否已初始化
   if (await isAlreadyInitialized(projectRoot) && !options.force) {
-    console.log('项目已初始化。升级请使用 vima upgrade，强制重建请加 --force');
+    console.log('项目已初始化。更新生成物请使用 vima update，强制重建请加 --force');
     return;
   }
 
@@ -486,7 +486,10 @@ export async function initCommand(options) {
 }
 ```
 
-### 4.5 升级与迁移机制（vima upgrade）
+### 4.5 更新与迁移机制（vima update）
+
+> 增补项 A15 更名：本节描述的命令 v2.0–v2.1 叫 `vima upgrade`，行为不变；
+> `vima upgrade` 现指「升级 CLI 自身」（§19.13）。
 
 CLI 升级后，项目中的 vima 生成物需要同步更新，但绝不能摧毁用户定制内容。设计如下：
 
@@ -511,7 +514,7 @@ CLI 升级后，项目中的 vima 生成物需要同步更新，但绝不能摧�
 }
 ```
 
-**`vima upgrade` 的三方比较策略**：
+**`vima update` 的三方比较策略**：
 
 | 文件状态 | 处理方式 |
 |---------|---------|
@@ -2086,7 +2089,7 @@ my-project/
 | 前后端接口不一致 | API 契约机制 | contracts/ 唯一事实来源 + Verifier 按契约校验 |
 | 开发中断无法恢复 | 任务状态机 + 断点续跑 | frontmatter status + /go 自动识别断点 |
 | 单点失败全线停止 | 局部阻断策略 | failed 只阻塞依赖链，其他批次继续 |
-| CLI 升级摧毁用户定制 | vima upgrade | manifest 清单 + 三方比较 + 用户文件永不覆盖 |
+| CLI 升级摧毁用户定制 | vima update | manifest 清单 + 三方比较 + 用户文件永不覆盖 |
 | 完成度报告不可靠 | 客观信号为主 | status 统计 + 构建结果 + 清单勾选；语义比对仅抽样 |
 
 ---
@@ -2146,20 +2149,23 @@ Examples:
   vima init --minimal
 ```
 
-### 19.3 vima upgrade
+### 19.3 vima update
+
+> 增补项 A15 更名：本命令 v2.0–v2.1 叫 `vima upgrade`，行为一字未改；
+> `vima upgrade` 让位给「升级 CLI 自身」，见 §19.13。
 
 ```bash
-vima upgrade [options]
+vima update [options]
 
-升级项目中的 vima 生成物到当前 CLI 版本（见 4.5 三方比较策略）
+更新项目中的 vima 生成物到当前 CLI 版本（见 4.5 三方比较策略）
 
 Options:
   --dry-run        只输出动作预览表，不实际修改（实现裁定：不含 diff 内容，见 4.5 注）
   --yes            兼容保留（实现恒非交互，此 flag 无额外行为）
 
 Examples:
-  vima upgrade --dry-run
-  vima upgrade
+  vima update --dry-run
+  vima update
 ```
 
 ### 19.4 vima doctor
@@ -2224,6 +2230,24 @@ Examples:
   vima render-review
   vima render-review --check
 ```
+
+### 19.6b vima render-matrix
+
+```
+vima render-matrix [options]
+```
+
+从 spec 页面块 / 契约 apis / 任务 frontmatter 确定性推导「页面 → 接口 → 契约 → 承接任务」
+四列表，写入 `docs/coverage-matrix.md`，供 V-COV-01 校验。
+
+此前 V-COV-01 强制该文件存在且无空单元格，却没有任何命令生成它——矩阵靠人/代理手写，
+产物一变就烂掉，而校验只能发现「烂了」不能修。现与 render-review/render-prototype 同属
+确定性渲染：同样输入必得同样字节，`--check` 验漂移。
+
+任务列口径：带 `page` 的任务按页面归属；不带 `page` 的模块级任务（后端）按契约归属——
+否则共用同一契约的兄弟页面任务会互相串到彼此行里。
+
+选项：`--check`（不写盘，字节比对，不一致 → exit 2）、`--output <path>`（默认 docs/coverage-matrix.md）。
 
 ### 19.7 vima render-prototype
 
@@ -2330,6 +2354,29 @@ Examples:
   vima trace --dir packages/shared
 ```
 
+### 19.13 vima upgrade
+
+> 增补项 A15 新增：升级 CLI 自身。更新项目产物是另一条命令 `vima update`（§19.3）。
+
+```bash
+vima upgrade [options]
+
+升级 vima CLI 自身到 npm 最新版：
+  - 查 https://registry.npmjs.org/@vima-tech/cli/latest（Node 20 内建 fetch，5s 超时）
+  - 识别安装方式：npm / pnpm / bun 全局 · npx 临时运行 · 源码或 npm link 开发态
+  - 默认只报告不安装（全仓唯一联网、唯一改 cwd 之外文件的命令，必须显式授权）
+  - 源码态与 npx 态不可自升级：不带 --yes 只报告（exit 0），带 --yes → exit 4
+  - 在 vima 项目目录内运行时，末尾追加指向 vima update 的迁移提示
+
+Options:
+  --yes            确认执行安装器（不加则只打印版本与升级指令）
+  --dry-run        兼容保留（新语义下「只检查」即默认行为，此 flag 无额外行为）
+
+Examples:
+  vima upgrade
+  vima upgrade --yes
+```
+
 > 各命令均支持 `vima <command> --help` 与 `vima help <command>` 在终端查看本节用法（契约 §3 顶层路由）。
 
 ---
@@ -2403,6 +2450,21 @@ cat .vima/shared-write-token 2>/dev/null || echo "无令牌（共享层写保护
 ---
 
 ## 二十一、版本历史
+
+### v3.0.0 (2026-08-13) 命令语义对调 + CLI 自升级（增补项 A15 落地）
+
+用户提出「upgrade 升级自身、update 更新产物」的命名直觉，经裁定走破坏性对调路线。
+补上的是一个真缺口：此前全仓没有任何联网查版本或执行安装器的代码，脚手架的用户
+想升级 vima 本体只能自己记 `npm i -g`——而这个名字恰恰被产物更新占着。
+
+- **`vima update`**：承接 v2.0–v2.1 `vima upgrade` 的全部行为（§4.5 三方比较），逻辑一行未改
+- **`vima upgrade`**：新命令，升级 CLI 自身（§19.13）。查 registry 最新版 + 按 `cliRoot` 路径
+  识别安装方式（npm/pnpm/bun 全局 · npx · 源码开发态）；**默认只报告不安装**，`--yes` 才跑
+  安装器——它是全仓唯一联网、唯一改 cwd 之外文件的命令；源码态/npx 态拒绝自升级
+- **过渡兼容**：`--dry-run` 在新语义下即默认行为，2.x 老用法 `vima upgrade [--dry-run]` 不报错；
+  在 vima 项目目录内运行会追加指向 `vima update` 的迁移提示。不做自动转发（避免长期歧义分支）
+- 新增错误码 REGISTRY_UNREACHABLE / INSTALL_FAILED（exit 2）、UPGRADE_UNSUPPORTED（exit 4）；
+  单测靠 `VIMA_UPGRADE_LATEST` 短路 registry 请求，兑现契约 §13「不依赖网络」
 
 ### v2.0.8 (2026-08-13) 规格边界机检（增补项 A13 落地）
 
