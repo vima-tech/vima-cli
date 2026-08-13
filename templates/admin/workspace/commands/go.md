@@ -2,7 +2,10 @@
 
 ## 触发条件
 
-用户输入 /go，或在 DEVELOPING 阶段说「继续开发」。
+用户输入 `/go`，或在 DEVELOPING 阶段说「继续开发」。
+
+**参数**：`--commit`（A18）——带此参数才允许执行批次检查点 git 提交；不带时
+**完全不碰 git**（见步骤 3「批次检查点」）。
 
 ## 执行流程
 
@@ -49,7 +52,10 @@
 - 运行 `vima plan`：CLI 扫描全部任务 frontmatter，按 layer 与 dependsOn 拓扑排序，
   输出批次计划到 .vima/reports/batch-plan.json，含环检测——发现依赖环即中止报错。
 - 计划结构：shared 任务每个单独一个串行批 → business 任务按依赖拓扑分层并行批
-  （单批 ≤ 5）→ pipeline 任务串行收尾。
+  （单批 ≤ `maxParallel`，默认 **8**，可用 `vima plan --max-parallel <1..10>` 调整）
+  → pipeline 任务串行收尾。
+- **每个批次带 `level` 字段（A18）**：同 layer 同 level 的多个批次之间**没有任何依赖**
+  （它们是同一拓扑层因并行度上限被切开的子批），这是步骤 3 流水线化派发的确定性判据。
 - 主 Agent **只照计划派发，不自行计算批次划分**（确定性操作不留给概率性行为）。
 
 ### 3. 批次调度（核心循环）
@@ -64,6 +70,11 @@
   并行执行），派发指令中把 `.vima/context/<taskId>.md` 列为**第一必读**；
   派发前把任务 status 置 running。
 - 等待本批全部 Builder 返回结果摘要，逐任务派发 vima-verifier 校验。
+- **同层子批流水线化（A18）**：批次计划里 `layer` 与 `level` 都相同的多个批次之间
+  **没有任何依赖**。对这类相邻子批，允许在**同一轮回复内**同时发起
+  「上一子批各任务的 vima-verifier」与「下一子批各任务的 vima-builder」——
+  把 2N 轮压到 N+1 轮。跨 level、跨 layer 的批次边界仍是硬屏障，不得越过。
+  校验强度不变：每个任务照样走完整的 Builder → 独立 Verifier，只是轮次重叠。
 - 逐个处理结果：
   a. Builder 成功且 Verifier 通过 → frontmatter status 置 done；
   b. Verifier 不通过 → 重试，**最多 2 次**。重试采用**增量修复模式**：
@@ -73,27 +84,44 @@
      **其他不受影响的批次继续执行**。
 - 每次状态变化同步回写任务文件 frontmatter（status/retryCount/updatedAt）
   与 lifecycle.json 的 taskStats。
-- **批次检查点**：本批全部处理完成后执行
-  `git commit -m "vima: batch <N> completed (<k> tasks)"`，形成批粒度回滚点。
-  **提交授权口径（A17）**：用户输入 /go 即构成对本次运行全部批次检查点提交的
-  明确授权，不逐批征询；若环境规则/权限仍拒绝提交，跳过本次 commit、在批次报告
-  中注明「未形成回滚点」并**继续调度下一批**——提交受阻不是停点（回滚点是增强件，
-  不是推进的前置条件）。
+- **批次检查点（A18 授权口径，取代 A17）**：
+  - **不带 `--commit`**：**完全不碰 git**——不执行 commit、不尝试、报告里也不输出
+    「未形成回滚点」。用户的环境级提交禁令与本命令因此不再冲突。
+  - **带 `--commit`**：`/go --commit` 即构成对本次运行全部批次检查点提交的明确授权，
+    本批处理完成后执行 `git commit -m "vima: batch <N> completed (<k> tasks)"`，
+    不逐批征询；若环境规则/权限仍拒绝提交，跳过本次 commit、在批次报告中注明
+    并**继续调度下一批**——提交受阻不是停点（回滚点是增强件，不是推进的前置条件）。
 - **sharedChangeRequest 处理**（§10.7 策略三）：Builder 结果摘要声明
   sharedChangeRequest 时不得代其直接修改共享层；由主 Agent 创建一个共享层
   补偿任务（layer=shared），插入当前批次结束后**串行执行**（补偿批同样走
   写令牌流程）；受影响的已完成任务由主 Agent 评估是否补发 Verifier 复查。
-- **会话预算（A17，按任务计数）**：单次 /go 最多推进 8 个任务，批次数不设上限
+- **会话预算（A18，按任务计数）**：单次 /go 最多推进 24 个任务，批次数不设上限
   ——预算防的是编排者上下文过载，成本与任务数成正比（每任务一份 Builder 摘要 +
-  一份 Verifier 报告），与批次数无关；shared/pipeline 串行批每批仅 1 个任务，
-  按批计数会在 3 个任务后过早截断。重试不另计。达标后落盘全部状态，
-  提示用户再次输入 /go 续跑。
-- **合法停点白名单（A17 反停顿纪律）**：批次之间不得结束回合等待用户。本命令
-  唯一允许的停点：① 会话预算耗尽；② 全部任务达终态（无 pending/running）；
-  ③ 确定性前置失败或闸门阻断需用户处置（lifecycle 缺失、vima plan 依赖环、
-  三道闸门未过、断点续跑中 failed 任务裁定）；④ 用户主动中断。
+  一份 Verifier 报告），与批次数无关。阈值从 8 放大到 24 的前提是**回传摘要已有界**
+  （角色模板规定 ≤ 15 行结构化结论，明细一律落 `.vima/reports/`）。重试不另计。
+  达标后落盘全部状态，提示用户 **先 `/clear` 再 `/go` 续跑**——批间状态已全部落盘
+  （frontmatter + lifecycle.json + reports/），新会话从断点恢复零损耗；
+  在同一会话里重输 /go 不会重置上下文，预算就形同虚设。
+- **合法停点白名单（A17 反停顿纪律，A18 增加机读落盘）**：批次之间不得结束回合
+  等待用户。本命令唯一允许的停点：① 会话预算耗尽；② 全部任务达终态
+  （无 pending/running）；③ 确定性前置失败或闸门阻断需用户处置（lifecycle 缺失、
+  vima plan 依赖环、三道闸门未过、断点续跑中 failed 任务裁定）；④ 用户主动中断。
   批次完成、检查点提交受阻、sharedChangeRequest 补偿批插入均不是停点——
   同一回复内继续派发下一批。
+- **停因落盘（A18，必做）**：**每次结束回合前**把停因写入 `.vima/go-state.json`：
+
+  ```json
+  { "schemaVersion": "1", "phase": "DEVELOPING", "stopReason": "in-progress",
+    "consecutiveResumes": 0, "updatedAt": "<真实 ISO 时间>" }
+  ```
+
+  `stopReason` 取值：`in-progress`（调度未完成——不该停，写这个值）／
+  `budget`（预算耗尽）／`terminal`（全部终态）／`gate`（闸门阻断需用户裁定）／
+  `user`（用户主动中断）。`.claude/hooks/go-continue.mjs`（Stop hook）读它判定：
+  `in-progress` → 阻止停轮并注入续跑指令；其余四值 → 放行。
+  **每成功推进 ≥1 个任务后把 `consecutiveResumes` 归零**；被 hook 续跑一次则加一，
+  达 5 次 hook 自动放行（防死循环兜底）。文件缺失/解析失败/非 DEVELOPING/陈旧
+  一律放行——hook 是「防误不防恶意」的兜底，不是调度依赖。
 - 还有未完成批次且未被阻断 → 派发下一批。
 
 ### 4. 断点续跑

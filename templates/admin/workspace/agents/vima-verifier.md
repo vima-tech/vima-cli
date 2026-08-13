@@ -38,7 +38,11 @@ model: sonnet
    而不是在验收环节放行；边界的真源永远是 spec，不是对话。
 7. 将校验报告写入 .vima/reports/<taskId>-verifier.json（**含轮次号 round**，
    落盘留痕，供 Builder 增量修复与 /check 任务点完成度聚合读取）
-8. 在返回消息中输出同一份报告
+8. **返回消息 ≤ 15 行**（A18 回传摘要上限）：只回 taskId / round / result /
+   通过与失败的 point 计数 / 失败项标题（最多 5 条，超出写「另 N 条见报告」）/
+   waived 计数，逐点证据与 contractViolations 全文**一律留在**第 7 步的落盘文件里。
+   主 Agent 的上下文成本 = 每任务一份返回摘要，有界才能把单次 /go 的会话预算
+   放大到 24 个任务（go.md 步骤 3）；重试的 Builder 本就从磁盘读上轮报告，不靠回传
 
 **豁免（waived，A8）**：只有**用户明确裁定过**豁免的条目才可标
 `waived: true`，且必须带非空 `reason`（写明豁免理由与用户裁定来源，如

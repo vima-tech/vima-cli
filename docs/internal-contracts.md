@@ -104,6 +104,7 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | PLAN_DEP | 2 | plan computeBatches | dependsOn 指向不存在的任务 |
 | PLAN_CONFLICT | 2 | plan computeBatches | conflictsWith 指向不存在的任务（A8） |
 | PLAN_CYCLE | 2 | plan computeBatches | 依赖成环（message 含环路径） |
+| PLAN_PARALLEL | 2 | plan | --max-parallel 取值非整数或不在 1–10（A18） |
 | CONTEXT_BUDGET | 2 | context | 上下文包总字节超出 --budget 预算（A8；包仍写盘） |
 | BAD_RENDERER | 1 | render-review / render-prototype | 渲染器缺少约定导出 |
 | YAML_STRINGIFY | 1 | util/yaml | 超出 YAML 子集无法序列化 |
@@ -221,6 +222,11 @@ app: patient                  # A16：任务归属端。多端项目 side=fronte
                               # side=backend 禁止携带；单端项目可省略（= 唯一端）。V-TASK-10
 conflictsWith: [user-list-fe] # A8 可选：与这些任务共享代码路径，plan 保证不同批并行；
                               # 字符串数组，引用必须存在（V-TASK-04 / PLAN_CONFLICT）
+apis: ['GET /api/foods', 'POST /api/foods']   # A18 可选：本任务负责的契约接口子集。
+                              # 缺省 = 负责该契约全部接口（向后兼容）。条目形如 `METHOD /path`，
+                              # 归一后须 ∈ 契约 apis；同契约 backend 任务两两不相交、
+                              # 全声明时并集 = 契约全集（V-TASK-12）。规模上限 V-TASK-11。
+                              # 声明时 `vima context` 按此切片契约人读小节与机读条目
 updatedAt: 2026-08-12T10:00:00Z
 ---
 ```
@@ -324,7 +330,9 @@ create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单�
   "backend": { "dir": "backend",
                "sharedDirs": ["src/main/java/com/myapp/config",
                               "src/main/java/com/myapp/security"] },
+  "install": { "minimal": false, "skipScan": false },
   "files": { "managed": [{ "path": ".claude/commands/go.md", "checksum": "sha256:<hex>" }],
+             "scaffold": [{ "path": "src/App.vue", "checksum": "sha256:<hex>" }],
              "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/contracts/", "docs/tasks/",
                             "docs/raw/", "docs/coverage-matrix.md"] } }
 ```
@@ -333,8 +341,25 @@ create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单�
 等变量已渲染为具体路径；sharedDirs 相对各自 dir）。N=1 前端 `dir: "."`（存量布局不变），
 N≥2 一律 `apps/<id>/`；`vima app add` 后补端到根布局项目时允许混合布局（dir 是数据，
 消费方经 resolveApps 无感）。v1 manifest（无 apps 键）由 resolveApps 合成默认端册，
-`vima update` 迁移为 v2。**create 在已有 manifest 的目录 `--force` 重跑时合并端册与
+`vima update` 迁移为 v2。**（A19 落实）**：update 检测到缺 `apps` 键时，把 `resolveApps`
+合成的端册写入并置 `schemaVersion: "2"`；**后端共享层按模板 `backend.sharedDirs` 渲染且逐个
+校验目录在位**，缺一个就整体放弃迁移（保持 v1）——因为 guard-shared 对 v1 走内置字面量兜底、
+写入 apps 后改走 v2 分支且不再回退，写出空 sharedDirs 会使后端共享层失去全部保护。**create 在已有 manifest 的目录 `--force` 重跑时合并端册与
 files，不得清空**；templateId 不同 → TEMPLATE_MISMATCH exit 4（§3.1）。
+
+**A18 `install` 键**：init 写入本次安装形态（`--minimal` / `--skip-scan`）。`vima update` 据此
+重建与本项目形态一致的计划，从而能判断「模板新增的受管文件」该不该装；旧 manifest 无该键时
+按已记录文件**确定性反推**（无任何 `docs/` 条目 = minimal；有 `docs/` 但无 `docs/ui-framework/`
+= skip-scan），反推结果由 update 固化写回。
+**A19 `files.scaffold` 骨架基线**：`vima create` 记录每个骨架文件**落盘后实际内容**的 sha256
+（变量已渲染、`_gitignore` 已改名为 `.gitignore`、路径一律 `/` 分隔），`--force` 重跑时按本次落盘重建。
+供 `vima update --scaffold-diff` 做三方比较（基线／磁盘现状／当前模板源用同一组变量重渲染）：
+磁盘==基线且模板≠基线 → 可安全更新；两者皆≠基线 → 需人工；其余不列。
+**该子模式只产报告、不写任何文件**（骨架即用户业务代码）；无基线的存量项目如实说明能力边界，不猜。
+渲染/改名/文本判定由 `create.resolveScaffoldEntries` 单一实现，写盘路径与哈希路径同源，防两份逻辑漂移。**init 对 manifest 是合并写**：create 写入的
+`apps`/`backend`/`schemaVersion` 等既有键原样保留（整体覆盖会把多端项目降级成 v1，
+resolveApps 合成的默认端册与真实布局不符）。**init 不重写 `docs/lifecycle.json`**：
+状态不是生成物，已存在则保留并提示（`--force` 的语义是重建生成物，不是清空进度）。
 
 init 安装清单的 managed 部分含 `AGENTS.md`（← workspace/AGENTS.project.md 变量替换，
 A8 跨工具指针文件：声明真源为 CLAUDE.md + 三条最低红线，用户定制走 CLAUDE.md）、
@@ -352,11 +377,17 @@ CLI package.json（init 写入时覆盖模型层缺省值）。
 
 ```json
 { "schemaVersion": "1",
-  "batches": [ { "index": 0, "layer": "shared", "mode": "serial", "tasks": ["shared-base"] },
-               { "index": 1, "layer": "business", "mode": "parallel", "tasks": ["a","b"] } ],
-  "maxParallel": 5,
+  "batches": [ { "index": 0, "layer": "shared", "level": 0, "mode": "serial", "tasks": ["shared-base"] },
+               { "index": 1, "layer": "business", "level": 0, "mode": "parallel", "tasks": ["a","b"] } ],
+  "maxParallel": 8,
   "stats": { "total": 0, "pending": 0, "done": 0, "failed": 0, "blocked": 0, "running": 0 } }
 ```
+
+`level`（A18）：批次的**依赖层号**，同 layer 内 level 相同的批次之间**没有任何依赖**
+（它们是同一拓扑层因并行度上限被贪心切开的子批）。主 Agent 据此确定性判断
+「上一子批的 Verifier 可与下一子批的 Builder 同轮派发」，不靠推断。
+shared/pipeline 每任务一批，level 取其组内拓扑序号（各不相同 ⇒ 天然不流水线化）。
+`maxParallel`：默认 **8**（A18，原 5），可由 `vima plan --max-parallel <1..10>` 覆盖。
 
 ### 6.6 .vima/reports/trace.json（A1 吸收项，trace 输出）
 
@@ -487,9 +518,43 @@ date→VDatePicker；time→VTimePicker；radio→VRadioGroup+VRadio；
 checkbox→VCheckboxGroup+VCheckbox；switch→VSwitch；button→VButton；upload→VUpload；
 tree→VTree。modals 非空 → 追加 VLayer。未知词静默跳过（词表由 V-SPEC-04 把关）。
 
+**契约切片口径**（A18，仅当任务 frontmatter 声明 `apis` 时启用；确定性无启发式）：
+契约原文按 `^##\s+<METHOD>\s+<path>` 小节切开——**不属于本任务负责集的接口小节整段删除**，
+非接口小节（头部说明、错误码表、文末 `vima:contract` 块之外的正文）原样保留；
+文末 `vima:contract` 块的 `apis` 数组同步过滤为负责集，其余键不动。
+小节标题的多接口写法（`## GET /a / POST /b`，见既有契约）按 `/` 拆开逐个判定，
+**任一接口属于负责集即整段保留**（保守侧，宁多勿漏）。未声明 `apis` 时零改变。
+
 stdout 输出分节字节计量与总字节；`--budget <bytes>` 总字节超限 → 包仍写盘（便于排查）
 但 CONTEXT_BUDGET exit 2；`--stdout` 打包内容直接输出不写盘。文档缺失（如规划期无
 docs/ui-framework）一律「标注跳过」不报错——存在性问题归 validate/doctor。
+
+### 6.12 .vima/go-state.json（A18，/go 停因状态；主 Agent 写，Stop hook 读）
+
+```json
+{ "schemaVersion": "1",
+  "phase": "DEVELOPING",
+  "stopReason": "in-progress",
+  "consecutiveResumes": 0,
+  "updatedAt": "2026-08-13T12:00:00Z" }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `phase` | 写盘时的 lifecycle currentPhase；`≠ DEVELOPING` 时 hook 一律放行 |
+| `stopReason` | `in-progress`＝调度未完成（非法停顿，hook 阻止停轮并注入续跑指令）；`budget`／`terminal`／`gate`／`user` ＝ A17 合法停点白名单四项，hook 放行 |
+| `consecutiveResumes` | 连续被 hook 续跑的次数；主 Agent 每成功推进 ≥1 个任务后归零；≥ **5** 时 hook 放行并提示（防死循环兜底） |
+| `updatedAt` | 写盘时的真实 ISO 时间 |
+
+**hook 判定表**（`.claude/hooks/go-continue.mjs`，「防误不防恶意」——任何不确定一律放行）：
+
+| 情形 | 行为 |
+|---|---|
+| 文件缺失 / JSON 解析失败 / 字段缺失非法 | 放行（exit 0） |
+| `phase ≠ DEVELOPING` | 放行 |
+| `stopReason ≠ in-progress` | 放行 |
+| `consecutiveResumes ≥ 5` | 放行 + stderr 提示已达续跑上限 |
+| 其余（`in-progress` 且未达上限） | 阻止停轮，stdout 输出续跑指令 JSON |
 
 ## 7. spec 结构化数据块（唯一机器真源，§13.2/§13.3）
 
@@ -657,6 +722,8 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-TASK-08 | warn | 任务正文引用的接口须 ∈ 作用域（带 page 取该页 apis，否则取 contract 契约 apis）。V-TASK-07 只数复选框不看内容，产物重建后清单会长期停在旧端点上。含否定式措辞（真源无/已废弃/不请求…）的行不计入 |
 | V-TASK-09 | warn | 任务正文内嵌「契约声明的 N 个接口」与契约条目数一致（契约一改即漂，此前无规则覆盖） |
 | V-TASK-10 | error | 任务端归属（A16）：多端项目 side=frontend\|fullstack 任务必须带 `app` ∈ 端册；side=backend 禁止携带 app（任意 N）；带 page 的任务 task.app 必须 == 该页归属端 |
+| V-TASK-11 | warn | 任务规模上限（A18）：`layer=business` 且 `side ∈ {backend,fullstack}` 的任务，负责接口数 > **10** → 提示按子域拆分。负责集 = `fm.apis`（声明时）否则契约 apis 全集。理由见 A18：批次时长取批内最大值，超大任务把本可并行的工作串行化 |
+| V-TASK-12 | error | 任务负责接口集闭环（A18）：`fm.apis` 每条归一后 ∈ 该契约 apis；同一契约下 side=backend 的任务中，声明了 `apis` 的**两两不相交**（防重复实现）；若该契约下全部 backend 任务都声明了 `apis`，其并集须 == 契约全集（防漏实现）。未声明 `apis` 的任务不触发后两项 |
 | V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
 | V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
@@ -673,13 +740,16 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 1. loadTasks；dependsOn 引用不存在 → exit 2（V-TASK-04 同源检查）；
    conflictsWith 引用不存在 → PLAN_CONFLICT exit 2（A8）。
 2. 环检测（全图 DFS）：发现环 → stderr 输出环路径，exit 2。
-3. 批次 0..k：layer=shared 任务按拓扑序，**每任务单独一个 serial 批**。
+3. 批次 0..k：layer=shared 任务按拓扑序，**每任务单独一个 serial 批**，`level` = 组内拓扑序号。
 4. business 任务按 dependsOn 做拓扑分层（依赖只算 business+shared；shared 视为已满足）；
-   层内按任务 id 排序做**贪心首适应**切批：批容量 ≤5 且批内任务互不 conflictsWith
+   层内按任务 id 排序做**贪心首适应**切批：批容量 ≤ `maxParallel` 且批内任务互不 conflictsWith
    （A8 声明式冲突——两任务合法共享代码路径时不同批，补文件所有权模型盲区）。
-5. pipeline 任务按拓扑序放末尾，每任务一个 serial 批。
+   同一层切出的全部子批 `level` 相同（A18：同 level ⇒ 批间无依赖 ⇒ 可流水线化）。
+5. pipeline 任务按拓扑序放末尾，每任务一个 serial 批，`level` = 组内拓扑序号。
 6. 任务在批内按 id 排序；写 §6.5 至 .vima/reports/batch-plan.json（--json 时输出 stdout）。
    plan 是只读命令（报告文件除外）。
+7. `--max-parallel <N>`（A18）：整数 1–10，缺省 **8**；越界或非整数 → VimaError
+   `PLAN_PARALLEL`（exit 2）。取值写入报告 `maxParallel` 供追溯。
 
 ## 10. trace 规则（C3；A1 吸收项）
 
@@ -758,7 +828,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定，均见 v2.1-amendments.md）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实，均见 v2.1-amendments.md）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。
@@ -812,6 +882,26 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   不中断调度；批间合法停点白名单（预算耗尽 / 全部终态 / 需用户裁定 / 用户中断，
   其余不得停轮）。零文件格式/模块接口变更，落点仅 go.md、CLAUDE.project.md、
   设计 §7.5/§10.2 文案与 d2 防漂移断言。
+- **A18 批次调度效率**（sustain-v3 实测评估落地，部分取代 A17）：任务 frontmatter 增
+  可选 `apis` 负责接口集（§6.1）+ V-TASK-11 规模上限（>10 warn）/ V-TASK-12 闭环（§8）
+  + `vima context` 契约切片（§6.11）；batch-plan 增 `level` 字段、`maxParallel` 默认 5→8
+  且由 `vima plan --max-parallel` 可配（§6.5/§9，越界 `PLAN_PARALLEL`）；
+  go.md 会话预算 8→24（前提：子代理回传摘要 ≤15 行）、续跑提示改 `/clear` 再 `/go`、
+  同 level 子批流水线化派发；**检查点提交改 `/go --commit` 显式授权**（取代 A17
+  「/go 即授权」——不带 flag 完全不碰 git）；新增 `.vima/go-state.json`（§6.12）+
+  Stop hook `go-continue.mjs` 确定性续跑器（**推翻 A17「不用 Stop hook」**：
+  A17 的否决理由是 hook 无法区分合法停点，写机读停因文件后 hook 不必猜）。
+  **交付路径修复（同批，A18 暴露）**：manifest 增 `install` 键（§6.4）；`vima update` 对
+  模板新增的受管文件按同一套三方比较**安装并登记**（原为只提示不装——settings.json 被更新成
+  引用新 hook 而 hook 没装，配置指向不存在的文件）；`vima init` 改为**合并写 manifest**
+  （不再清空 create 的端册）且**不重写已存在的 lifecycle**（原 `--force` 会把 DEVELOPING
+  打回 PLANNING 并丢 taskStats/tasksApproved）。
+- **A19 存量项目升级可达性**：`vima update` 兑现 manifest v1→v2 端册迁移（§6.4 既有宣称，
+  写入 resolveApps 合成的同一份端册，行为等价）；`vima doctor` 增第 ⑫ 项「产物形态与当前
+  规则的差距」（A4 决策表 / A13 vima:rules / A13 vima:non-goals / A2 前端任务 page 四条判据，
+  级别与对应 validate 规则对齐，附「哪个增补项引入、补在哪」指引；spec 缺失时跳过）；
+  manifest 增 `files.scaffold` 骨架基线（create 记录落盘内容哈希）+ `vima update --scaffold-diff`
+  只读三方比较报告（**只报告不写盘**；无基线的存量项目如实说明能力边界）。
 
 - 单测框架：`node:test` + `node:assert/strict`；文件名 `tests/unit/<owner>.<topic>.test.mjs`。
 - 黄金夹具 `tests/fixtures/golden/`（D1 编写，必须能全绿通过 validate/plan/render/trace）：

@@ -246,3 +246,25 @@ test('preview 模板冒烟：script/lib/h5 起盘成功、manifest 落盘、无�
     }
   }
 });
+
+// ── A19：骨架基线（供 update --scaffold-diff 三方比较）──
+
+test('create：manifest 记录骨架基线 files.scaffold（落盘内容哈希，含改名后的 .gitignore）', async (t) => {
+  const box = await sandbox(t);
+  assert.equal(vima(box, 'create', 'base-admin', '-t', 'admin', '--no-git', '--no-install').status, 0);
+  const proj = path.join(box, 'base-admin');
+  const m = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
+
+  const baseline = m.files.scaffold;
+  assert.ok(Array.isArray(baseline) && baseline.length > 0, 'create 须记录骨架基线');
+  assert.ok(baseline.every((e) => typeof e.path === 'string' && /^sha256:[0-9a-f]{64}$/.test(e.checksum)));
+  // 模板源用 _gitignore 存放，落盘改名为 .gitignore——基线须记录**落盘后**的路径
+  assert.ok(baseline.some((e) => path.basename(e.path) === '.gitignore'));
+  assert.ok(!baseline.some((e) => path.basename(e.path) === '_gitignore'));
+  // 基线校验和须等于磁盘实际内容（否则三方比较起点就是错的）
+  const sample = baseline.find((e) => e.path === 'package.json') ?? baseline[0];
+  const { sha256File } = await import('../../lib/util/fs.mjs');
+  assert.equal(`sha256:${await sha256File(path.join(proj, sample.path))}`, sample.checksum);
+  // 路径一律 '/' 分隔（跨平台稳定）
+  assert.ok(baseline.every((e) => !e.path.includes('\\')));
+});

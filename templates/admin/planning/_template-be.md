@@ -17,6 +17,11 @@ updatedAt: 2026-01-01T00:00:00Z
   - status 初始一律 pending；retryCount 初始 0；
   - layer=business / side=backend；dependsOn 通常为 [shared-base]；
   - contract：必填，指向本模块契约文件；
+  - apis：可选（A18），本任务负责的接口子集，如 apis: ['GET /api/foods', 'POST /api/foods']；
+    缺省 = 负责该契约全部接口。**契约超过 10 个接口时必须按子域拆成多个任务并各自声明
+    apis**（V-TASK-11 告警；V-TASK-12 机检 ⊆ 契约 / 互不重叠 / 全声明时并集齐全）。
+    拆分按子域切，使每个子任务独占自己的 Entity/Repository/Service/Controller；
+    目标是让同批任务体量均衡——批次时长取批内最大值，超大任务会把并行槽空转掉；
   - conflictsWith：可选（A8），与本任务共享代码路径的其他任务 ID，plan 不排同批；
   - updatedAt：写盘时的真实 ISO 时间。
 -->

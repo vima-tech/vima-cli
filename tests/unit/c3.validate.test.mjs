@@ -883,3 +883,124 @@ test('V-COV-01 端化：多端矩阵首列非「端」→ exit 2', async (t) => 
   assert.match(r.stderr, /V-COV-01/);
   assert.match(r.stderr, /首列须为「端」/);
 });
+
+// ── A18 任务规模上限与负责接口集闭环（V-TASK-11/12）──
+
+test('V-TASK-11 基线：契约与负责集均未超限 → 零警告，声明 apis 后仍放行', async (t) => {
+  const root = await cloneGolden(t);
+  // 黄金夹具契约 4 个接口，未超限：先确认基线无警告
+  assert.equal(vima(root, 'validate').code, 0);
+  const base = await readReport(root);
+  assert.equal(base.warnings.filter((w) => w.rule === 'V-TASK-11').length, 0);
+
+  // 声明覆盖全集的负责集（4 条）：不超限、闭环成立，应仍 exit 0
+  await mutate(
+    root,
+    'docs/tasks/device-api-be.md',
+    'contract: docs/contracts/device-api.md',
+    'contract: docs/contracts/device-api.md\napis: [\'GET /api/device/list\', \'POST /api/device\','
+      + ' \'POST /api/device/batch-delete\', \'GET /api/device/detail\']',
+  );
+  assert.equal(vima(root, 'validate').code, 0, '4 条负责集未超限，应放行');
+  const after = await readReport(root);
+  assert.equal(after.warnings.filter((w) => w.rule === 'V-TASK-11').length, 0);
+});
+
+test('V-TASK-11：契约条目数超上限时按契约全集计（未声明 apis）', async (t) => {
+  const root = await cloneGolden(t);
+  // 契约补到 11 个接口（人读小节 + 机读块同步，避免 V-CON-06 计数不一致）
+  const rel = 'docs/contracts/device-api.md';
+  const p = path.join(root, rel);
+  let text = await readFile(p, 'utf8');
+  const extraSections = [];
+  const extraApis = [];
+  for (let i = 1; i <= 7; i++) {
+    extraSections.push(`## GET /api/device/x${i}\n\n- 请求：无\n- 响应：\`{ ok: boolean }\`\n- 错误码：40001\n`);
+    extraApis.push(
+      `  - method: GET\n    path: /api/device/x${i}\n    request: []\n`
+        + '    response: "{ ok }"\n    errors: [40001]\n',
+    );
+  }
+  text = text.replace('```yaml vima:contract', `${extraSections.join('\n')}\n\`\`\`yaml vima:contract`);
+  text = text.replace(/\n```\s*$/, `\n${extraApis.join('')}\`\`\`\n`);
+  await writeFile(p, text);
+
+  const r = vima(root, 'validate');
+  const report = await readReport(root);
+  const hits = report.warnings.filter((w) => w.rule === 'V-TASK-11');
+  assert.equal(hits.length, 1, `应命中 1 条 V-TASK-11，实际 ${hits.length}；stderr: ${r.stderr}`);
+  assert.match(hits[0].message, /device-api-be 负责 11 个接口/);
+});
+
+test('V-TASK-12：apis 含契约外接口 → exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root,
+    'docs/tasks/device-api-be.md',
+    'contract: docs/contracts/device-api.md',
+    'contract: docs/contracts/device-api.md\napis: [\'GET /api/device/ghost\']',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-TASK-12/);
+  assert.match(r.stderr, /GET \/api\/device\/ghost/);
+});
+
+test('V-TASK-12：同契约两个 backend 任务负责集重叠 → exit 2；不相交且并集齐全 → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  const beText = await readFile(path.join(root, 'docs/tasks/device-api-be.md'), 'utf8');
+
+  // 拆成两个子任务：前两条 / 后两条（并集 = 契约全集 4 条，不相交）
+  await writeFile(
+    path.join(root, 'docs/tasks/device-api-be.md'),
+    beText.replace(
+      'contract: docs/contracts/device-api.md',
+      'contract: docs/contracts/device-api.md\napis: [\'GET /api/device/list\', \'POST /api/device\']',
+    ),
+  );
+  await writeFile(
+    path.join(root, 'docs/tasks/device-api-be-2.md'),
+    beText
+      .replace('taskId: device-api-be', 'taskId: device-api-be-2')
+      .replace(
+        'contract: docs/contracts/device-api.md',
+        'contract: docs/contracts/device-api.md\napis: [\'POST /api/device/batch-delete\', \'GET /api/device/detail\']',
+      ),
+  );
+  assert.equal(vima(root, 'validate').code, 0, '不相交且并集齐全应放行');
+
+  // 制造重叠：第二个任务也认领 POST /api/device
+  await mutate(
+    root,
+    'docs/tasks/device-api-be-2.md',
+    'apis: [\'POST /api/device/batch-delete\', \'GET /api/device/detail\']',
+    'apis: [\'POST /api/device\', \'POST /api/device/batch-delete\', \'GET /api/device/detail\']',
+  );
+  const dup = vima(root, 'validate');
+  assert.equal(dup.code, 2);
+  assert.match(dup.stderr, /同时被任务/);
+});
+
+test('V-TASK-12：全部 backend 任务声明 apis 但并集漏接口 → exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root,
+    'docs/tasks/device-api-be.md',
+    'contract: docs/contracts/device-api.md',
+    'contract: docs/contracts/device-api.md\napis: [\'GET /api/device/list\', \'POST /api/device\']',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /无任何 backend 任务负责/);
+  assert.match(r.stderr, /GET \/api\/device\/detail/);
+});
+
+test('apis 结构非法（空数组）→ frontmatter 校验拦截，exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/tasks/device-api-be.md', 'retryCount: 0', 'retryCount: 0\napis: []');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  // loadTasks 的 TASK_FM 在 validate 内被归一为 V-TASK-01 条目（既有口径），断言消息本体
+  assert.match(r.stderr, /V-TASK-01/);
+  assert.match(r.stderr, /apis 必须是非空的接口字符串数组/);
+});

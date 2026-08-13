@@ -28,7 +28,11 @@ model: sonnet
 6. 每一步完成后对照任务文件的「## 验收清单」自检
 7. 全部完成后执行自检命令（前端：npm run build:check；后端：mvn compile + test）
 8. 将结构化结果摘要写入 .vima/reports/<taskId>-builder.json（落盘留痕，重试与审计的依据）
-9. 在返回消息中输出同一份 JSON 摘要
+9. **返回消息 ≤ 15 行**（A18 回传摘要上限）：只回 taskId / status / 文件数 /
+   验收通过数 / sharedChangeRequest 有无 / 阻断项一句话，明细**一律留在**第 8 步的
+   落盘文件里，不在返回消息中复述。主 Agent 的上下文成本 = 每任务一份返回摘要，
+   有界才能把单次 /go 的会话预算放大到 24 个任务（go.md 步骤 3）；
+   需要细节时主 Agent 会自己读 `.vima/reports/<taskId>-builder.json`
 
 约束：
 

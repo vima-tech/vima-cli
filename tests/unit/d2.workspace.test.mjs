@@ -22,19 +22,66 @@ test('A3 冷读门：go.md 满足三条验收 grep 判据（v2.1-amendments A3�
   assert.ok(goMd.includes('pendingConfirm'), '可推断项裁定分支须标 pendingConfirm');
 });
 
-test('A17 批间连续性：go.md 预算任务计数 + 提交授权 + 合法停点（v2.1-amendments A17）', async () => {
+test('A17/A18 批间连续性：go.md 预算任务计数 + 提交授权 + 合法停点（A17 基线，A18 改阈值与授权口径）', async () => {
   const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
-  assert.ok(goMd.includes('最多推进 8 个任务'), '会话预算须按任务计数（8 任务/次）');
+  assert.ok(goMd.includes('最多推进 24 个任务'), '会话预算须按任务计数（A18：24 任务/次）');
+  assert.ok(!goMd.includes('推进 8 个任务'), 'A17 的 8 任务阈值须由 A18 取代');
   assert.ok(
     !goMd.includes('3 个批次'),
     '批次计数口径须退役——串行批下按批计数会在 3 个任务后过早截断',
   );
-  assert.ok(goMd.includes('明确授权'), '检查点提交须声明「用户输入 /go 即明确授权」');
+  assert.ok(goMd.includes('明确授权'), '检查点提交须声明明确授权口径');
   assert.ok(goMd.includes('不是停点'), '提交受阻不得中断调度（不是停点）');
   assert.ok(goMd.includes('合法停点'), '批间反停顿纪律须有合法停点白名单');
   const constitution = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
   assert.ok(constitution.includes('明确授权'), '宪法工作协议须同步提交授权口径');
   assert.ok(constitution.includes('合法停点'), '宪法工作协议须同步停点口径');
+});
+
+test('A18 批次调度效率：七条规格的文字资产落位（v2.1-amendments A18 验收判据镜像）', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  // 6）提交授权改显式 flag
+  assert.ok(goMd.includes('--commit'), 'go.md 须声明 --commit 显式提交授权');
+  assert.ok(goMd.includes('完全不碰 git'), '不带 --commit 时须明确「完全不碰 git」');
+  // 3）同层子批流水线化
+  assert.ok(goMd.includes('level'), 'go.md 须用 batch-plan 的 level 字段做流水线化判据');
+  assert.ok(goMd.includes('流水线化'), 'go.md 须写明同层子批流水线化派发');
+  // 5）预算前提与续跑提示
+  assert.ok(goMd.includes('/clear'), '预算耗尽的续跑提示须改为先 /clear 再 /go');
+  // 7）停因落盘 + Stop hook 续跑器
+  assert.ok(goMd.includes('go-state.json'), 'go.md 须要求每次结束回合前落盘停因');
+  for (const reason of ['in-progress', 'budget', 'terminal', 'gate', 'user']) {
+    assert.ok(goMd.includes(reason), `go.md 须登记 stopReason 取值「${reason}」`);
+  }
+
+  // 5）回传摘要上限——两个角色模板都要有，否则预算放大失去前提
+  for (const role of ['vima-builder.md', 'vima-verifier.md']) {
+    const text = await readFile(path.join(ADMIN, 'workspace/agents', role), 'utf8');
+    assert.ok(text.includes('≤ 15 行'), `${role} 须规定回传摘要 ≤ 15 行`);
+  }
+
+  // 7）Stop hook 注册与实现
+  const settings = JSON.parse(await readFile(path.join(ADMIN, 'workspace/settings.json'), 'utf8'));
+  const stopCmds = (settings.hooks?.Stop ?? []).flatMap((g) => (g.hooks ?? []).map((h) => h.command));
+  assert.ok(
+    stopCmds.some((c) => c.includes('go-continue.mjs')),
+    'settings.json 须注册 Stop hook go-continue.mjs',
+  );
+  const hook = await readFile(path.join(ADMIN, 'workspace/hooks/go-continue.mjs'), 'utf8');
+  assert.ok(hook.includes('in-progress'), '续跑器须只在 stopReason=in-progress 时阻止停轮');
+  assert.ok(hook.includes('MAX_CONSECUTIVE_RESUMES'), '续跑器须带连续续跑上限兜底');
+
+  // 2）前端默认依赖对调
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('默认前端仅依赖 shared-base'), 'planning-guide 须把前端默认依赖改为仅 shared-base');
+  // 1）规模上限与负责接口集
+  assert.ok(guide.includes('V-TASK-11'), 'planning-guide 拆解节拍须引用规模上限机检');
+  const beTpl = await readFile(path.join(ADMIN, 'planning/_template-be.md'), 'utf8');
+  assert.ok(beTpl.includes('apis'), '_template-be 须说明 apis 负责接口集字段');
+  const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
+  for (const rule of ['V-TASK-11', 'V-TASK-12']) {
+    assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
+  }
 });
 
 test('A9/A10/A11 吸收项满足验收 grep 判据（v2.1-amendments A9–A11，mattpocock 对标）', async () => {

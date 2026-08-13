@@ -54,7 +54,7 @@ test('plan --json：黄金夹具批次序列与 serial/parallel 模式', async (
   const report = JSON.parse(proc.stdout);
 
   assert.equal(report.schemaVersion, '1');
-  assert.equal(report.maxParallel, 5);
+  assert.equal(report.maxParallel, 8); // A18：默认并行度 5 → 8
   // 批次序列：[shared-base] → [device-api-be] → [device-list-fe] → [full-test]
   assert.deepEqual(
     report.batches.map((b) => b.tasks),
@@ -69,6 +69,8 @@ test('plan --json：黄金夹具批次序列与 serial/parallel 模式', async (
     ['shared', 'business', 'business', 'pipeline']
   );
   assert.deepEqual(report.batches.map((b) => b.index), [0, 1, 2, 3]);
+  // A18：level 字段——shared/pipeline 各自组内序号，business 为依赖层号
+  assert.deepEqual(report.batches.map((b) => b.level), [0, 0, 1, 0]);
   // stats：黄金夹具 shared-base=done，其余 pending
   assert.deepEqual(report.stats, { total: 4, pending: 3, done: 1, failed: 0, blocked: 0, running: 0 });
   // --json 模式只出 stdout，不写报告文件
@@ -113,18 +115,25 @@ test('plan：dependsOn 指向不存在的任务 → exit 2', async (t) => {
   assert.match(proc.stderr, /ghost/);
 });
 
-test('computeBatches：business 同层 >5 按 id 排序切 ≤5 子批', () => {
-  const mk = (id, layer, deps = []) => ({
-    id,
-    fm: { taskId: id, layer, dependsOn: deps, status: 'pending' },
-  });
+const mkTask = (id, layer, deps = []) => ({
+  id,
+  fm: { taskId: id, layer, dependsOn: deps, status: 'pending' },
+});
+
+test('computeBatches：business 同层按 id 排序切 ≤maxParallel 子批（A18 默认 8）', () => {
   const tasks = [
-    mk('base', 'shared'),
-    ...['g', 'a', 'f', 'c', 'e', 'b', 'd'].map((id) => mk(id, 'business', ['base'])),
-    mk('z-next', 'business', ['a']),
-    mk('pipe', 'pipeline', ['z-next']),
+    mkTask('base', 'shared'),
+    ...['g', 'a', 'f', 'c', 'e', 'b', 'd'].map((id) => mkTask(id, 'business', ['base'])),
+    mkTask('z-next', 'business', ['a']),
+    mkTask('pipe', 'pipeline', ['z-next']),
   ];
-  const batches = computeBatches(tasks);
+  // 默认并行度 8：7 个同层任务一批装得下
+  assert.deepEqual(
+    computeBatches(tasks).map((b) => b.tasks),
+    [['base'], ['a', 'b', 'c', 'd', 'e', 'f', 'g'], ['z-next'], ['pipe']]
+  );
+  // 显式 maxParallel=5：退回 5+2 切分（原 A8 行为不变）
+  const batches = computeBatches(tasks, 5);
   assert.deepEqual(
     batches.map((b) => b.tasks),
     [
@@ -139,6 +148,36 @@ test('computeBatches：business 同层 >5 按 id 排序切 ≤5 子批', () => {
     batches.map((b) => b.mode),
     ['serial', 'parallel', 'parallel', 'parallel', 'serial']
   );
+  // A18 流水线化判据：同层切出的两个子批 level 相同，下一层不同
+  assert.deepEqual(batches.map((b) => b.level), [0, 0, 0, 1, 0]);
+});
+
+test('computeBatches：shared/pipeline 多任务 level 各不相同（不参与流水线化）', () => {
+  const tasks = [
+    mkTask('s1', 'shared'),
+    mkTask('s2', 'shared', ['s1']),
+    mkTask('biz', 'business', ['s2']),
+    mkTask('p1', 'pipeline', ['biz']),
+    mkTask('p2', 'pipeline', ['p1']),
+  ];
+  const batches = computeBatches(tasks);
+  assert.deepEqual(batches.map((b) => b.layer), ['shared', 'shared', 'business', 'pipeline', 'pipeline']);
+  assert.deepEqual(batches.map((b) => b.level), [0, 1, 0, 0, 1]);
+});
+
+test('plan --max-parallel：合法值生效、越界报 PLAN_PARALLEL exit 2（A18）', async (t) => {
+  const tmp = await makeTmp(t);
+  await cp(GOLDEN, tmp, { recursive: true });
+
+  const ok = runCli(tmp, ['plan', '--json', '--max-parallel', '3']);
+  assert.equal(ok.status, 0, `stderr: ${ok.stderr}`);
+  assert.equal(JSON.parse(ok.stdout).maxParallel, 3);
+
+  for (const bad of ['0', '11', '2.5', 'abc']) {
+    const proc = runCli(tmp, ['plan', '--max-parallel', bad]);
+    assert.equal(proc.status, 2, `--max-parallel ${bad} 应 exit 2`);
+    assert.match(proc.stderr, /PLAN_PARALLEL/);
+  }
 });
 
 test('computeBatches：shared 多任务按拓扑序各占一个 serial 批', () => {

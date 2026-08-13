@@ -24,7 +24,7 @@ async function makeProject(t) {
   // 合规 CLAUDE.md（10 行）
   await writeFile(path.join(tmp, 'CLAUDE.md'), Array.from({ length: 10 }, (_, i) => `# 第 ${i + 1} 行`).join('\n') + '\n');
 
-  // 完整 .claude：settings + 2 命令 + 3 角色 + 2 hooks（可执行）
+  // 完整 .claude：settings + 2 命令 + 3 角色 + 3 hooks（可执行；A18 增 go-continue）
   const files = {
     '.claude/settings.json': '{}\n',
     '.claude/commands/go.md': '# /go\n',
@@ -34,6 +34,7 @@ async function makeProject(t) {
     '.claude/agents/vima-planner.md': '# planner\n',
     '.claude/hooks/guard-shared.mjs': '// stub\nprocess.exit(0)\n',
     '.claude/hooks/post-write.mjs': '// stub\nprocess.exit(0)\n',
+    '.claude/hooks/go-continue.mjs': '// stub\nprocess.exit(0)\n',
   };
   for (const [rel, content] of Object.entries(files)) {
     const p = path.join(tmp, rel);
@@ -42,6 +43,7 @@ async function makeProject(t) {
   }
   await chmod(path.join(tmp, '.claude/hooks/guard-shared.mjs'), 0o755);
   await chmod(path.join(tmp, '.claude/hooks/post-write.mjs'), 0o755);
+  await chmod(path.join(tmp, '.claude/hooks/go-continue.mjs'), 0o755);
   return tmp;
 }
 
@@ -94,7 +96,7 @@ test('doctor：hooks 缺可执行位 → ⑦ ❌ 且 exit 2', async (t) => {
   assert.match(lineOf(proc.stdout, '⑦ hooks'), /^❌/);
 });
 
-test('doctor --json：结构化输出（11 个检查项 + pass 标志，A16 增端册项）', async (t) => {
+test('doctor --json：结构化输出（12 个检查项 + pass 标志，A19 增产物形态项）', async (t) => {
   const tmp = await makeProject(t);
   const proc = runCli(tmp, ['doctor', '--json']);
   assert.equal(proc.status, 0, `stdout: ${proc.stdout}`);
@@ -102,7 +104,7 @@ test('doctor --json：结构化输出（11 个检查项 + pass 标志，A16 增�
   assert.equal(report.schemaVersion, '1');
   assert.equal(report.vimaProject, true);
   assert.equal(report.pass, true);
-  assert.equal(report.checks.length, 11); // A16：⑪ 端册完整性
+  assert.equal(report.checks.length, 12); // A16：⑪ 端册完整性
   for (const c of report.checks) {
     assert.ok(['ok', 'warn', 'error'].includes(c.status), `非法 status: ${c.status}`);
     assert.equal(typeof c.detail, 'string');
@@ -154,4 +156,37 @@ test('doctor ⑩：批准早于产物最后改动 → ❌ 判定批准失效且 
   report = JSON.parse(runCli(tmp, ['doctor', '--json']).stdout);
   approval = report.checks.find((c) => c.id === 'approval');
   assert.equal(approval.status, 'ok');
+});
+
+// ── A19 ⑫ 产物形态与当前规则的差距（升级迁移体检）──
+
+test('doctor ⑫：spec 骨架齐全 → ok；缺 A13 数据块/A4 决策表 → ❌ 且指出出处与补写指引', async (t) => {
+  const { writeFile } = await import('node:fs/promises');
+  const tmp = await makeProject(t);
+  assert.match(lineOf(runCli(tmp, ['doctor']).stdout, '⑫ 产物形态'), /^✅/);
+
+  // 模拟 A13/A4 之前建的老项目：删掉 vima:rules 块与决策表的「已否决方案」列
+  const specPath = path.join(tmp, 'docs/spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  await writeFile(
+    specPath,
+    spec.replace(/```yaml vima:rules[\s\S]*?```\n/, '').replace(/已否决方案/g, '旧方案'),
+  );
+
+  const proc = runCli(tmp, ['doctor']);
+  assert.equal(proc.status, 2, '产物形态缺 error 级项须使体检不通过');
+  const line = lineOf(proc.stdout, '⑫ 产物形态');
+  assert.match(line, /^❌/);
+  assert.match(line, /A13/, '须指出是哪个增补项引入的');
+  assert.match(line, /A4/);
+  assert.match(line, /第五章/, '须给出补写位置');
+});
+
+test('doctor ⑫：spec 未生成 → 跳过（不误伤 BOOTSTRAP 期项目）', async (t) => {
+  const { rm } = await import('node:fs/promises');
+  const tmp = await makeProject(t);
+  await rm(path.join(tmp, 'docs/spec.md'));
+  const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑫ 产物形态');
+  assert.match(line, /^⚠️/);
+  assert.match(line, /未生成/);
 });

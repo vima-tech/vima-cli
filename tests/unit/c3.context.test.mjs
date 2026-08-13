@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from '../../lib/util/fs.mjs';
-import { componentsOfPage, rulesForTask } from '../../lib/commands/context.mjs';
+import { componentsOfPage, rulesForTask, sliceContract, sliceContractBlock } from '../../lib/commands/context.mjs';
+import { extractBlocks } from '../../lib/util/md.mjs';
+import { readFileSync } from 'node:fs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.resolve(HERE, '..', '..');
@@ -157,4 +159,60 @@ test('context：空 non-goals 声明渲染为「已显式声明」而非缺声�
   assert.equal(r.code, 0, `stderr: ${r.stderr}`);
   assert.match(r.stdout, /本期无 non-goals 声明：spec 第九章已显式写/);
   assert.doesNotMatch(r.stdout, /第九章未声明 vima:non-goals/);
+});
+
+// ── A18 契约切片（任务声明 apis 负责集时只打包本任务那份）──
+
+test('sliceContract/sliceContractBlock：只保留负责集小节，机读块同步过滤且条目完整', () => {
+  const text = readFileSync(path.join(GOLDEN, 'docs/contracts/device-api.md'), 'utf8');
+  const owned = new Set(['GET /api/device/list', 'POST /api/device']);
+  const sliced = sliceContract(text, owned);
+  assert.equal(sliced.kept, 2);
+  assert.equal(sliced.dropped, 2);
+  assert.ok(sliced.text.includes('## GET /api/device/list'));
+  assert.ok(!sliced.text.includes('## POST /api/device/batch-delete'));
+  // 非接口小节原样保留
+  assert.ok(sliced.text.includes('## 共享类型定义'));
+
+  const full = sliceContractBlock(sliced.text, owned);
+  const blocks = extractBlocks(full, 'contract', { path: 'docs/contracts/device-api.md' });
+  assert.deepEqual(
+    blocks[0].data.apis.map((a) => `${a.method} ${a.path}`),
+    ['GET /api/device/list', 'POST /api/device'],
+  );
+  // 条目内的嵌套 request/response/errors 不得被当成新条目切碎
+  assert.equal(blocks[0].data.apis[0].request.length, 4);
+  assert.equal(blocks[0].data.apis[0].errors.length, 1);
+  assert.equal(blocks[0].data.module, 'device'); // 块内非 apis 键不动
+});
+
+test('sliceContract：未声明负责集时零改变；多接口标题任一命中即整段保留', () => {
+  const text = '# C\n\n## GET /api/a / POST /api/b\n\nbody\n\n## GET /api/c\n\nx\n';
+  const hit = sliceContract(text, new Set(['POST /api/b']));
+  assert.equal(hit.kept, 1);
+  assert.equal(hit.dropped, 1);
+  assert.ok(hit.text.includes('## GET /api/a / POST /api/b'));
+  assert.ok(!hit.text.includes('## GET /api/c'));
+});
+
+test('context：任务声明 apis → 包内契约被切片且分节 note 标注保留/删除数', async (t) => {
+  const root = await cloneGolden(t);
+  const rel = 'docs/tasks/device-api-be.md';
+  const p = path.join(root, rel);
+  const original = await readFile(p, 'utf8');
+  await writeFile(
+    p,
+    original.replace(
+      'contract: docs/contracts/device-api.md',
+      "contract: docs/contracts/device-api.md\napis: ['GET /api/device/list', 'POST /api/device']",
+    ),
+  );
+
+  const r = vima(root, 'context', 'device-api-be');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  assert.match(r.stdout, /按 apis 切片：保留 2 \/ 删除 2 个接口小节/);
+
+  const bundle = await readFile(path.join(root, '.vima', 'context', 'device-api-be.md'), 'utf8');
+  assert.ok(bundle.includes('## GET /api/device/list'), '负责集内的小节应保留');
+  assert.ok(!bundle.includes('## POST /api/device/batch-delete'), '负责集外的小节应删除');
 });

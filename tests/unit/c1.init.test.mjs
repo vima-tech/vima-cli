@@ -183,3 +183,52 @@ test('init：安装 docs/coding-standards.md（§5.2 详细规范指针落点，
     'coding-standards 应为 managed 文件',
   );
 });
+
+// ── A18：init --force 是「重建生成物」，不是「清空状态」──
+
+test('init --force：保留既有 lifecycle（DEVELOPING 不被打回 PLANNING），但重建缺失的 managed 文件', async (t) => {
+  const { writeFile, unlink } = await import('node:fs/promises');
+  const proj = await createAdminProject(t);
+  assert.equal(vima(proj, 'init').status, 0);
+
+  // 把项目推进到 DEVELOPING 并带上进度与评审痕迹
+  const lcPath = path.join(proj, 'docs/lifecycle.json');
+  const lc = JSON.parse(await readFile(lcPath, 'utf8'));
+  lc.currentPhase = 'DEVELOPING';
+  lc.taskStats = { total: 73, done: 25, failed: 0, blocked: 0, pending: 48, running: 0 };
+  lc.checklists.PLANNING.tasksApproved = true;
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+  // 同时删掉一个 managed 文件，验证 --force 仍会重建生成物
+  await unlink(path.join(proj, '.claude/hooks/go-continue.mjs'));
+
+  const r = vima(proj, 'init', '--force');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  assert.match(r.stderr, /保留既有状态/);
+
+  const after = JSON.parse(await readFile(lcPath, 'utf8'));
+  assert.equal(after.currentPhase, 'DEVELOPING', 'lifecycle 是状态不是生成物，--force 不得重置');
+  assert.equal(after.taskStats.done, 25, 'taskStats 须原样保留');
+  assert.equal(after.checklists.PLANNING.tasksApproved, true, 'tasksApproved 须原样保留');
+  assert.ok(await fileExists(path.join(proj, '.claude/hooks/go-continue.mjs')), 'managed 文件仍须被重建');
+});
+
+test('init：不清空 create 写入的端册（A16 apps/backend）与 schemaVersion，并记录安装形态', async (t) => {
+  const box = await sandbox(t);
+  assert.equal(
+    vima(box, 'create', 'multi-admin', '-t', 'admin', '--apps', 'admin:admin-web,patient:mp-native',
+      '--no-git', '--no-install').status,
+    0,
+  );
+  const proj = path.join(box, 'multi-admin');
+  const mPath = path.join(proj, '.vima/manifest.json');
+  const before = JSON.parse(await readFile(mPath, 'utf8'));
+  assert.equal(before.schemaVersion, '2');
+  assert.deepEqual(before.apps.map((a) => a.id), ['admin', 'patient']);
+
+  assert.equal(vima(proj, 'init').status, 0);
+  const after = JSON.parse(await readFile(mPath, 'utf8'));
+  assert.equal(after.schemaVersion, '2', 'init 不得把端册 manifest 降级回 v1');
+  assert.deepEqual(after.apps.map((a) => a.id), ['admin', 'patient'], 'init 不得清空 create 写入的端册');
+  assert.ok(after.backend, 'backend 条目须保留');
+  assert.deepEqual(after.install, { minimal: false, skipScan: false }, 'init 须记录安装形态供 update 复用');
+});

@@ -17,8 +17,10 @@ updatedAt: 2026-01-01T00:00:00Z
   frontmatter 填写规则（契约 §6.1）：
   - taskId：^[a-z0-9][a-z0-9-]*$，前端页面任务建议 <模块>-<页面>-fe；
   - status 初始一律 pending；retryCount 初始 0；
-  - layer=business / side=frontend；dependsOn 按评审确认的依赖策略填
-    （默认 [shared-base, <对应后端任务>]；契约先行并行开发时只填 [shared-base]）；
+  - layer=business / side=frontend；dependsOn 按评审确认的依赖策略填——
+    **默认只填 [shared-base]**（A18：契约先行的必然推论，前端对接的是契约不是后端产物；
+    加 <对应后端任务> 会把全部前端任务锁到后端之后，实测因此多出一半批次）。
+    确需后端产物（如需真实种子数据的联调页）才填 [shared-base, <对应后端任务>] 并注明理由；
   - contract：必填，指向本模块契约文件；
   - page：必填，指向本页在 spec 中的 PAGE-xx 数据块；
   - conflictsWith：可选（A8），与本任务共享代码路径（同文件/同目录改动）的其他任务 ID，
