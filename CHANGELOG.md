@@ -4,6 +4,78 @@
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-08-13
+
+### 新增
+
+- **批次调度效率（增补项 A18）**：sustain-v3 实测评估
+  （`docs/design/batching-efficiency-assessment.md`）落地，触发 A17 自留的重开条件。
+  实测证伪两个直觉归因——构建不是瓶颈（前端 `build:check` 2.82s / 后端
+  `mvn compile` 1.34s），工作量也不是（总生成量 120 分钟是硬成本）；真因是
+  **不均衡造成的空转**：子代理内部严格串行、批次时长取批内最大值，单任务最大
+  4527 行 = 同批最小任务的 7 倍，三个业务批实测并行槽空转率 52–54%。
+  - 任务 frontmatter 新增可选 `apis` 负责接口集（缺省 = 契约全集，向后兼容）；
+    新增 **V-TASK-11**（warn，负责接口数 > 10 提示按子域拆分）与 **V-TASK-12**
+    （error，⊆ 契约 / 同契约 backend 任务不重叠 / 全声明时并集齐全）；
+  - `vima context` 按 `apis` 切片契约（人读小节 + 机读块同步过滤），Builder 只看自己那份；
+  - `vima plan` 新增 `--max-parallel <1..10>`（默认 5 → **8**，越界 `PLAN_PARALLEL` exit 2），
+    batch-plan.json 每批新增 `level` 字段——同 layer 同 level 的批次之间无依赖，
+    主 Agent 可流水线化派发（上批 Verifier 与下批 Builder 同轮，2N 轮 → N+1 轮）；
+  - 新增 Stop hook `.claude/hooks/go-continue.mjs` + 状态文件 `.vima/go-state.json`：
+    主 Agent 每次结束回合前落盘停因，hook 只在 `stopReason=in-progress` 时阻止停轮并
+    注入续跑指令，合法停点（budget/terminal/gate/user）放行，连续续跑 5 次兜底放行。
+    **推翻 A17「不用 Stop hook」**——其否决理由「hook 无法区分合法停点」在停因机读化后不再成立。
+
+### 新增
+
+- **存量项目升级可达性（增补项 A19）**：回答「已有项目能否通过 `vima update` 升到最新功能
+  而不影响原有程序」。核实结论——**主体已实现**（update 的受管清单里代码文件命中数为 0，
+  实测一个改过 210 个代码文件的项目跑 update 后代码树指纹完全一致），补齐剩余三处缺口：
+  - **manifest v1→v2 端册迁移**：兑现契约 §6.4 早已写下却从未实现的宣称（sustain-v3 跑了
+    两次 update 仍是 v1）。**保护面不得因迁移变弱**：guard-shared 对 v1 走内置字面量兜底、
+    写入 apps 后改走 v2 分支且不再回退，故后端共享层按模板声明渲染并**逐个校验目录在位**，
+    缺一个就整体放弃迁移（保持 v1 兜底），不静默降级。
+  - **`vima doctor` 第 ⑫ 项「产物形态与当前规则的差距」**：四条判据（A4 决策表 /
+    A13 `vima:rules` / A13 `vima:non-goals` / A2 前端任务 `page`），级别与对应 validate
+    规则对齐。与 validate 的分工——validate 说「缺什么」并阻断 `/go`，⑫ 说「这是哪个增补项
+    引入的、补在哪一章、块长什么样」。`docs/spec.md` 未生成时跳过，不误伤新项目。
+  - **骨架基线 + `vima update --scaffold-diff`**：`create` 在 manifest 记录
+    `files.scaffold`（落盘内容哈希，219 个文件约 18KB）；`--scaffold-diff` 按三方比较输出
+    「可安全更新 / 需人工」两类，**只报告、零写盘**（实测跑前跑后全项目指纹一致）。
+    无基线的存量项目如实说明能力边界，不猜。渲染逻辑与 create 落盘同源
+    （`resolveScaffoldEntries`），不留两份会漂移的实现。
+
+### 修复
+
+- **模板新增受管文件到不了存量项目**（A18 第 8 条）：`vima update` 原先只提示不装，
+  而 `settings.json` 已被更新成引用新 hook —— 产出「配置指向不存在文件」的破损状态。
+  现按与既有文件同一套三方比较处理：磁盘无 → 安装并登记（hooks 带可执行位），
+  磁盘有且等于模板源 → 采信登记，磁盘有且不同 → 写 `.vima-new` 人工合并。
+  项目形态由 manifest 新增的 `install: {minimal, skipScan}` 判定（init 写入；旧 manifest
+  按已记录文件确定性反推：无 `docs/` 条目 = minimal，有 `docs/` 无 `docs/ui-framework/`
+  = skip-scan），`--minimal` 项目不会被灌入 docs/ 资产。
+- **`vima init --force` 会清空项目状态**：原实现无条件重写 `docs/lifecycle.json`，把
+  DEVELOPING 打回 PLANNING 并丢掉 taskStats/phaseHistory/tasksApproved（在 sustain-v3
+  上实测发现——它正是 update 提示的补救命令）。现改为**状态不是生成物**：已存在则保留
+  并提示「保留既有状态（未重置）」，managed 生成物照常重建。
+- **`vima init` 清空 create 写入的端册**（A16 多端在正常路径上就是坏的）：init 整体覆盖
+  manifest，把 `apps`/`backend` 与 schemaVersion 2 一起抹掉，resolveApps 退化为合成的
+  单端册，doctor ⑪ 因此误报「代码目录不在位」。现改为**合并写**，既有键原样保留。
+
+### 变更
+
+- **/go 会话预算 8 → 24 个任务**（A18）：前提是 `vima-builder` / `vima-verifier` 角色模板
+  新规定回传摘要 ≤ 15 行、明细一律落 `.vima/reports/`，使每任务的编排上下文成本有界。
+  预算耗尽的续跑提示改为「**先 `/clear` 再 `/go`**」——同一会话里重输 /go 不重置上下文，
+  原提示下预算形同虚设。
+- **批次检查点提交改 `/go --commit` 显式授权**（A18 取代 A17「/go 即授权」）：不带该 flag
+  时**完全不碰 git**，报告也不再输出「未形成回滚点」噪声。实测 sustain-v3 至今 0 个提交
+  ——A17 口径长期被用户环境级提交禁令压制而从未生效，授权点必须显式可见才不冲突。
+- **前端任务默认依赖改为仅 `shared-base`**（A18）：契约先行的必然推论（前端验收清单只有
+  「字段与契约一致 + build:check」，不含任何后端运行时依赖）。旧默认把全部前端任务锁到
+  后端之后，实测使 18 个批次里多出一半。planning-guide 与 `_template-fe.md` 同步。
+
+
 ## [3.0.1] - 2026-08-13
 
 ### 变更
