@@ -173,6 +173,12 @@ tr.blind td{background:var(--warn-soft)}
 
 .foot{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line);
   font-size:.74rem;color:var(--fg-faint);line-height:1.8}
+/* ── A16 多端：端徽标 + 页面详情端分组标题（单端项目不渲染这两类节点）── */
+.app-tag{display:inline-block;margin-left:.5em;padding:.05em .5em;border:1px solid var(--line);
+  border-radius:99px;font-size:.72rem;font-family:var(--mono);color:var(--fg-dim);
+  background:var(--bg-soft);vertical-align:middle}
+.app-group{margin:1.6em 0 .6em;padding:.3em .8em;border-left:3px solid var(--line);
+  font-size:.95rem;color:var(--fg-dim);background:var(--bg-soft);border-radius:4px}
 @media print{
   body{background:#fff}
   .toc{display:none}

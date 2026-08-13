@@ -96,13 +96,79 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   assert.ok(!sidebar.includes('{{project'), 'Sidebar.vue 不应残留 {{project 模板变量');
   assert.ok(/v-side-heading-mark[^>]*><VIcon /.test(sidebar), 'Sidebar.vue 抬头标记应为 VIcon 图标');
 
-  // manifest（契约 §6.4：managed 先空数组）
+  // manifest（契约 §6.4：managed 先空数组；A16 端册化后 admin 模板写 schemaVersion 2 + 端册）
   const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, '1');
+  assert.equal(manifest.schemaVersion, '2');
   assert.equal(manifest.templateId, 'admin');
   assert.ok(typeof manifest.createdAt === 'string' && manifest.createdAt.length > 0);
   assert.ok(typeof manifest.vimaVersion === 'string');
   assert.deepEqual(manifest.files.managed, []);
+  // A16 端册：缺省 = default 端（admin），单端落项目根 dir "."
+  assert.deepEqual(manifest.apps, [{
+    id: 'admin', name: '管理后台', kind: 'admin-web', dir: '.', codeDir: 'src',
+    sharedDirs: ['src/components', 'src/utils', 'vendor'],
+  }]);
+  // backend sharedDirs 的 {{projectPkg}} 已渲染为具体路径（契约 §6.4）
+  assert.deepEqual(manifest.backend, {
+    dir: 'backend',
+    sharedDirs: ['src/main/java/com/myadmin/config', 'src/main/java/com/myadmin/security'],
+  });
+});
+
+test('create --apps 双端（A16）：admin 骨架落 apps/admin/、preview kind 入册跳骨架、端册入 manifest', async (t) => {
+  const box = await sandbox(t);
+  const r = vima(box, 'create', 'nutri', '-t', 'admin',
+    '--apps', 'admin:admin-web,patient:mp-native', '--no-git', '--no-install');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  const proj = path.join(box, 'nutri');
+  // N≥2：全部前端落 apps/<id>/；backend 不动
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/src/main.ts')), 'admin 端应落 apps/admin/');
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/package.json')));
+  assert.ok(await fileExists(path.join(proj, 'backend/pom.xml')));
+  assert.ok(!(await fileExists(path.join(proj, 'src'))), '多端布局项目根不应再有 src/');
+  // preview kind：入册但跳过骨架 + 显式警告
+  assert.ok(!(await fileExists(path.join(proj, 'apps/patient'))), 'mp-native 为 preview 不应生成骨架');
+  assert.match(r.stdout, /patient（kind mp-native）为 preview/);
+  const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
+  assert.equal(manifest.schemaVersion, '2');
+  assert.equal(manifest.apps.length, 2);
+  assert.deepEqual(manifest.apps.map((a) => [a.id, a.kind, a.dir]), [
+    ['admin', 'admin-web', 'apps/admin'],
+    ['patient', 'mp-native', 'apps/patient'],
+  ]);
+});
+
+test('create --apps 校验：非法 id / 未知 kind / 重复 id → exit 3；旧形态模板不支持 --apps', async (t) => {
+  const box = await sandbox(t);
+  assert.equal(vima(box, 'create', 'x1', '-t', 'admin', '--apps', 'Bad_Id:admin-web').status, 3);
+  const r2 = vima(box, 'create', 'x2', '-t', 'admin', '--apps', 'a:no-such-kind');
+  assert.equal(r2.status, 3);
+  assert.match(r2.stderr, /未知 kind/);
+  assert.equal(vima(box, 'create', 'x3', '-t', 'admin', '--apps', 'a:admin-web,a:mp-native').status, 3);
+  const r4 = vima(box, 'create', 'x4', '-t', 'cli', '--apps', 'a:admin-web', '--no-git', '--no-install');
+  assert.equal(r4.status, 3);
+  assert.match(r4.stderr, /未声明端册/);
+});
+
+test('create --force 重跑（A16）：保留既有 manifest 的端册与 files；templateId 不同 → TEMPLATE_MISMATCH exit 4', async (t) => {
+  const box = await sandbox(t);
+  assert.equal(vima(box, 'create', 'keep', '-t', 'admin', '--no-git', '--no-install').status, 0);
+  const mPath = path.join(box, 'keep/.vima/manifest.json');
+  const before = JSON.parse(await readFile(mPath, 'utf8'));
+  // person A 已 init 过的样子：files.managed 非空
+  before.files.managed = [{ path: 'CLAUDE.md', checksum: 'sha256:deadbeef' }];
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(mPath, JSON.stringify(before));
+  const forced = vima(box, 'create', 'keep', '-t', 'admin', '--force', '--no-git', '--no-install');
+  assert.equal(forced.status, 0, `stderr: ${forced.stderr}`);
+  const after = JSON.parse(await readFile(mPath, 'utf8'));
+  assert.deepEqual(after.files.managed, before.files.managed, '--force 不得清空 files.managed');
+  assert.deepEqual(after.apps, before.apps, '--force 不得覆写端册');
+  assert.equal(after.createdAt, before.createdAt, '--force 保留 createdAt');
+  // templateId 冲突 → TEMPLATE_MISMATCH
+  const clash = vima(box, 'create', 'keep', '-t', 'cli', '--force', '--no-git', '--no-install');
+  assert.equal(clash.status, 4);
+  assert.match(clash.stderr, /TEMPLATE_MISMATCH/);
 });
 
 test('create：目录已存在且无 --force → exit 4；--force 可覆盖', async (t) => {

@@ -16,6 +16,7 @@ import { loadManifest, saveManifest } from '../../lib/model/manifest.mjs';
 import {
   templatesRoot, listTemplates, loadTemplate, readProjectTemplateId,
 } from '../../lib/model/template.mjs';
+import { resolveApps, appOf, consumersOf } from '../../lib/model/apps.mjs';
 
 /** 建临时项目根，测试完自动清理。 */
 async function tempRoot(t) {
@@ -476,4 +477,92 @@ test('readProjectTemplateId：manifest 优先于 lifecycle，双缺返回 null',
   // 3) manifest 存在时优先
   await saveManifest(lcOnly, { schemaVersion: '1', templateId: 'admin' });
   assert.equal(await readProjectTemplateId(lcOnly), 'admin');
+});
+
+// ── lib/model/apps.mjs（A16 端册，契约 §5）──────────────────────────────────
+
+test('resolveApps：manifest v2 端册原样归一返回（multi/缺省补齐）', async (t) => {
+  const root = await tempRoot(t);
+  await saveManifest(root, {
+    schemaVersion: '2', templateId: 'nope-template',
+    apps: [
+      { id: 'admin', name: '院内后台', kind: 'admin-web', dir: 'apps/admin', codeDir: 'src',
+        sharedDirs: ['src/components', 'src/utils', 'vendor'] },
+      { id: 'patient', kind: 'mp-native', dir: 'apps/patient' }, // name/codeDir/sharedDirs 缺省
+    ],
+    backend: { dir: 'backend', sharedDirs: ['src/main/java/com/x/config'] },
+  });
+  const roster = await resolveApps(root, {});
+  assert.equal(roster.multi, true);
+  assert.equal(roster.apps.length, 2);
+  assert.deepEqual(roster.apps[1], {
+    id: 'patient', name: 'patient', kind: 'mp-native', dir: 'apps/patient', codeDir: 'src', sharedDirs: [],
+  });
+  assert.deepEqual(roster.backend, { dir: 'backend', sharedDirs: ['src/main/java/com/x/config'] });
+  // templateId 指向不存在的模板 → 静默用内置 kinds（防误不防恶意）
+  assert.ok(roster.kinds['admin-web']);
+  assert.equal(roster.kinds['admin-web'].regions, true);
+});
+
+test('resolveApps：v1 manifest + 旧三键模板 → 合成单端 admin 端册', async (t) => {
+  const root = await tempRoot(t);
+  const cliRoot = await mkdtemp(path.join(tmpdir(), 'vima-cli-root-'));
+  t.after(() => rm(cliRoot, { recursive: true, force: true }));
+  await mkdir(path.join(cliRoot, 'templates', 'admin'), { recursive: true });
+  await writeFile(path.join(cliRoot, 'templates', 'admin', 'template.json'), JSON.stringify({
+    id: 'admin', name: '管理后台', status: 'stable',
+    codeDirs: ['src', 'backend/src'],
+    sharedDirs: ['src/components', 'src/utils', 'vendor', 'backend/src/main/java/com/{{projectPkg}}/config'],
+  }));
+  await saveManifest(root, { schemaVersion: '1', templateId: 'admin' });
+  const roster = await resolveApps(root, { cliRoot });
+  assert.equal(roster.multi, false);
+  assert.deepEqual(roster.apps, [{
+    id: 'admin', name: '管理后台', kind: 'admin-web', dir: '.', codeDir: 'src',
+    sharedDirs: ['src/components', 'src/utils', 'vendor'],
+  }]);
+  assert.deepEqual(roster.backend, { dir: 'backend', sharedDirs: [] });
+});
+
+test('resolveApps：新形态模板（apps 声明）合成 default 端；kinds 被模板覆盖合并', async (t) => {
+  const root = await tempRoot(t);
+  const cliRoot = await mkdtemp(path.join(tmpdir(), 'vima-cli-root-'));
+  t.after(() => rm(cliRoot, { recursive: true, force: true }));
+  await mkdir(path.join(cliRoot, 'templates', 'admin'), { recursive: true });
+  await writeFile(path.join(cliRoot, 'templates', 'admin', 'template.json'), JSON.stringify({
+    id: 'admin', name: '管理后台', status: 'stable',
+    apps: [
+      { id: 'admin', name: '管理后台', kind: 'admin-web', default: true,
+        scaffold: 'scaffold/frontend', codeDir: 'src', sharedDirs: ['src/components'] },
+      { id: 'patient', name: '患者端', kind: 'mp-native', scaffold: 'scaffold/mp-native' },
+    ],
+    backend: { scaffold: 'scaffold/backend', dir: 'backend' },
+    planning: { kinds: { 'mp-native': { layoutVocab: ['list'], regions: false, shell: 'phone-tabbar', status: 'preview' } } },
+  }));
+  await saveManifest(root, { schemaVersion: '1', templateId: 'admin' });
+  const roster = await resolveApps(root, { cliRoot });
+  assert.equal(roster.multi, false);
+  assert.equal(roster.apps.length, 1); // 只合成 default 端
+  assert.equal(roster.apps[0].id, 'admin');
+  assert.equal(roster.apps[0].dir, '.');
+  assert.deepEqual(roster.kinds['mp-native'].layoutVocab, ['list']);
+  assert.ok(roster.kinds['admin-web']); // 内置缺省仍在
+});
+
+test('resolveApps：非 vima 项目 / 无前端模板 → 空端册', async (t) => {
+  const bare = await tempRoot(t);
+  const roster = await resolveApps(bare, {});
+  assert.deepEqual(roster, { multi: false, apps: [], backend: null, kinds: roster.kinds });
+  assert.equal(roster.apps.length, 0);
+});
+
+test('appOf / consumersOf：声明优先；单端缺省 = 唯一端；多端缺省 = null', () => {
+  const single = { multi: false, apps: [{ id: 'admin' }], backend: null, kinds: {} };
+  const multi = { multi: true, apps: [{ id: 'admin' }, { id: 'patient' }], backend: null, kinds: {} };
+  assert.equal(appOf({ app: 'patient' }, single), 'patient'); // 声明原样返回（合法性归校验）
+  assert.equal(appOf({}, single), 'admin');
+  assert.equal(appOf({}, multi), null);
+  assert.deepEqual(consumersOf({ consumers: ['patient'] }, multi), ['patient']);
+  assert.deepEqual(consumersOf({}, single), ['admin']);
+  assert.equal(consumersOf({}, multi), null);
 });

@@ -38,7 +38,8 @@ model: sonnet
   `@vima <taskId>` 标注（如 `// @vima device-list-fe`）；已有其他任务标注的文件
   追加本任务标注，不删除既有标注
 - 禁止修改共享层目录（src/components/、src/utils/、vendor/
-  与 backend 的 config/security 包，同 template.json sharedDirs）；确需修改时
+  与 backend 的 config/security 包；多端项目按 manifest 端册 sharedDirs 逐端计，
+  如 apps/patient/src/components/，A16）；确需修改时
   不要动手，在结果摘要的 sharedChangeRequest 中声明：需要改什么、为什么改、影响范围
 - **增量修复模式**（委派指令中说明为重试时）：先读 .vima/reports/<taskId>-verifier.json
   的上轮报告，只修改报告指出的问题，不得重写已有代码

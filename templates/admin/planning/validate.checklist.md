@@ -81,6 +81,20 @@
   产物由 `vima render-matrix` 从 spec/契约/任务确定性生成，**不要手改**；
   `vima render-matrix --check` 可验漂移。
 
+## 端册与消费端（A16；单端项目全部端键可省略 = 唯一端，以下规则自动退化为现状）
+
+- [ ] **V-SPEC-13**（error）：多端项目每个 page/menu 带 `app` 且 ∈ 端册；`nav` target 与本页同端
+  （跨端交接只能写 `vima:flow`）；menu.page 与 menu.app 同端。
+- [ ] **V-SPEC-14**（error）：端册每个 app 在 spec 中 ≥1 个页面（入册未设计 = 端册与规格漂移）。
+- [ ] **V-CON-07**（error）：多端项目每个契约 api 带非空 `consumers` ⊆ 端册；
+  每页 apis ⊆ 其归属端可见（consumers 含该端）的接口集——越权引用设计期拦截。
+- [ ] **V-TASK-10**（error）：多端项目 side=frontend|fullstack 任务带 `app` ∈ 端册；
+  side=backend 禁带 app；带 page 的任务 app == 页面归属端。
+- [ ] 端化既有规则：V-SPEC-04 词表按端 kind 取（planning.kinds 同源）；V-SPEC-12 regions
+  仅 kind 声明允许的端可用；V-SPEC-08 菜单功能点接口的 consumers 须含 menu.app；
+  V-CON-03 谁消费谁承接（每消费端 ≥1 该端 fe 任务 + 每 module ≥1 be 任务）；
+  V-COV-01 多端矩阵首列为「端」。
+
 ## 跨产物 YAML 纪律
 
 - [ ] **V-YAML-01**（warn）：vima 数据块的 flow 上下文（`[...]` / `{...}` 内）不得出现未加引号的
@@ -91,8 +105,10 @@
 
 ## 代码 ↔ 契约对账（A6；带 `@vima` 标注的业务代码才参与，规划期无代码时自然为空）
 
-- [ ] **V-CODE-01**（error）：前端带 `@vima` 标注文件中的 `request.<method>(路径字面量)`
-  归一后（非 /api 开头补前缀；`${expr}` 与 `{id}` 归一为 `{*}`）必须 ∈ 契约 apis。
+- [ ] **V-CODE-01**（error）：端册各端 `<dir>/<codeDir>` 下带 `@vima` 标注文件中的
+  `request.<method>(路径字面量)` 归一后（非 /api 开头补前缀；`${expr}` 与 `{id}` 归一为
+  `{*}`）必须 ∈ 契约 apis，**且该接口 consumers 含文件归属端**（否则报越权调用，A16）。
+  请求门面 `request.<verb>(path)` 是各端骨架契约，一条正则通吃全部端。
   单向对账防野生接口；实现完整性由 Verifier 逐点判定负责。
 - [ ] **V-CODE-02**（error）：后端带 `@vima` 标注 Controller 的类级 `@RequestMapping`
   基路径 + `@*Mapping` 子路径拼接归一后必须 ∈ 契约 apis。

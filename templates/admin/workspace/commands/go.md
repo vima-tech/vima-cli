@@ -37,7 +37,8 @@
   检查 lifecycle 的 checklists.PLANNING.tasksApproved 是否为 true（该位只能由
   `vima approve` 机械置位，approve 内部会阻断未确认的 pendingConfirm）。
   未置位 → 提示用户在浏览器核对 docs/review/index.html（审计视图）、
-  docs/review/prototype.html（原型）与 docs/coverage-matrix.md 后运行 `vima approve`，终止 /go。
+  线框原型（单端 docs/review/prototype.html；多端项目为逐端 docs/review/prototype.<端id>.html，A16）
+  与 docs/coverage-matrix.md 后运行 `vima approve`，终止 /go。
 
   三道全部通过 → currentPhase 切换为 DEVELOPING 并记录时间（phaseHistory 追加）。
 
@@ -74,12 +75,25 @@
   与 lifecycle.json 的 taskStats。
 - **批次检查点**：本批全部处理完成后执行
   `git commit -m "vima: batch <N> completed (<k> tasks)"`，形成批粒度回滚点。
+  **提交授权口径（A17）**：用户输入 /go 即构成对本次运行全部批次检查点提交的
+  明确授权，不逐批征询；若环境规则/权限仍拒绝提交，跳过本次 commit、在批次报告
+  中注明「未形成回滚点」并**继续调度下一批**——提交受阻不是停点（回滚点是增强件，
+  不是推进的前置条件）。
 - **sharedChangeRequest 处理**（§10.7 策略三）：Builder 结果摘要声明
   sharedChangeRequest 时不得代其直接修改共享层；由主 Agent 创建一个共享层
   补偿任务（layer=shared），插入当前批次结束后**串行执行**（补偿批同样走
   写令牌流程）；受影响的已完成任务由主 Agent 评估是否补发 Verifier 复查。
-- **会话预算**：单次 /go 最多推进 3 个批次或 8 个任务（先到为准）；
-  达标后落盘全部状态，提示用户再次输入 /go 续跑（避免主会话上下文过载）。
+- **会话预算（A17，按任务计数）**：单次 /go 最多推进 8 个任务，批次数不设上限
+  ——预算防的是编排者上下文过载，成本与任务数成正比（每任务一份 Builder 摘要 +
+  一份 Verifier 报告），与批次数无关；shared/pipeline 串行批每批仅 1 个任务，
+  按批计数会在 3 个任务后过早截断。重试不另计。达标后落盘全部状态，
+  提示用户再次输入 /go 续跑。
+- **合法停点白名单（A17 反停顿纪律）**：批次之间不得结束回合等待用户。本命令
+  唯一允许的停点：① 会话预算耗尽；② 全部任务达终态（无 pending/running）；
+  ③ 确定性前置失败或闸门阻断需用户处置（lifecycle 缺失、vima plan 依赖环、
+  三道闸门未过、断点续跑中 failed 任务裁定）；④ 用户主动中断。
+  批次完成、检查点提交受阻、sharedChangeRequest 补偿批插入均不是停点——
+  同一回复内继续派发下一批。
 - 还有未完成批次且未被阻断 → 派发下一批。
 
 ### 4. 断点续跑

@@ -5,9 +5,10 @@
 vima-cli 是 AI 开发脚手架：开发者用自然语言沟通需求，依托 Claude Code 完成
 需求拆解 → 规范生成 → 人机对齐评审 → 批次并行编码 → 机械验收的全流程。
 需求真源：`docs/design/vima-cli-design-v2.md`（章节号 §N 全仓通用引用格式）
-+ `docs/design/v2.1-amendments.md`（增补项 A1–A14：A1–A5 吸收自 PACT，A6–A8 吸收自
++ `docs/design/v2.1-amendments.md`（增补项 A1–A17：A1–A5 吸收自 PACT，A6–A8 吸收自
 AI-First 评估与市场对标，A9–A12 吸收自 mattpocock/skills 对标，A13 出自产品设计要素
-专题讨论）。
+专题讨论，A14 出自 sustain-v3 分栏版面实战，A15 为命令语义对调，A16 为多端应用模型
+——一后端 × 多前端，A17 为 /go 批间连续性——预算任务计数/提交授权/停点白名单）。
 内部实现契约：`docs/internal-contracts.md`（文件格式 / 模块接口 / 校验规则的唯一权威）。
 
 ## 硬约束

@@ -3,7 +3,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,18 +75,21 @@ test('--check：产物与 spec 无漂移时 exit 0', () => {
   assert.equal(r2.status, 0, `stderr: ${r2.stderr}`);
 });
 
-test('manifest：§6.7 结构（pages 按 id 排、links 含 nav/modal/api 三种）', async () => {
+test('manifest：§6.7 结构（A16 顶层 apps map；pages 按 id 排、links 含 nav/modal/api 三种）', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, manifestRel), 'utf8'));
   assert.equal(manifest.schemaVersion, '1');
-  assert.equal(manifest.pages[0].id, 'PAGE-01');
-  const ids = manifest.pages.map((p) => p.id);
+  // A16 新形态：顶层 apps 映射（N=1 同样使用新形态，key = 唯一端 id）
+  assert.ok(manifest.apps && !manifest.pages, '顶层为 apps 映射而非 pages');
+  const pages = manifest.apps.admin.pages;
+  assert.equal(pages[0].id, 'PAGE-01');
+  const ids = pages.map((p) => p.id);
   assert.deepEqual(ids, [...ids].sort(), 'pages 按 id 排序');
-  const kinds = new Set(manifest.pages.flatMap((p) => p.links.map((l) => l.kind)));
+  const kinds = new Set(pages.flatMap((p) => p.links.map((l) => l.kind)));
   assert.ok(kinds.has('nav'), '含 nav 连线');
   assert.ok(kinds.has('modal'), '含 modal 连线');
   assert.ok(kinds.has('api'), '含 api 连线');
   // links 按 (kind, to) 稳定排序
-  for (const p of manifest.pages) {
+  for (const p of pages) {
     const sorted = [...p.links].sort((a, b) =>
       a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : a.to < b.to ? -1 : a.to > b.to ? 1 : 0,
     );
@@ -199,7 +202,7 @@ test('A14 向后兼容：黄金夹具无 regions → 不产生分栏结构、man
   assert.ok(!html.includes('class="wf-cols"'), '未声明 regions 的页面不出现分栏容器');
   assert.ok(!html.includes('class="wf-col"'), '未声明 regions 的页面不出现列');
   const manifest = JSON.parse(await readFile(path.join(root, manifestRel), 'utf8'));
-  for (const p of manifest.pages) {
+  for (const p of manifest.apps.admin.pages) {
     assert.ok(!('regions' in p), `${p.id} 不应写入 regions 键`);
   }
 });
@@ -235,7 +238,7 @@ test('A14 分栏渲染：声明 regions → 原型按列、审计视图出版面
   assert.ok(review.includes('class="sk-cols"'), '草图含分栏带');
 
   const manifest = JSON.parse(await readFile(path.join(dir, manifestRel), 'utf8'));
-  const p1 = manifest.pages.find((p) => p.id === 'PAGE-01');
+  const p1 = manifest.apps.admin.pages.find((p) => p.id === 'PAGE-01');
   assert.equal(p1.regions[0].columns.length, 2, 'manifest 透传 regions 的列');
 });
 
@@ -314,4 +317,68 @@ test('render-matrix：生成的矩阵能通过 V-COV-01', async () => {
   assert.equal(vima(root, 'render-matrix').status, 0);
   const r = vima(root, 'validate', '--artifact', 'docs/coverage-matrix.md');
   assert.equal(r.status, 0, `stderr: ${r.stderr}\nstdout: ${r.stdout}`);
+});
+
+// ── A16 多端渲染（golden-multi：admin-web + mp-native 双端）──────────────────
+
+const GOLDEN_MULTI = path.join(CLI_ROOT, 'tests', 'fixtures', 'golden-multi');
+
+test('A16 多端原型：双端各一份产物、mp 端手机壳 + tabbar、manifest 顶层双端', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c4-multi-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(GOLDEN_MULTI, dir, { recursive: true });
+  const r = vima(dir, 'render-prototype');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+  const adminHtml = await readFile(path.join(dir, 'docs/review/prototype.admin.html'), 'utf8');
+  const patientHtml = await readFile(path.join(dir, 'docs/review/prototype.patient.html'), 'utf8');
+  // admin 端：桌面侧栏外壳，只含本端页面
+  assert.ok(adminHtml.includes('wf-side'), 'admin 端保留桌面侧栏外壳');
+  assert.ok(adminHtml.includes('id="page-PAGE-01"'), 'admin 端含 PAGE-01');
+  assert.ok(!adminHtml.includes('id="page-PAGE-11"'), 'admin 端不得混入患者页');
+  // patient 端：手机壳 + tabbar（本端 menus），mp 词渲染
+  assert.ok(patientHtml.includes('class="wf-phone"'), 'patient 端出手机壳');
+  assert.ok(patientHtml.includes('wf-tabbar'), 'patient 端出 tabbar');
+  assert.ok(patientHtml.includes('id="page-PAGE-11"') && patientHtml.includes('id="page-PAGE-12"'));
+  assert.ok(!patientHtml.includes('id="page-PAGE-01"'), 'patient 端不得混入后台页');
+  assert.ok(patientHtml.includes('wf-list'), 'mp 词 list 有特化渲染');
+  assert.ok(patientHtml.includes('wf-actionbar'), 'mp 词 actionbar 渲染');
+  // manifest：单文件顶层双端
+  const manifest = JSON.parse(await readFile(path.join(dir, 'docs/review/prototype.manifest.json'), 'utf8'));
+  assert.deepEqual(Object.keys(manifest.apps).sort(), ['admin', 'patient']);
+  assert.equal(manifest.apps.patient.pages.length, 2);
+
+  // 字节确定性：重渲逐字节一致 + --check 通过
+  const first = { a: adminHtml, p: patientHtml };
+  assert.equal(vima(dir, 'render-prototype').status, 0);
+  assert.equal(await readFile(path.join(dir, 'docs/review/prototype.admin.html'), 'utf8'), first.a);
+  assert.equal(await readFile(path.join(dir, 'docs/review/prototype.patient.html'), 'utf8'), first.p);
+  assert.equal(vima(dir, 'render-prototype', '--check').status, 0);
+
+  // 多端全量 + --output → usage exit 3；--app 单端渲染合法
+  assert.equal(vima(dir, 'render-prototype', '--output', 'x.html').status, 3);
+  const single = vima(dir, 'render-prototype', '--app', 'patient');
+  assert.equal(single.status, 0, `stderr: ${single.stderr}`);
+  assert.equal(vima(dir, 'render-prototype', '--app', 'ghost').status, 3);
+});
+
+test('A16 多端审计视图：单文件、端徽标 + 页面按端分章；矩阵首列端', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c4-multi-rev-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(GOLDEN_MULTI, dir, { recursive: true });
+  assert.equal(vima(dir, 'render-review').status, 0);
+  const review = await readFile(path.join(dir, 'docs/review/index.html'), 'utf8');
+  assert.ok(review.includes('class="app-tag"'), '端徽标存在');
+  assert.ok(review.includes('端：patient'), '页面详情按端分章');
+  assert.ok(review.includes('端：admin'), '页面详情按端分章（admin）');
+
+  assert.equal(vima(dir, 'render-matrix', '--check').status, 0, '夹具矩阵与生成器无漂移');
+});
+
+test('A16 单端回归：黄金夹具原型不出现手机壳/端徽标/端分组（零扰动）', async () => {
+  const proto = await readFile(path.join(root, protoRel), 'utf8');
+  assert.ok(!proto.includes('class="wf-phone"'), '单端不出手机壳节点');
+  const review = await readFile(path.join(root, reviewRel), 'utf8');
+  assert.ok(!review.includes('class="app-tag"'), '单端不出端徽标');
+  assert.ok(!review.includes('class="app-group"'), '单端不出端分组标题');
 });

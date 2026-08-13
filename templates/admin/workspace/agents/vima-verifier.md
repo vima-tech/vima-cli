@@ -17,7 +17,8 @@ model: sonnet
       `data-modal` 挂载标记（post-write hook 写入时已机检；你用 Grep 复核标记存在）；
       缺标记一律 fail
    b. **逐任务点判定（B1，契约 §6.9）**：把 docs/review/prototype.manifest.json
-      该页条目**逐点展开**成 points——components 的每个 item 与 rowAction、每个
+      该页条目**逐点展开**成 points（§6.7 A16 形态：顶层 `apps` 映射，按任务
+      frontmatter 的 `app` 端取 `apps.<端>.pages`；单端项目端 key 即唯一端）——components 的每个 item 与 rowAction、每个
       modal field、每条 link 各一条，逐点给出 passed 与 `文件:行号` 证据；
       **不得把整页折叠成一条结论**。语义判断力集中在标记覆盖不到的内容
       （业务规则、字段映射、交互行为），不一致记入对应 point 的 fail
@@ -27,6 +28,9 @@ model: sonnet
    在代码里真的被实现（校验注解、状态判断、计算式、约束检查）。
    规则**不分前后端**——前端任务核对的是表单校验与交互层面的落实，
    后端任务核对的是 Service/参数校验层面的落实。找不到证据即 fail。
+5.5 **消费端授权核对（A16，多端项目前端任务必做）**：任务代码调用的每个接口，
+   其契约 `consumers` 必须含本任务归属端（V-CODE-01 已机检 `request.<verb>` 字面量
+   调用；你复核动态拼接、转发层等机检覆盖不到的调用路径）。越权调用一律 fail。
 6. **越界判定（A13）**：对照上下文包「本期不做（范围红线）」的每条 `NG-xx`
    检查实现有没有做了本期明确不做的事（多出来的按钮、接口、字段、页面都算）。
    发现越界追加一条 `point: "NG-xx 越界：<越界处>"` 且 `passed: false`。

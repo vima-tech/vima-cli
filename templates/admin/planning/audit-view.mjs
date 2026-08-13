@@ -81,7 +81,19 @@ function collectPending(spec) {
  * @returns {string} 单文件 HTML（末尾单个换行）
  */
 export function renderReview(model) {
-  const { projectName, spec, contracts } = model;
+  const { projectName, spec, contracts, apps = null } = model;
+  // A16 多端：端归属（与 lib/model/apps.mjs appOf 同口径）+ 端徽标（单端不渲染，字节零扰动）
+  const multi = Boolean(apps?.multi);
+  const appIdOf = (entry) => {
+    if (entry && typeof entry.app === 'string' && entry.app !== '') return entry.app;
+    return apps && apps.apps?.length === 1 ? apps.apps[0].id : null;
+  };
+  const appNameOf = (id) => apps?.apps.find((a) => a.id === id)?.name ?? id;
+  const appTag = (entry) => {
+    if (!multi) return '';
+    const id = appIdOf(entry);
+    return id ? `<span class="app-tag" title="${esc(appNameOf(id))}">${esc(id)}</span>` : '';
+  };
   const pages = [...spec.pages.keys()].sort().map((id) => spec.pages.get(id));
   const roles = spec.roles ?? [];
   const menus = spec.menus ?? [];
@@ -190,7 +202,7 @@ ${nonGoals.length === 0
         .map((r) => `<td class="c">${(r.menus ?? []).includes(m.id) ? '✅' : '<span class="dim">—</span>'}</td>`)
         .join('');
       const tag = blind ? '<span class="blind-tag">⚠️ 权限盲区（已声明 uncovered）</span>' : '';
-      return `<tr${blind ? ' class="blind"' : ''}><td>${menuLink(m.id)}${tag}</td>${cells}</tr>`;
+      return `<tr${blind ? ' class="blind"' : ''}><td>${menuLink(m.id)}${appTag(m)}${tag}</td>${cells}</tr>`;
     })
     .join('\n');
   const viewRoles = `<section class="view" id="view-roles">
@@ -210,7 +222,7 @@ ${matrixRows}
         .map((f) => `<tr><td>${esc(f.name)}${pend(f)}</td><td>${apiBadge(f.api, contractByKey)}</td></tr>`)
         .join('\n');
       return `<article class="card" id="${esc(m.id)}">
-<h3>${esc(m.name)}<span class="tid">${esc(m.id)}</span>${pend(m)}</h3>
+<h3>${esc(m.name)}<span class="tid">${esc(m.id)}</span>${appTag(m)}${pend(m)}</h3>
 <p class="meta">承载页面：${pageLink(m.page)}${m.uncovered ? '<span class="blind-tag">⚠️ 权限盲区（已声明 uncovered）</span>' : ''}</p>
 ${feats ? `<div class="tw"><table><thead><tr><th>功能点</th><th>接口</th></tr></thead><tbody>\n${feats}\n</tbody></table></div>` : '<p class="dim">（未声明功能点）</p>'}
 </article>`;
@@ -227,7 +239,7 @@ ${menuCards}
     .map((f) => {
       const steps = (f.steps ?? [])
         .map(
-          (s) => `<li><span class="lane-role">${roleLink(s.role)}</span><span class="lane-arrow">→</span>${pageLink(s.page)}<span class="lane-action">${esc(s.action)}</span>${s.api ? apiBadge(s.api, contractByKey) : ''}${s.next ? `<span class="lane-arrow">→</span>${pageLink(s.next)}` : ''}</li>`,
+          (s) => `<li><span class="lane-role">${roleLink(s.role)}</span><span class="lane-arrow">→</span>${pageLink(s.page)}${appTag(spec.pages.get(s.page))}<span class="lane-action">${esc(s.action)}</span>${s.api ? apiBadge(s.api, contractByKey) : ''}${s.next ? `<span class="lane-arrow">→</span>${pageLink(s.next)}` : ''}</li>`,
         )
         .join('\n');
       return `<article class="card" id="${esc(f.id)}">
@@ -244,8 +256,28 @@ ${steps}
 ${flowCards}
 </section>`;
 
-  // ── ④ 页面 UI 详情：每页一卡 ──
-  const pageCards = pages.map((p) => renderPageCard(p, { contractByKey, menuLink, pageLink })).join('\n');
+  // ── ④ 页面 UI 详情：每页一卡；A16 多端时按端分章（端分组标题 + (端,id) 排序）──
+  let pageCards;
+  if (multi) {
+    const sorted = [...pages].sort((a, b) => {
+      const aa = appIdOf(a) ?? '';
+      const ba = appIdOf(b) ?? '';
+      return aa < ba ? -1 : aa > ba ? 1 : a.id < b.id ? -1 : 1;
+    });
+    const chunks = [];
+    let cur = null;
+    for (const p of sorted) {
+      const aid = appIdOf(p) ?? '(未归属端)';
+      if (aid !== cur) {
+        cur = aid;
+        chunks.push(`<h3 class="app-group">端：${esc(aid)}（${esc(appNameOf(aid))}）</h3>`);
+      }
+      chunks.push(renderPageCard(p, { contractByKey, menuLink, pageLink }));
+    }
+    pageCards = chunks.join('\n');
+  } else {
+    pageCards = pages.map((p) => renderPageCard(p, { contractByKey, menuLink, pageLink })).join('\n');
+  }
   const viewPages = `<section class="view" id="view-pages">
 <h2><span class="num">④</span>页面 UI 详情</h2>
 <p class="vd">每页一张卡：版面草图 / 组件清单 / 交互列表 / 接口映射 / 弹窗定义——细致到程序员可直接实现的精度。布局与交互手感请配合线框原型（docs/review/prototype.html）体验。</p>

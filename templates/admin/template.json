@@ -24,11 +24,17 @@
     { "tool": "maven", "check": "mvn --version", "constraint": ">=3.9", "optional": true,
       "hint": "缺失不阻断：backend/mvnw 首次运行会自动下载 Maven（需联网）" }
   ],
-  "scaffold": { ".": "scaffold/frontend", "backend": "scaffold/backend" },
-  "sharedDirs": ["src/components", "src/utils", "vendor",
-                 "backend/src/main/java/com/{{projectPkg}}/config",
-                 "backend/src/main/java/com/{{projectPkg}}/security"],
-  "codeDirs": ["src", "backend/src"],
+  "apps": [
+    { "id": "admin", "name": "管理后台", "kind": "admin-web", "default": true,
+      "scaffold": "scaffold/frontend", "uiDocs": "ui-docs", "codeDir": "src",
+      "sharedDirs": ["src/components", "src/utils", "vendor"] },
+    { "id": "patient", "name": "患者端", "kind": "mp-native",
+      "scaffold": "scaffold/mp-native", "uiDocs": "ui-docs-mp", "codeDir": "src",
+      "sharedDirs": ["src/components", "src/utils"] }
+  ],
+  "backend": { "scaffold": "scaffold/backend", "dir": "backend",
+               "sharedDirs": ["src/main/java/com/{{projectPkg}}/config",
+                              "src/main/java/com/{{projectPkg}}/security"] },
   "planning": {
     "guide": "planning/planning-guide.md",
     "spec": "planning/spec.admin.md",
@@ -39,6 +45,12 @@
     "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md"],
     "renderers": { "review": "planning/audit-view.mjs", "prototype": "planning/prototype.mjs" },
     "prototype": true,
+    "kinds": {
+      "admin-web": { "layoutVocab": ["toolbar", "search", "table", "form", "cards", "tabs", "pagination"],
+                     "regions": true, "shell": "desktop-admin", "status": "stable" },
+      "mp-native": { "layoutVocab": ["search", "list", "cards", "form", "tabs", "banner", "detail", "actionbar"],
+                     "regions": false, "shell": "phone-tabbar", "status": "preview" }
+    },
     "goPrerequisites": ["docs/spec.md", "docs/contracts", "docs/tasks/README.md",
                         "docs/coverage-matrix.md", "docs/review/index.html",
                         "docs/review/prototype.html"]

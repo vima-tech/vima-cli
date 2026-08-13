@@ -94,7 +94,7 @@ test('doctor：hooks 缺可执行位 → ⑦ ❌ 且 exit 2', async (t) => {
   assert.match(lineOf(proc.stdout, '⑦ hooks'), /^❌/);
 });
 
-test('doctor --json：结构化输出（10 个检查项 + pass 标志）', async (t) => {
+test('doctor --json：结构化输出（11 个检查项 + pass 标志，A16 增端册项）', async (t) => {
   const tmp = await makeProject(t);
   const proc = runCli(tmp, ['doctor', '--json']);
   assert.equal(proc.status, 0, `stdout: ${proc.stdout}`);
@@ -102,7 +102,7 @@ test('doctor --json：结构化输出（10 个检查项 + pass 标志）', async
   assert.equal(report.schemaVersion, '1');
   assert.equal(report.vimaProject, true);
   assert.equal(report.pass, true);
-  assert.equal(report.checks.length, 10);
+  assert.equal(report.checks.length, 11); // A16：⑪ 端册完整性
   for (const c of report.checks) {
     assert.ok(['ok', 'warn', 'error'].includes(c.status), `非法 status: ${c.status}`);
     assert.equal(typeof c.detail, 'string');

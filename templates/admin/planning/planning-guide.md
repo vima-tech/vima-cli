@@ -44,11 +44,17 @@ admin 模板骨架自带完整系统底座，**PLANNING 终点清单只覆盖业
 - **A. 业务全貌**：系统定位、用户角色、功能模块、核心业务流程（含每条流程串联的页面链路与涉及角色）。
 - **B. 数据模型**：核心实体、字段定义、实体关系、字典/枚举值。
 - **C. 页面与交互**：页面清单、页面类型；**每个页面必须达到页面级粒度**——
-  布局拆分（只用枚举区块词表：`toolbar/search/table/form/cards/tabs/pagination`）、
+  多端项目（A16 端册 >1 端）每个页面块**必须带 `app` 键**声明归属端（V-SPEC-13），
+  且每个端至少一个页面（V-SPEC-14）；`nav` 只能指向同端页面，跨端交接写进 `vima:flow`。
+  布局拆分只用**归属端 kind 的枚举词表**（admin-web：`toolbar/search/table/form/cards/tabs/pagination`；
+  mp-native：`search/list/cards/form/tabs/banner/detail/actionbar`，分栏 `regions` 仅桌面端可用）、
   组件清单（搜索框/表格/功能按钮/弹窗及其位置，弹窗带 `MODAL-xx` ID）、
   交互设计（限定三种：`nav` 跳转引用 `PAGE-xx`、`modal` 弹窗引用 `MODAL-xx`、`api` 接口标注）、
   对应接口。细致到程序员可直接实现的精度。
 - **D. 接口定义**：每个页面的数据接口（路径、方法、参数、响应结构）→ 沉淀为契约文件。
+  多端项目每个 api **必须带非空 `consumers`**（⊆ 端册，V-CON-07）——患者端能不能调
+  这个接口是设计期就要拍死的授权边界；**不同端需要不同数据形状 ⇒ 拆成不同端点**
+  （A16 契约纪律，不做 per-consumer 响应变体）。
 - **E. 业务规则**：校验规则、状态流转、计算规则、约束条件——**逐条结构化写入
   `vima:rules` 数据块**（A13），每条带 `id: RULE-xx`、`type`（四类恰好对应本项四种：
   `validation`/`transition`/`calculation`/`constraint`）、`entity`（必填，须是
@@ -57,7 +63,9 @@ admin 模板骨架自带完整系统底座，**PLANNING 终点清单只覆盖业
   但**机器真源是数据块**——它同时喂给 `vima context`（Builder 施工时逐条可见）
   与 Verifier（逐条核对是否实现）。
 - **F. 权限设计**：角色清单、**每个角色的菜单权限清单**、操作权限、数据权限；
-  无任何角色覆盖的菜单必须显式标记 `uncovered: true`。
+  无任何角色覆盖的菜单必须显式标记 `uncovered: true`。多端项目每条菜单带 `app` 键
+  （menu.page 须同端）；**mobile 端的「菜单」即 tabbar（3–5 项）**，同一模型两种外壳投影，
+  原型会把它渲染成手机底部导航。
 - **G. 技术约束**：前后端技术栈、脚手架命令、UI 框架信息。
 - **H. 本期不做**（A13）：明确问出**本期边界之外**的东西，写入第九章 `vima:non-goals`
   数据块，每条带 `id: NG-xx` + `desc`。提问方式：用户描述完一个模块后追问

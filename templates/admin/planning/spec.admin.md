@@ -36,7 +36,11 @@ enums:
 
 <!-- 填写提示：每个页面一个小节（### PAGE-xx 页面名）+ 一块 vima:page。
      页面级粒度四要素缺一不可（V-SPEC-03）：layout / components / 交互 / apis。
-     - layout 与 components[].block 只用词表：toolbar|search|table|form|cards|tabs|pagination（V-SPEC-04）
+     - 多端项目（A16）：每块必带 app: <端 id>（∈ 端册，V-SPEC-13）；每端 ≥1 页（V-SPEC-14）；
+       nav 只指向同端页面（跨端交接写 vima:flow）
+     - layout 与 components[].block 只用归属端 kind 的词表（V-SPEC-04，planning.kinds 同源）：
+       admin-web = toolbar|search|table|form|cards|tabs|pagination
+       mp-native = search|list|cards|form|tabs|banner|detail|actionbar（regions 不可用）
      - 交互仅三种：action: nav（target=PAGE-xx）、action: modal（target=本页 modals 中的 MODAL-xx）、
        action: api（api="METHOD /path"）（V-SPEC-05）
      - apis 必须 ⊆ 契约 apis（V-SPEC-07）

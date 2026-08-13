@@ -80,7 +80,7 @@ test('④render 双产物 + --check 无漂移（确定性渲染）', async () =>
   const html = await readFile(path.join(proj, 'docs/review/index.html'), 'utf8');
   assert.ok(!/https?:\/\//.test(html), '审计视图不得有外部请求（§13.2）');
   const manifest = JSON.parse(await readFile(path.join(proj, 'docs/review/prototype.manifest.json'), 'utf8'));
-  assert.equal(manifest.pages[0].id, 'PAGE-01');
+  assert.equal(manifest.apps.admin.pages[0].id, 'PAGE-01'); // A16 §6.7 新形态（N=1 亦然）
   assert.equal(vima(['render-review', '--check']).code, 0, '--check 应通过');
   assert.equal(vima(['render-prototype', '--check']).code, 0, '--check 应通过');
 });
@@ -144,4 +144,50 @@ test('⑩update：手改受管文件 → 旁路 .vima-new、原文件保留（§
   assert.ok(!nv.includes('user tweak'), '.vima-new 应为纯净模板新版本');
   const tweaked = await readFile(target, 'utf8');
   assert.match(tweaked, /user tweak/, '用户修改过的原文件不得被覆盖');
+});
+
+// ── A16 多端黄金链路（golden-multi：一后端 × admin-web + mp-native 双前端）──
+
+test('A16 多端链路：validate→render×3→sync→plan→trace→approve 全绿；doctor 端册项按阶段判级', async (t) => {
+  const { mkdtemp, cp, rm, readFile: rf } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-e2e-multi-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(path.join(CLI_ROOT, 'tests', 'fixtures', 'golden-multi'), dir, { recursive: true });
+  const run = (args) => {
+    const r = spawnSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: 'utf8' });
+    return { code: r.status, out: `${r.stdout}\n${r.stderr}` };
+  };
+
+  assert.equal(run(['validate']).code, 0, 'validate 全绿');
+  assert.equal(run(['render-review']).code, 0);
+  assert.equal(run(['render-prototype']).code, 0);
+  assert.equal(run(['render-matrix', '--check']).code, 0, '夹具矩阵与生成器无漂移');
+  assert.equal(run(['sync']).code, 0);
+  assert.equal(run(['plan']).code, 0);
+  assert.equal(run(['trace']).code, 0, 'trace 扫描端册目录（apps/patient/src 含标注）');
+  assert.equal(run(['approve']).code, 0, 'approve 逐端新鲜度全过');
+  const lc = JSON.parse(await rf(path.join(dir, 'docs/lifecycle.json'), 'utf8'));
+  assert.equal(lc.checklists.PLANNING.tasksApproved, true);
+
+  // trace 报告确认患者端标注被扫到（V-CODE 扫描面 = 端册目录，非字面量 'src'）
+  const traceReport = JSON.parse(await rf(path.join(dir, '.vima/reports/trace.json'), 'utf8'));
+  assert.ok(
+    traceReport.markers.some((m) => m.file.startsWith('apps/patient/src/')),
+    'apps/patient 的 @vima 标注在扫描面内',
+  );
+
+  // sync 生成的任务 README 含端列与端标注
+  const readme = await rf(path.join(dir, 'docs/tasks/README.md'), 'utf8');
+  assert.ok(readme.includes('| 端 |'), '任务总表含端列');
+  assert.ok(readme.includes('［patient］'), '批次视图含端标注');
+
+  // doctor：⑪ 端册项在 PLANNING 期对 preview 骨架缺失只 warn（不假阻塞）；
+  // 本夹具无 .claude（未 init），⑥ 为 error 属预期——断言 ⑪ 不是 error 即可
+  const doctor = run(['doctor', '--json']);
+  const report = JSON.parse(doctor.out.slice(doctor.out.indexOf('{')));
+  const apps = report.checks.find((c) => c.id === 'apps');
+  assert.ok(apps, 'doctor 含端册检查项');
+  assert.notEqual(apps.status, 'error', 'PLANNING 期 preview 骨架缺失不得 error（不假阻塞）');
+  assert.match(apps.detail, /patient/, '端册项如实报告 patient 端骨架状态');
 });

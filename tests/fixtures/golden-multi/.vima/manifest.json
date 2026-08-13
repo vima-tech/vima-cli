@@ -1,0 +1,32 @@
+{
+  "apps": [
+    {
+      "codeDir": "src",
+      "dir": ".",
+      "id": "admin",
+      "kind": "admin-web",
+      "name": "院内管理后台",
+      "sharedDirs": ["src/components", "src/utils", "vendor"]
+    },
+    {
+      "codeDir": "src",
+      "dir": "apps/patient",
+      "id": "patient",
+      "kind": "mp-native",
+      "name": "患者端小程序",
+      "sharedDirs": ["src/components", "src/utils"]
+    }
+  ],
+  "backend": {
+    "dir": "backend",
+    "sharedDirs": ["src/main/java/demo/config", "src/main/java/demo/security"]
+  },
+  "createdAt": "2026-08-13T09:00:00Z",
+  "files": {
+    "managed": [],
+    "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/contracts/", "docs/tasks/", "docs/raw/", "docs/coverage-matrix.md"]
+  },
+  "schemaVersion": "2",
+  "templateId": "admin",
+  "vimaVersion": "2.0.3"
+}

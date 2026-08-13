@@ -721,3 +721,165 @@ test('V-SRC-01：配置 endpointAnchor 后，契约外端点 → warn；未配�
     '锚点里有的端点不应被点名',
   );
 });
+
+// ── A16 多端规则（golden-multi 双端夹具：admin-web + mp-native）──────────────
+
+const GOLDEN_MULTI = path.join(CLI_ROOT, 'tests', 'fixtures', 'golden-multi');
+
+async function cloneMulti(t) {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-c3-multi-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await cp(GOLDEN_MULTI, root, { recursive: true });
+  return root;
+}
+
+test('golden-multi 双端夹具全绿（A16 基线）', async (t) => {
+  const root = await cloneMulti(t);
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+});
+
+test('V-SPEC-13：患者页删掉 app 键（多端必填）→ exit 2；app 指向端册外 → exit 2', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/spec.md', 'id: PAGE-11\napp: patient', 'id: PAGE-11');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-SPEC-13/);
+  assert.match(r.stderr, /PAGE-11 缺少 app 键/);
+
+  const root2 = await cloneMulti(t);
+  await mutate(root2, 'docs/spec.md', 'id: PAGE-11\napp: patient', 'id: PAGE-11\napp: ghost');
+  const r2 = vima(root2, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r2.code, 2);
+  assert.match(r2.stderr, /V-SPEC-13/);
+  assert.match(r2.stderr, /不在端册/);
+});
+
+test('V-SPEC-13：nav 跨端指向 → exit 2（跨端交接只能走 vima:flow）', async (t) => {
+  const root = await cloneMulti(t);
+  // 患者端 PAGE-12 的「再次预约」改为指向 admin 端 PAGE-01
+  await mutate(root, 'docs/spec.md',
+    '- { label: 再次预约, action: nav, target: PAGE-11 }',
+    '- { label: 再次预约, action: nav, target: PAGE-01 }');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-SPEC-13/);
+  assert.match(r.stderr, /跨端指向/);
+});
+
+test('V-SPEC-14：端册有端而 spec 无其页面 → exit 2（入册未设计）', async (t) => {
+  const root = await cloneMulti(t);
+  // 把患者端两个页面都改挂到 admin —— patient 端零页面
+  await mutate(root, 'docs/spec.md', 'id: PAGE-11\napp: patient', 'id: PAGE-11\napp: admin');
+  await mutate(root, 'docs/spec.md', 'id: PAGE-12\napp: patient', 'id: PAGE-12\napp: admin');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2, `stderr: ${r.stderr}`);
+  assert.match(r.stderr, /V-SPEC-14/);
+  assert.match(r.stderr, /patient/);
+});
+
+test('V-SPEC-04 端化：mp 端页面用桌面词 table → exit 2 且报该端词表', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/spec.md', 'layout: [search, list]', 'layout: [search, table]');
+  await mutate(root, 'docs/spec.md', '  - block: list\n    api: GET /api/app/appointment/mine',
+    '  - block: table\n    api: GET /api/app/appointment/mine');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-SPEC-04/);
+  assert.match(r.stderr, /banner/); // 报错里带 mp-native 词表
+});
+
+test('V-SPEC-12 端化：mp 端页面声明 regions → exit 2（kind 门控）', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/spec.md', 'layout: [banner, form, actionbar]',
+    'layout: [banner, form, actionbar]\nregions:\n  - { blocks: [banner, form, actionbar] }');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-SPEC-12/);
+  assert.match(r.stderr, /不支持 regions/);
+});
+
+test('V-CON-07：api 缺 consumers（多端必填）→ exit 2；页面引用未授权接口 → exit 2 越权', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/contracts/appointment-api.md',
+    '    path: /api/app/appointment/mine\n    consumers: [patient]',
+    '    path: /api/app/appointment/mine');
+  const r = vima(root, 'validate', '--artifact', 'docs/contracts');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-CON-07/);
+  assert.match(r.stderr, /缺少非空 consumers/);
+
+  // 患者页引用 admin 专属接口 → 越权引用
+  const root2 = await cloneMulti(t);
+  await mutate(root2, 'docs/spec.md', 'apis: [POST /api/app/appointment]',
+    'apis: [POST /api/app/appointment, GET /api/admin/appointment/list]');
+  const r2 = vima(root2, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r2.code, 2);
+  assert.match(r2.stderr, /V-CON-07/);
+  assert.match(r2.stderr, /越权引用/);
+});
+
+test('V-SPEC-08 端化：患者菜单功能点挂 admin 专属接口 → exit 2', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/spec.md',
+    '- { name: 预约记录, api: GET /api/app/appointment/mine }',
+    '- { name: 预约记录, api: GET /api/admin/appointment/list }');
+  const r = vima(root, 'validate', '--artifact', 'docs/spec.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-SPEC-08/);
+  assert.match(r.stderr, /未授权接口/);
+});
+
+test('V-TASK-10：fe 任务缺 app / backend 任务带 app / 任务页跨端 → exit 2', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/tasks/appointment-patient-fe.md', 'app: patient\n', '');
+  const r = vima(root, 'validate', '--artifact', 'docs/tasks');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-TASK-10/);
+  assert.match(r.stderr, /缺少 app 字段/);
+
+  const root2 = await cloneMulti(t);
+  await mutate(root2, 'docs/tasks/appointment-be.md', 'side: backend\n', 'side: backend\napp: admin\n');
+  const r2 = vima(root2, 'validate', '--artifact', 'docs/tasks');
+  assert.equal(r2.code, 2);
+  assert.match(r2.stderr, /V-TASK-10/);
+  assert.match(r2.stderr, /backend 任务/);
+
+  const root3 = await cloneMulti(t);
+  await mutate(root3, 'docs/tasks/appointment-patient-fe.md', 'page: PAGE-11', 'page: PAGE-01');
+  const r3 = vima(root3, 'validate', '--artifact', 'docs/tasks');
+  assert.equal(r3.code, 2);
+  assert.match(r3.stderr, /V-TASK-10/);
+  assert.match(r3.stderr, /另一端的页面/);
+});
+
+test('V-CON-03 端化：消费端 patient 无该端 fe 任务 → exit 2（谁消费谁承接）', async (t) => {
+  const root = await cloneMulti(t);
+  // 把患者端任务改归 admin 端（page 一并改避免 V-TASK-10 先响）
+  await mutate(root, 'docs/tasks/appointment-patient-fe.md', 'app: patient', 'app: admin');
+  await mutate(root, 'docs/tasks/appointment-patient-fe.md', 'page: PAGE-11\n', '');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-CON-03/);
+  assert.match(r.stderr, /消费端 patient/);
+});
+
+test('V-CODE-01 端化：患者端代码越权调用 /api/admin/** → exit 2；扫描范围含 apps/<id>/', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'apps/patient/src/api/appointment.ts',
+    "request.get('/api/app/appointment/mine'", "request.get('/api/admin/appointment/list'");
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-CODE-01/);
+  assert.match(r.stderr, /越权调用/);
+  assert.match(r.stderr, /apps\/patient/);
+});
+
+test('V-COV-01 端化：多端矩阵首列非「端」→ exit 2', async (t) => {
+  const root = await cloneMulti(t);
+  await mutate(root, 'docs/coverage-matrix.md', '| 端 | 需求 |', '| 需求域 | 需求 |');
+  const r = vima(root, 'validate', '--artifact', 'docs/coverage-matrix.md');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /V-COV-01/);
+  assert.match(r.stderr, /首列须为「端」/);
+});

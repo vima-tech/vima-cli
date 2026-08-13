@@ -46,11 +46,12 @@ function nearestIcons(name, iconNames) {
     .map((x) => x.candidate);
 }
 
-/** vendor ai-manifest 的图标名全集（含别名，统一小写）；读不到返回 null 表示跳过。 */
-function loadIconNames(root) {
+/** vendor ai-manifest 的图标名全集（含别名，统一小写）；读不到返回 null 表示跳过。
+ *  A16：vendor 在归属端的 dir 下（单端根布局 appDir=''，多端 apps/<id>/）。 */
+function loadIconNames(root, appDir = '') {
   try {
     const manifest = JSON.parse(
-      readFileSync(path.join(root, 'vendor', 'vima-ui-admin', 'dist', 'ai-manifest.json'), 'utf8'),
+      readFileSync(path.join(root, appDir, 'vendor', 'vima-ui-admin', 'dist', 'ai-manifest.json'), 'utf8'),
     );
     if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) return null;
     const names = new Set();
@@ -105,10 +106,34 @@ process.stdin.on('end', () => {
     process.exit(0);
   }
 
-  // 仅检查前端业务代码
+  // 仅检查前端业务代码。A16 端册化：归属判定读 manifest 端册各端 <dir>/<codeDir>/ 前缀
+  //（v1 manifest / 无 manifest 回退 'src/'，与 guard-shared 同款回退口径）
   let rel = path.isAbsolute(filePath) ? path.relative(root, filePath) : filePath;
   rel = rel.split(path.sep).join('/').replace(/^\.\//, '');
-  if (!rel.startsWith('src/') || !/\.(vue|ts|tsx)$/.test(rel)) process.exit(0);
+  let vimaManifest = null;
+  try {
+    vimaManifest = JSON.parse(readFileSync(path.join(root, '.vima', 'manifest.json'), 'utf8'));
+  } catch {
+    /* 缺失/损坏 → 回退面 */
+  }
+  let appId = null;   // 归属端 id（新形态 manifest 对账用）
+  let appDir = '';    // 归属端 dir（vendor ai-manifest 路径用；'' = 项目根）
+  let inScope = false;
+  if (vimaManifest && Array.isArray(vimaManifest.apps)) {
+    for (const a of vimaManifest.apps) {
+      const base = !a.dir || a.dir === '.' ? '' : `${String(a.dir).replace(/\/+$/, '')}/`;
+      const codeDir = typeof a.codeDir === 'string' && a.codeDir !== '' ? a.codeDir : 'src';
+      if (rel.startsWith(`${base}${codeDir}/`)) {
+        inScope = true;
+        appId = typeof a.id === 'string' ? a.id : null;
+        appDir = base;
+        break;
+      }
+    }
+  } else {
+    inScope = rel.startsWith('src/');
+  }
+  if (!inScope || !/\.(vue|ts|tsx)$/.test(rel)) process.exit(0);
 
   let text;
   try {
@@ -178,7 +203,7 @@ process.stdin.on('end', () => {
 
   // ── 4. VIcon 图标名机检（静态字面量；:name 动态绑定不查）──
   if (isVue) {
-    const iconNames = loadIconNames(root);
+    const iconNames = loadIconNames(root, appDir);
     if (iconNames) {
       const bad = new Set();
       const re = /<VIcon\b[^>]*?\s(?:name|type)="([^"]+)"/g;
@@ -217,8 +242,19 @@ process.stdin.on('end', () => {
     } catch {
       /* 原型尚未渲染，跳过本项 */
     }
-    if (manifest && Array.isArray(manifest.pages)) {
-      const page = manifest.pages.find((p) => p && p.id === pageM[1]);
+    // §6.7 A16 新形态：顶层 apps map（按归属端取，取不到时扫全部端）；兼容旧 pages 数组
+    let pageList = null;
+    if (manifest && manifest.apps && typeof manifest.apps === 'object') {
+      if (appId && manifest.apps[appId] && Array.isArray(manifest.apps[appId].pages)) {
+        pageList = manifest.apps[appId].pages;
+      } else {
+        pageList = Object.values(manifest.apps).flatMap((a) => (Array.isArray(a?.pages) ? a.pages : []));
+      }
+    } else if (manifest && Array.isArray(manifest.pages)) {
+      pageList = manifest.pages;
+    }
+    if (pageList) {
+      const page = pageList.find((p) => p && p.id === pageM[1]);
       if (!page) {
         console.error(
           `区块标记对账：${rel} 声明 data-page="${pageM[1]}"，但 prototype.manifest.json 中无此页面。\n` +

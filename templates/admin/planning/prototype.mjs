@@ -11,8 +11,12 @@ import { readFileSync } from 'node:fs';
 // 骨架 + 全部内联 CSS/JS（弹窗事件委托 + noscript 平铺）由同目录 prototype.template.html 提供
 const TEMPLATE = readFileSync(new URL('./prototype.template.html', import.meta.url), 'utf8');
 
-// 布局区块枚举词表（V-SPEC-04 同源）
-const BLOCK_WORDS = new Set(['toolbar', 'search', 'table', 'form', 'cards', 'tabs', 'pagination']);
+// 已实现特化/样式渲染的区块词全集（合法性校验在 validate 按 kinds 配置执行，A16；
+// 此表只决定 wf-<word> 样式类与渲染分发，含 admin-web 7 词 + mp-native 新词）
+const BLOCK_WORDS = new Set([
+  'toolbar', 'search', 'table', 'form', 'cards', 'tabs', 'pagination',
+  'list', 'banner', 'detail', 'actionbar',
+]);
 
 /** HTML 转义：渲染器内所有数据出口必须经过它。 */
 function esc(v) {
@@ -58,8 +62,19 @@ function pend(o) {
  * @returns {{html: string, manifest: object}} html 末尾单个换行；manifest 为 §6.7 结构（对象，落盘由命令层 stableStringify）
  */
 export function renderPrototype(model) {
-  const { projectName, spec, contracts } = model;
-  const pages = [...spec.pages.keys()].sort().map((id) => spec.pages.get(id)); // pages 按 id 排序（字节稳定）
+  const { projectName, spec, contracts, apps = null, app = null } = model;
+  // A16 端归属（模板资产自足实现，与 lib/model/apps.mjs appOf 同口径：声明优先，单端 = 唯一端）
+  const appIdOf = (entry) => {
+    if (entry && typeof entry.app === 'string' && entry.app !== '') return entry.app;
+    return apps && apps.apps?.length === 1 ? apps.apps[0].id : null;
+  };
+  const multi = Boolean(apps?.multi);
+  const appEntry = app !== null && apps ? apps.apps.find((x) => x.id === app) ?? null : null;
+  const shell = (appEntry && apps.kinds?.[appEntry.kind]?.shell) || 'desktop-admin';
+  const appLabel = multi && appEntry ? `${appEntry.name ?? appEntry.id}` : null;
+
+  const allPages = [...spec.pages.keys()].sort().map((id) => spec.pages.get(id)); // pages 按 id 排序（字节稳定）
+  const pages = app === null ? allPages : allPages.filter((p) => appIdOf(p) === app); // A16：只渲染本端页面
 
   // 契约索引：接口键 → api 定义
   const contractByKey = new Map();
@@ -67,9 +82,13 @@ export function renderPrototype(model) {
     for (const a of c.apis ?? []) contractByKey.set(normApiKey(`${a.method} ${a.path}`), a);
   }
 
-  // ── 管理后台外壳数据：菜单树 + 角色归属（契约 §11「原型管理后台外壳」）──
-  const roles = Array.isArray(spec.roles) ? spec.roles : [];
-  const menus = Array.isArray(spec.menus) ? spec.menus : [];
+  // ── 外壳数据：菜单树 + 角色归属（契约 §11；A16 多端时菜单/角色按端过滤）──
+  const menusAll = Array.isArray(spec.menus) ? spec.menus : [];
+  const menus = app === null ? menusAll : menusAll.filter((m) => appIdOf(m) === app);
+  const menuIdSet = new Set(menus.map((m) => m.id));
+  const rolesAll = Array.isArray(spec.roles) ? spec.roles : [];
+  const roles =
+    app === null ? rolesAll : rolesAll.filter((r) => (Array.isArray(r.menus) ? r.menus : []).some((mid) => menuIdSet.has(mid)));
   const rolesOfMenu = (menuId) =>
     roles.filter((r) => (Array.isArray(r.menus) ? r.menus : []).includes(menuId));
   const pageOwnership = new Map(); // pageId → { menuId, roleIds: 'ROLE-01 ROLE-02' }
@@ -120,8 +139,30 @@ ${(spec.flows ?? []).length > 0 ? '<div class="wf-menu-group">对齐产物</div>
   const foot = `<footer class="wf-foot">单文件零外部请求 · 无时间戳、同一输入字节一致（<code>vima render-prototype --check</code> 可验漂移）。<br>
 机器对账基线见同目录 <code>prototype.manifest.json</code>（Verifier 只读它，不读本页面）。</footer>`;
 
-  const content = [aside, '<main class="wf-main">', head, sections, ...(flows ? [flows] : []), foot, '</main>'].join('\n');
-  const title = `${projectName} · 线框原型`;
+  // A16 外壳按 kind：desktop-admin = 桌面侧栏（现状）；phone-tabbar = 375px 手机框 + 底部 tabbar
+  let content;
+  if (shell === 'phone-tabbar') {
+    const tabbar = `<nav class="wf-tabbar">
+${menus.map((m) => {
+    const target = typeof m.page === 'string' && spec.pages.has(m.page) ? `#page-${esc(m.page)}` : '#';
+    return `<a class="wf-tab" href="${target}"><span class="wf-tab-name">${esc(m.name ?? m.id)}${pend(m)}</span><span class="tid">${esc(m.id)}</span></a>`;
+  }).join('\n')}
+</nav>`;
+    const headMp = `<header class="wf-head">
+<h1>${esc(projectName)}${appLabel ? ` · ${esc(appLabel)}` : ''} · 线框原型</h1>
+<p>移动端语义占位线框（kind mp-native）：手机框仅表达形态，底部 tabbar 即本端 <code>vima:menus</code>。
+由 <code>docs/spec.md</code> 页面数据块确定性渲染——修改 spec 后重新执行 <code>vima render-prototype</code>。
+带「⚠️ 待确认」的条目是 AI 推断项，请重点核对。</p>
+</header>`;
+    content = [
+      '<main class="wf-main wf-main-mp">', headMp,
+      '<div class="wf-phone">', '<div class="wf-phone-screen">', sections, '</div>', tabbar, '</div>',
+      ...(flows ? [flows] : []), foot, '</main>',
+    ].join('\n');
+  } else {
+    content = [aside, '<main class="wf-main">', head, sections, ...(flows ? [flows] : []), foot, '</main>'].join('\n');
+  }
+  const title = `${projectName}${appLabel ? ` · ${appLabel}` : ''} · 线框原型`;
   const html = TEMPLATE.split('{{TITLE}}').join(esc(title)).split('{{CONTENT}}').join(content).replace(/\n*$/, '\n');
 
   // ── §6.7 manifest：pages 按 id 排、links 按 (kind,to) 排 ──
@@ -256,10 +297,12 @@ ${blocks}${modals}
 </section>`;
 }
 
-/** 布局区块分发：table/form 特化，其余按通用灰盒渲染。 */
+/** 布局区块分发：table/form/list/detail 特化，其余按通用灰盒渲染（mp 词 A16）。 */
 function renderBlock(word, comp, ctx) {
   if (word === 'table') return renderTable(comp, ctx);
   if (word === 'form') return renderForm(comp);
+  if (word === 'list') return renderList(comp);
+  if (word === 'detail') return renderDetail(comp, ctx);
   if (word === 'pagination') {
     return `<div class="wf-block wf-pagination"><span class="wf-tag">pagination</span><span class="wf-pg">«</span><span class="wf-pg">1</span><span class="wf-pg">2</span><span class="wf-pg">3</span><span class="wf-pg">…</span><span class="wf-pg">»</span></div>`;
   }
@@ -329,6 +372,31 @@ function renderTable(comp, ctx) {
 ${phRow}
 ${phRow}
 </tbody></table></div></div>`;
+}
+
+/** 移动端列表（A16 mp 词）：2 行行卡占位（缩略块 + 两行灰条）+ rowActions + 数据源徽标。 */
+function renderList(comp) {
+  const rowActions = Array.isArray(comp.rowActions) ? comp.rowActions : [];
+  const ops = rowActions.length ? `<div class="wf-cell-ops">${rowActions.map((ra) => renderAction(ra)).join('')}</div>` : '';
+  const cell = `<div class="wf-cell"><span class="wf-cell-thumb"></span><span class="wf-cell-lines"><span class="wf-ph"></span><span class="wf-ph wf-ph-short"></span></span>${ops}</div>`;
+  return `<div class="wf-block wf-list"><span class="wf-tag">list</span>${comp.api ? apiBadge(comp.api) : ''}
+${cell}
+${cell}
+</div>`;
+}
+
+/** 移动端详情（A16 mp 词）：字段-值只读列表，字段名取契约 response（与 table 列头同源思路）。 */
+function renderDetail(comp, ctx) {
+  const key = comp.api ? normApiKey(comp.api) : null;
+  const contract = key ? ctx.contractByKey.get(key) : undefined;
+  const fields =
+    contract && Array.isArray(contract.response) && contract.response.length > 0 ? contract.response : null;
+  const rows = fields
+    ? fields.map((f) => `<div class="wf-kv"><span class="wf-label">${esc(f.name)}${f.desc ? `<i class="wf-desc">${esc(f.desc)}</i>` : ''}</span><span class="wf-ph"></span></div>`).join('\n')
+    : (comp.items ?? []).map((it) => renderItem(it)).join('\n') || '<div class="wf-kv"><span class="wf-label wf-missing">⚠️ 契约缺失</span><span class="wf-ph"></span></div>';
+  return `<div class="wf-block wf-detail"><span class="wf-tag">detail</span>${key ? apiBadge(key) : ''}
+${rows}
+</div>`;
 }
 
 /** 表单区块：items 逐项占位 + 数据源接口徽标。 */

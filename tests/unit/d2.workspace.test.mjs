@@ -22,6 +22,21 @@ test('A3 冷读门：go.md 满足三条验收 grep 判据（v2.1-amendments A3�
   assert.ok(goMd.includes('pendingConfirm'), '可推断项裁定分支须标 pendingConfirm');
 });
 
+test('A17 批间连续性：go.md 预算任务计数 + 提交授权 + 合法停点（v2.1-amendments A17）', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('最多推进 8 个任务'), '会话预算须按任务计数（8 任务/次）');
+  assert.ok(
+    !goMd.includes('3 个批次'),
+    '批次计数口径须退役——串行批下按批计数会在 3 个任务后过早截断',
+  );
+  assert.ok(goMd.includes('明确授权'), '检查点提交须声明「用户输入 /go 即明确授权」');
+  assert.ok(goMd.includes('不是停点'), '提交受阻不得中断调度（不是停点）');
+  assert.ok(goMd.includes('合法停点'), '批间反停顿纪律须有合法停点白名单');
+  const constitution = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
+  assert.ok(constitution.includes('明确授权'), '宪法工作协议须同步提交授权口径');
+  assert.ok(constitution.includes('合法停点'), '宪法工作协议须同步停点口径');
+});
+
 test('A9/A10/A11 吸收项满足验收 grep 判据（v2.1-amendments A9–A11，mattpocock 对标）', async () => {
   // A9 提问三规则：planning-guide §5 + vima-planner 镜像
   const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
@@ -48,12 +63,12 @@ test('A9/A10/A11 吸收项满足验收 grep 判据（v2.1-amendments A9–A11，
   assert.ok(guide.includes('在原型上看过并确认'), 'A12 页面对齐完成判据 = 用户在原型上看过并确认');
 });
 
-test('guard-shared.mjs 保护面与 template.json sharedDirs 逐项同步（契约 §6.3 单一真源）', async () => {
+test('guard-shared.mjs 回退保护面与 template.json 端册 sharedDirs 逐项同步（契约 §6.3/A16 单一真源）', async () => {
   const guard = await readFile(path.join(ADMIN, 'workspace/hooks/guard-shared.mjs'), 'utf8');
   const tpl = JSON.parse(await readFile(path.join(ADMIN, 'template.json'), 'utf8'));
   const fe = /const frontendShared = \[([^\]]*)\]/.exec(guard);
   const be = /const backendShared = \[([^\]]*)\]/.exec(guard);
-  assert.ok(fe && be, 'guard 脚本须含 frontendShared/backendShared 数组字面量');
+  assert.ok(fe && be, 'guard 脚本须含 frontendShared/backendShared 数组字面量（v1 manifest 回退面）');
   const parse = (m) =>
     m[1]
       .split(',')
@@ -61,16 +76,18 @@ test('guard-shared.mjs 保护面与 template.json sharedDirs 逐项同步（契�
       .filter(Boolean);
   const guardFe = parse(fe).map((d) => d.replace(/\/$/, ''));
   const guardBe = parse(be).map((d) => d.replaceAll('/', ''));
-  const shared = tpl.sharedDirs ?? [];
-  const sharedFe = shared.filter((d) => !d.startsWith('backend/'));
-  const sharedBe = shared.filter((d) => d.startsWith('backend/')).map((d) => d.split('/').at(-1));
-  assert.deepEqual([...guardFe].sort(), [...sharedFe].sort(), '前端保护面必须与 sharedDirs 一致');
-  assert.deepEqual([...guardBe].sort(), [...sharedBe].sort(), '后端保护面必须与 sharedDirs 一致');
+  // A16 新形态：guard 的 v1 回退字面量 = default 端（admin）的 sharedDirs + backend 末段
+  const defaultApp = (tpl.apps ?? []).find((a) => a.default === true) ?? (tpl.apps ?? [])[0];
+  const sharedFe = defaultApp?.sharedDirs ?? [];
+  const sharedBe = (tpl.backend?.sharedDirs ?? []).map((d) => d.split('/').at(-1));
+  assert.deepEqual([...guardFe].sort(), [...sharedFe].sort(), '前端回退保护面必须与端册 sharedDirs 一致');
+  assert.deepEqual([...guardBe].sort(), [...sharedBe].sort(), '后端回退保护面必须与 backend.sharedDirs 一致');
 });
 
 test('红线文案与 sharedDirs 同步：CLAUDE.project.md 与 vima-builder.md 覆盖全部前端共享目录', async () => {
   const tpl = JSON.parse(await readFile(path.join(ADMIN, 'template.json'), 'utf8'));
-  const sharedFe = (tpl.sharedDirs ?? []).filter((d) => !d.startsWith('backend/'));
+  const defaultApp = (tpl.apps ?? []).find((a) => a.default === true) ?? (tpl.apps ?? [])[0];
+  const sharedFe = defaultApp?.sharedDirs ?? [];
   for (const rel of ['workspace/CLAUDE.project.md', 'workspace/agents/vima-builder.md', 'workspace/AGENTS.project.md']) {
     const text = await readFile(path.join(ADMIN, rel), 'utf8');
     for (const dir of sharedFe) {
@@ -273,4 +290,70 @@ test('A13 消费端接线不漏：builder 包内分节枚举与 check 聚合口�
   const check = await readFile(path.join(ADMIN, 'workspace/commands/check.md'), 'utf8');
   assert.ok(check.includes('RULE-'), '/check 聚合口径须覆盖规则点');
   assert.ok(check.includes('越界'), '/check 须单列越界项');
+});
+
+// ── A16 端册化 hooks：guard-shared 读 manifest 端册；post-write 多端归属 + 新形态对账 ──
+
+const GUARD = path.join(ADMIN, 'workspace/hooks/guard-shared.mjs');
+
+function runGuard(root, relFile) {
+  const input = JSON.stringify({ cwd: root, tool_input: { file_path: relFile } });
+  return spawnSync(process.execPath, [GUARD], { input, encoding: 'utf8' });
+}
+
+const MULTI_VIMA_MANIFEST = {
+  schemaVersion: '2',
+  templateId: 'admin',
+  apps: [
+    { id: 'admin', kind: 'admin-web', dir: '.', codeDir: 'src', sharedDirs: ['src/components', 'src/utils', 'vendor'] },
+    { id: 'patient', kind: 'mp-native', dir: 'apps/patient', codeDir: 'src', sharedDirs: ['src/components', 'src/utils'] },
+  ],
+  backend: { dir: 'backend', sharedDirs: ['src/main/java/demo/config', 'src/main/java/demo/security'] },
+};
+
+test('guard-shared A16：端册面拦 apps/<id>/ 共享层；无令牌 exit 2、业务目录放行；v1 回退面仍拦 src/', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-guard-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+  // 患者端共享层无令牌 → 拦
+  assert.equal(runGuard(root, 'apps/patient/src/components/Btn.ts').status, 2, '患者端共享层应被拦');
+  // admin 端（根布局）共享层 → 拦；后端 security → 拦
+  assert.equal(runGuard(root, 'src/utils/request.ts').status, 2);
+  assert.equal(runGuard(root, 'backend/src/main/java/demo/security/Token.java').status, 2);
+  // 业务目录 → 放行
+  assert.equal(runGuard(root, 'apps/patient/src/pages/booking.ts').status, 0, '业务目录应放行');
+  assert.equal(runGuard(root, 'src/views/list.vue').status, 0);
+  // v1 manifest（无 apps）→ 回退字面量面
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify({ schemaVersion: '1', templateId: 'admin' }));
+  assert.equal(runGuard(root, 'src/components/X.vue').status, 2, 'v1 回退面仍拦 src/components');
+  assert.equal(runGuard(root, 'apps/patient/src/components/Btn.ts').status, 0, 'v1 面不认 apps/（诚实回退）');
+});
+
+test('post-write A16：apps/<id>/src 业务代码不逃逸机检；新形态 manifest 按端对账', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-pw-multi-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'apps/patient/src/pages'), { recursive: true });
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await mkdir(path.join(root, 'docs/review'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+  // 幻包名导入出现在患者端目录 → exit 2（端册化后机检面不失覆盖，A16 回测缺口②）
+  await writeFile(path.join(root, 'apps/patient/src/pages/bad.ts'), "import { x } from '@vima/ui';\n");
+  const r = runHook(root, 'apps/patient/src/pages/bad.ts');
+  assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+  assert.match(r.stderr, /幻包名/);
+  // 新形态 manifest（顶层 apps map）区块对账：缺 data-block → exit 2
+  await writeFile(path.join(root, 'docs/review/prototype.manifest.json'), JSON.stringify({
+    schemaVersion: '1',
+    apps: { patient: { pages: [{ id: 'PAGE-11', layout: ['banner', 'form'], modals: [] }] } },
+  }));
+  await writeFile(path.join(root, 'apps/patient/src/pages/page11.vue'),
+    '<template><div class="vui-page" data-page="PAGE-11"><div data-block="banner"/></div></template>');
+  const r2 = runHook(root, 'apps/patient/src/pages/page11.vue');
+  assert.equal(r2.status, 2);
+  assert.match(r2.stderr, /缺区块标记 data-block：form/);
+  // 标记齐全 → 放行
+  await writeFile(path.join(root, 'apps/patient/src/pages/page11.vue'),
+    '<template><div class="vui-page" data-page="PAGE-11"><div data-block="banner"/><div data-block="form"/></div></template>');
+  assert.equal(runHook(root, 'apps/patient/src/pages/page11.vue').status, 0);
 });
