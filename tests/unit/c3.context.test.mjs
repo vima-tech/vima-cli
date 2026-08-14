@@ -216,3 +216,100 @@ test('context：任务声明 apis → 包内契约被切片且分节 note 标注
   assert.ok(bundle.includes('## GET /api/device/list'), '负责集内的小节应保留');
   assert.ok(!bundle.includes('## POST /api/device/batch-delete'), '负责集外的小节应删除');
 });
+
+// ── A22 两条检索线（出自 sustain-v3 实测：Builder 把契约当唯一事实来源 ⇒ 降级实现）──
+
+test('A22 检索线一：无 @vima 标注的 api 封装进「系统底座接口索引」（导出名 + 请求路径）', async (t) => {
+  const root = await cloneGolden(t);
+  await mkdir(path.join(root, 'src/api'), { recursive: true });
+  await writeFile(
+    path.join(root, 'src/api/system.ts'),
+    '// 系统底座：部门与用户（无 @vima 标注 = 不属任何任务）\n'
+      + 'import { request } from "../utils/request"\n\n'
+      + 'export function getDeptList(params) {\n  return request.get("/system/dept/list", { params })\n}\n\n'
+      + 'export function getUserList(params) {\n  return request.get("/system/user/list", { params })\n}\n',
+  );
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.ok(bundle.includes('## 系统底座接口索引'), '须有底座索引一节');
+  assert.ok(bundle.includes('getDeptList'), '底座导出函数名须出现');
+  assert.ok(bundle.includes('GET /system/dept/list'), '底座请求路径须出现');
+  assert.ok(bundle.includes('要查三条线'), '须写明「契约里没写 ≠ 系统里没有」的判断口径');
+});
+
+test('A22 检索线一：带 @vima 标注的业务代码不进索引（索引只收底座/共享层）', async (t) => {
+  const root = await cloneGolden(t);
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  // 夹具的 src/api/device.ts 带 @vima device-list-fe → 属业务任务产出，不该被当成底座
+  assert.ok(!/索引[\s\S]*device\.ts/.test(bundle.split('## 系统底座接口索引')[1] ?? ''), 'device.ts 不应进底座索引');
+  assert.match(r.stdout, /系统底座接口索引 \d+ 字节（无命中）/);
+});
+
+test('A22 检索线二：spec 指名的 docs/raw 引用带行号 → 附前后各 20 行片段', async (t) => {
+  const root = await cloneGolden(t);
+  await mkdir(path.join(root, 'docs/raw'), { recursive: true });
+  await writeFile(
+    path.join(root, 'docs/raw/FlowSteps.vue'),
+    'export const STEPS = [\n  { key: "screening", roles: ["nurse"] },\n  { key: "followup", roles: ["nurse"] },\n]\n',
+  );
+  const specPath = path.join(root, 'docs/spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  await writeFile(
+    specPath,
+    spec.replace('## 5. 业务规则', '## 5. 业务规则\n\n九步角色真源为 `docs/raw/FlowSteps.vue:2`。\n'),
+  );
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.ok(bundle.includes('## 真源片段'), '须有真源片段一节');
+  assert.ok(bundle.includes('docs/raw/FlowSteps.vue:2'), '须标注引用出处与行号');
+  assert.ok(bundle.includes('key: "screening"'), '须附上真源内容本身');
+});
+
+test('A22 检索线二：引用的文件不存在 → 如实标注跳过，不静默丢弃', async (t) => {
+  const root = await cloneGolden(t);
+  const specPath = path.join(root, 'docs/spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  await writeFile(specPath, spec.replace('## 5. 业务规则', '## 5. 业务规则\n\n真源见 `docs/raw/nope.vue`。\n'));
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.ok(bundle.includes('引用了但文件不存在'), '缺失须如实标注');
+  assert.ok(bundle.includes('docs/raw/nope.vue'), '须点名缺失文件');
+});
+
+test('A22：两条检索线不破坏确定性（同输入两次打包字节一致）', async (t) => {
+  const root = await cloneGolden(t);
+  await mkdir(path.join(root, 'src/api'), { recursive: true });
+  await writeFile(path.join(root, 'src/api/system.ts'), 'export function a() { return request.get("/x") }\n');
+  vima(root, 'context', 'device-list-fe');
+  const first = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  vima(root, 'context', 'device-list-fe');
+  assert.equal(await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8'), first);
+});
+
+// ── A24/F9：项目补充规范（受管基线之外的落点）──
+
+test('A24：docs/coding-standards.local.md 存在时作为独立一节随包分发', async (t) => {
+  const root = await cloneGolden(t);
+  await mkdir(path.join(root, 'docs'), { recursive: true });
+  await writeFile(path.join(root, 'docs/coding-standards.local.md'), '# 本项目补充\n\n- 金额一律用 BigDecimal\n');
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.ok(bundle.includes('## 项目补充规范'), '须有项目补充规范一节');
+  assert.ok(bundle.includes('BigDecimal'), '须附上项目自己的内容');
+  assert.ok(bundle.includes('以本节为准'), '须写明与受管基线冲突时的优先级');
+  assert.match(r.stdout, /项目补充规范 \d+ 字节/);
+});
+
+test('A24：无 local 文件时不出现该节（可选文件，不制造空壳）', async (t) => {
+  const root = await cloneGolden(t);
+  const r = vima(root, 'context', 'device-list-fe');
+  assert.equal(r.code, 0);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.ok(!bundle.includes('## 项目补充规范'));
+});

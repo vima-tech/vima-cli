@@ -112,7 +112,21 @@
  */
 .vui-page > :last-child {
   flex: 1 1 auto;
-  min-height: 0;
+  /*
+   * 收缩下限按「这一块有没有内部滚动」区分，不能一律写 0。
+   *
+   * 写 0 的后果：前面几块已经占满页面时，末块被一路压到 clientHeight=0。
+   * .vui-card 自身是 overflow:hidden（圆角裁切），于是整块内容既看不见、
+   * 也滚不出来——0 高的块不给页面贡献 scrollHeight，.vui-page 的 overflow:auto
+   * 连滚动条都不会出现。实测两例：/ai/advisor「历史建议」401px 压成 0、
+   * /inpatient-order/create「长嘱信息」80px 压成 0。
+   *
+   * 这里（非卡片的末块，例如页面自己包的 <section>）取 min-content：
+   * 下面那条把高度传进卡身的规则只认「直接子元素就是 .vui-card」，
+   * 一旦页面把卡片包了一层，内部滚动链就断了——没有内部滚动的块被压小
+   * 等于内容丢失，所以它必须保住自然高度，让 .vui-page 的 overflow:auto 去滚。
+   */
+  min-height: min-content;
 }
 
 /* 间距由页面根的 gap 统一给，卡片自带的 margin-bottom 在这里会变成双份 */
@@ -128,6 +142,12 @@
 .vui-page > .vui-card:last-child {
   display: flex;
   flex-direction: column;
+  /*
+   * 卡片有内部滚动（卡身 overflow:auto），所以允许被压回容器高度——
+   * 这正是「100 行表格不把页面顶出滚动条」赖以成立的前提，不能改成 min-content。
+   * 但也不能压到 0（见上一条），给一个还能看见卡头 + 首行的下限兜住。
+   */
+  min-height: var(--vui-page-card-min-h, 120px);
 }
 
 .vui-page > .vui-card:last-child > .vui-card-body {

@@ -16,6 +16,7 @@ const TEMPLATE = readFileSync(new URL('./prototype.template.html', import.meta.u
 const BLOCK_WORDS = new Set([
   'toolbar', 'search', 'table', 'form', 'cards', 'tabs', 'pagination',
   'list', 'banner', 'detail', 'actionbar',
+  'steps', 'collapse', 'anchor', // A27：sustain-v3 实测缺的三个结构词
 ]);
 
 /** HTML 转义：渲染器内所有数据出口必须经过它。 */
@@ -54,6 +55,80 @@ function pend(o) {
   return o && typeof o === 'object' && o.pendingConfirm === true
     ? '<span class="wf-pend" title="AI 推断项，待用户确认——vima approve 会在其清零前阻断">⚠️ 待确认</span>'
     : '';
+}
+
+/**
+ * A27 设计注记：实例名 + intent + 密度徽标（PDL 的人眼投影——评审评的就是这行）。
+ * 未声明任何设计键时返回空串，产物与 A27 前逐字节一致。
+ */
+function designAnnot(comp) {
+  if (!comp || typeof comp !== 'object') return '';
+  const parts = [];
+  if (typeof comp.name === 'string' && comp.name !== '') parts.push(`<b>${esc(comp.name)}</b>`);
+  if (typeof comp.intent === 'string' && comp.intent !== '') parts.push(`<i>${esc(comp.intent)}</i>`);
+  if (typeof comp.density === 'string' && comp.density !== '') parts.push(`<span class="wf-density">${esc(comp.density)}</span>`);
+  return parts.length ? `<div class="wf-annot">${parts.join('')}</div>` : '';
+}
+
+/**
+ * A27 动作集渲染（items 按钮 / actions / rowActions 三处共用）：
+ * priority=primary 实心强调；overflow 收进「⋯」（title 列出被收纳动作，人审看得见收了什么）。
+ */
+function renderActionSet(list) {
+  const entries = (Array.isArray(list) ? list : []).filter((a) => a && typeof a === 'object');
+  const visible = entries.filter((a) => a.priority !== 'overflow');
+  const folded = entries.filter((a) => a.priority === 'overflow');
+  const more = folded.length
+    ? `<span class="wf-more" title="收纳动作：${esc(folded.map((a) => a.label ?? '').join('、'))}">⋯ ${folded.length}</span>`
+    : '';
+  return `${visible.map((a) => renderAction(a)).join('')}${more}`;
+}
+
+/** A27 操作附着点：actions[] 贴在块标题行，不新起横带（S5 的解法在渲染层的样子）。 */
+function attachedActions(comp) {
+  const actions = Array.isArray(comp?.actions) ? comp.actions : [];
+  return actions.length ? `<div class="wf-actions">${renderActionSet(actions)}</div>` : '';
+}
+
+/**
+ * A27 内容形态渲染（data.shape 驱动）：保真度来自 PDL 数据而非渲染器内置——
+ * 这是「三列三个一样灰盒」的解法。未声明 shape 返回 null（走原灰盒路径）。
+ */
+function shapeBody(comp) {
+  const data = comp && typeof comp === 'object' && comp.data && typeof comp.data === 'object' ? comp.data : null;
+  const shape = data ? data.shape : undefined;
+  if (typeof shape !== 'string') return null;
+  const kf = Array.isArray(data.keyFields) ? data.keyFields : [];
+  const of = Array.isArray(data.of) ? data.of : typeof data.of === 'string' && data.of !== '' ? [data.of] : [];
+  if (shape === 'list') {
+    const cells = kf.length
+      ? kf.map((f) => `<span class="wf-kf">${esc(f)}</span>`).join('')
+      : '<span class="wf-ph"></span><span class="wf-ph wf-ph-short"></span>';
+    const row = `<div class="wf-cell"><span class="wf-cell-thumb"></span><span class="wf-cell-lines">${cells}</span></div>`;
+    return `${row}\n${row}\n${row}`;
+  }
+  if (shape === 'record') {
+    const fields = kf.length ? kf : of.length ? of : ['字段'];
+    return fields.map((f) => `<div class="wf-kv"><span class="wf-label">${esc(f)}</span><span class="wf-ph"></span></div>`).join('\n');
+  }
+  if (shape === 'metrics') {
+    const names = of.length ? of : kf.length ? kf : ['指标一', '指标二', '指标三'];
+    return `<div class="wf-metrics">${names
+      .map((n) => `<div class="wf-metric"><span class="wf-ring"></span><span class="wf-label">${esc(n)}</span></div>`)
+      .join('')}</div>`;
+  }
+  if (shape === 'timeline') {
+    const names = of.length ? of : kf.length ? kf : ['节点', '节点', '节点'];
+    return `<ol class="wf-timeline">${names.map((n) => `<li>${esc(n)}</li>`).join('')}</ol>`;
+  }
+  if (shape === 'chart') {
+    const label = of.length ? of.join(' / ') : '图表';
+    return `<div class="wf-chart" title="${esc(label)}"><svg viewBox="0 0 120 40" aria-hidden="true"><polyline points="0,32 20,24 40,28 60,12 80,18 100,6 120,14" fill="none" stroke="currentColor" stroke-width="2"/></svg><span class="wf-label">${esc(label)}</span></div>`;
+  }
+  if (shape === 'freeform') {
+    return `<div class="wf-freeform"><span class="wf-freeform-mark">自由发挥区</span>${esc(comp.intent ?? '')}</div>`;
+  }
+  return null;
 }
 
 /**
@@ -233,7 +308,7 @@ function buildLinks(p) {
   const seen = new Map();
   const add = (kind, to) => {
     if (typeof to !== 'string' || to === '') return;
-    const key = `${kind} ${to}`;
+    const key = `${kind}\u0000${to}`;
     if (!seen.has(key)) seen.set(key, { kind, from: p.id, to });
   };
   const addAction = (it) => {
@@ -243,6 +318,7 @@ function buildLinks(p) {
   for (const comp of p.components ?? []) {
     if (typeof comp.api === 'string') add('api', comp.api);
     for (const it of comp.items ?? []) addAction(it);
+    for (const ac of comp.actions ?? []) addAction(ac); // A27 附着点动作同样进连线
     for (const ra of comp.rowActions ?? []) addAction(ra);
   }
   for (const mo of p.modals ?? []) {
@@ -277,8 +353,10 @@ function renderPage(p, ctx) {
           .map((col) => {
             const width = String(col?.width ?? '1fr');
             const inner = (Array.isArray(col?.blocks) ? col.blocks : []).map(bandsOf).join('\n');
-            const cap = `<div class="wf-col-cap"><span>${esc(col?.name ?? '')}</span><span class="wf-col-w">${esc(width)}</span></div>`;
-            return `<div class="wf-col" style="flex:${esc(flexOf(width))}">\n${cap}\n${inner}\n</div>`;
+            const primary = col?.role === 'primary'; // A27：视觉主次
+            const colDensity = typeof col?.density === 'string' && col.density !== '' ? `<span class="wf-density">${esc(col.density)}</span>` : '';
+            const cap = `<div class="wf-col-cap"><span>${primary ? '<b class="wf-col-primary" title="主工作区">★</b>' : ''}${esc(col?.name ?? '')}</span>${colDensity}<span class="wf-col-w">${esc(width)}</span></div>`;
+            return `<div class="wf-col${primary ? ' wf-col-p' : ''}" style="flex:${esc(flexOf(width))}">\n${cap}\n${inner}\n</div>`;
           })
           .join('\n');
         return `<div class="wf-cols">\n${cols}\n</div>`;
@@ -291,28 +369,56 @@ function renderPage(p, ctx) {
   // 角色视角联动：页面卡带其菜单归属角色（data-roles），JS 按角色淡出不可见页面
   const own = ctx.pageOwnership?.get(p.id);
   const attrs = own ? ` data-menu="${esc(own.menuId)}"${own.roleIds ? ` data-roles="${esc(own.roleIds)}"` : ''}` : '';
+  // A27：design 声明的人眼投影（pattern/density 徽标 + 首屏承诺清单）
+  const d = p.design && typeof p.design === 'object' ? p.design : null;
+  const designBadges = d
+    ? `<span class="wf-design">${esc(d.pattern ?? '')}</span><span class="wf-design">${esc(d.density ?? '')}</span>${Array.isArray(d.fold) && d.fold.length ? `<span class="wf-fold" title="首屏承诺：一屏必须看到">首屏 ${d.fold.map((f) => esc(f)).join('、')}</span>` : ''}`
+    : '';
   return `<section class="wf-page" id="page-${esc(p.id)}"${attrs}>
-<header class="wf-page-head"><h2>${esc(p.title ?? p.id)}</h2><span class="tid">${esc(p.id)}</span>${p.menu ? `<span class="tid">${esc(p.menu)}</span>` : ''}${pend(p)}</header>
+<header class="wf-page-head"><h2>${esc(p.title ?? p.id)}</h2><span class="tid">${esc(p.id)}</span>${p.menu ? `<span class="tid">${esc(p.menu)}</span>` : ''}${designBadges}${pend(p)}</header>
 ${blocks}${modals}
 </section>`;
 }
 
-/** 布局区块分发：table/form/list/detail 特化，其余按通用灰盒渲染（mp 词 A16）。 */
+/** 布局区块分发：table/form/list/detail/steps/collapse/anchor 特化，其余通用（A16/A27）。 */
 function renderBlock(word, comp, ctx) {
   if (word === 'table') return renderTable(comp, ctx);
   if (word === 'form') return renderForm(comp);
   if (word === 'list') return renderList(comp);
   if (word === 'detail') return renderDetail(comp, ctx);
+  const deco = `${designAnnot(comp)}${attachedActions(comp)}`; // A27：注记 + 附着动作
   if (word === 'pagination') {
-    return `<div class="wf-block wf-pagination"><span class="wf-tag">pagination</span><span class="wf-pg">«</span><span class="wf-pg">1</span><span class="wf-pg">2</span><span class="wf-pg">3</span><span class="wf-pg">…</span><span class="wf-pg">»</span></div>`;
+    return `<div class="wf-block wf-pagination"><span class="wf-tag">pagination</span>${deco}<span class="wf-pg">«</span><span class="wf-pg">1</span><span class="wf-pg">2</span><span class="wf-pg">3</span><span class="wf-pg">…</span><span class="wf-pg">»</span></div>`;
   }
-  // toolbar / search / cards / tabs（及词表外兜底）：灰盒虚线 + 项目占位
+  // A27 新词三个（sustain-v3 实测缺口）：步骤条 / 折叠面板 / 锚点条——items 给标签则用之
+  if (word === 'steps') {
+    const names = (comp.items ?? []).map((it) => esc(it?.label ?? '')).filter(Boolean);
+    const li = (names.length ? names : ['步骤一', '步骤二', '步骤三']).map((n, i) => `<li${i === 0 ? ' class="wf-step-on"' : ''}>${n}</li>`).join('');
+    return `<div class="wf-block wf-steps-block"><span class="wf-tag">steps</span>${deco}<ol class="wf-steps">${li}</ol></div>`;
+  }
+  if (word === 'collapse') {
+    const names = (comp.items ?? []).map((it) => esc(it?.label ?? '')).filter(Boolean);
+    const panels = (names.length ? names : ['面板一', '面板二']).map((n, i) => `<details class="wf-collapse-item"${i === 0 ? ' open' : ''}><summary>${n}</summary><div class="wf-ph-lg"></div></details>`).join('\n');
+    return `<div class="wf-block wf-collapse-block"><span class="wf-tag">collapse</span>${deco}
+${panels}
+</div>`;
+  }
+  if (word === 'anchor') {
+    const names = (comp.items ?? []).map((it) => esc(it?.label ?? '')).filter(Boolean);
+    const chips = (names.length ? names : ['分区一', '分区二', '分区三']).map((n) => `<span class="wf-chip">${n}</span>`).join('');
+    return `<div class="wf-block wf-anchor-block"><span class="wf-tag">anchor</span>${deco}<nav class="wf-anchor">${chips}</nav></div>`;
+  }
+  // toolbar / search / cards / tabs / banner / actionbar（及词表外兜底）：
+  // A27 优先按 data.shape 渲染内容形态；无 shape 时 items 占位 / 灰盒（与 A27 前一致）
   const items = (comp.items ?? []).map((it) => renderItem(it)).join('\n');
-  const ghost = items === '' ? '<div class="wf-ph-lg"></div>' : '';
+  const shaped = shapeBody(comp);
+  const body = shaped !== null
+    ? `${items === '' ? '' : `<div class="wf-row">\n${items}\n</div>\n`}${shaped}`
+    : `<div class="wf-row">\n${items}${items === '' ? '<div class="wf-ph-lg"></div>' : ''}\n</div>`;
   const cls = BLOCK_WORDS.has(word) ? ` wf-${word}` : '';
-  return `<div class="wf-block${cls}"><span class="wf-tag">${esc(word)}</span><div class="wf-row">
-${items}${ghost}
-</div></div>`;
+  return `<div class="wf-block${cls}"><span class="wf-tag">${esc(word)}</span>${deco}${comp.api && shaped !== null ? apiBadge(comp.api) : ''}
+${body}
+</div>`;
 }
 
 /** 组件占位符：input=带 label 虚线盒；select=虚线盒列出选项；button=方框标签；其余=label+灰条。 */
@@ -331,20 +437,21 @@ function renderItem(it) {
   return `<label class="wf-field"><span class="wf-label">${label}${mark}</span><span class="wf-ph"></span></label>`;
 }
 
-/** 交互三种：nav→锚点跳转；modal→data-modal 按钮；api→按钮+接口徽标。 */
+/** 交互三种：nav→锚点跳转；modal→data-modal 按钮；api→按钮+接口徽标。A27：primary 实心强调。 */
 function renderAction(a) {
   const label = `${esc(a.label ?? a.type ?? '按钮')}${pend(a)}`;
+  const cls = a && a.priority === 'primary' ? 'wf-btn wf-btn-primary' : 'wf-btn';
   if (a.action === 'nav' && a.target) {
-    return `<a class="wf-btn" href="#page-${esc(a.target)}">${label} →</a>`;
+    return `<a class="${cls}" href="#page-${esc(a.target)}">${label} →</a>`;
   }
   if (a.action === 'modal' && a.target) {
-    return `<button type="button" class="wf-btn" data-modal="${esc(a.target)}">${label}</button>`;
+    return `<button type="button" class="${cls}" data-modal="${esc(a.target)}">${label}</button>`;
   }
   if (a.action === 'api' && a.api) {
     const key = normApiKey(a.api);
-    return `<button type="button" class="wf-btn" title="${esc(key)}">${label}<span class="wf-api" title="${esc(key)}">API</span></button>`;
+    return `<button type="button" class="${cls}" title="${esc(key)}">${label}<span class="wf-api" title="${esc(key)}">API</span></button>`;
   }
-  return `<button type="button" class="wf-btn">${label}</button>`;
+  return `<button type="button" class="${cls}">${label}</button>`;
 }
 
 /** 表格：真实列头（取契约 response 字段 name+desc）+ 2 行灰占位；契约缺失该 api → 列头警示。 */
@@ -361,13 +468,14 @@ function renderTable(comp, ctx) {
   const rowActions = Array.isArray(comp.rowActions) ? comp.rowActions : [];
   const opsHead = rowActions.length ? '<th>操作</th>' : '';
   const opsCell = rowActions.length
-    ? `<td class="wf-ops">${rowActions.map((ra) => renderAction(ra)).join('')}</td>`
+    ? `<td class="wf-ops">${renderActionSet(rowActions)}</td>`
     : '';
   const cols = fields ? fields.length : 1;
   const phRow = `<tr>${'<td><span class="wf-ph"></span></td>'.repeat(cols)}${opsCell}</tr>`;
   // 列头多或行操作多时表格自然宽度会超出所在列（分栏页尤其明显），
   // 故套一层横向滚动容器——不能直接给 .wf-block 加 overflow，那会裁掉浮在上边框的 wf-tag。
-  return `<div class="wf-block wf-table"><span class="wf-tag">table</span>${key ? apiBadge(key) : ''}
+  const deco = `${designAnnot(comp)}${attachedActions(comp)}`; // A27
+  return `<div class="wf-block wf-table"><span class="wf-tag">table</span>${deco}${key ? apiBadge(key) : ''}
 <div class="wf-tw"><table><thead><tr>${head}${opsHead}</tr></thead><tbody>
 ${phRow}
 ${phRow}
@@ -377,9 +485,9 @@ ${phRow}
 /** 移动端列表（A16 mp 词）：2 行行卡占位（缩略块 + 两行灰条）+ rowActions + 数据源徽标。 */
 function renderList(comp) {
   const rowActions = Array.isArray(comp.rowActions) ? comp.rowActions : [];
-  const ops = rowActions.length ? `<div class="wf-cell-ops">${rowActions.map((ra) => renderAction(ra)).join('')}</div>` : '';
+  const ops = rowActions.length ? `<div class="wf-cell-ops">${renderActionSet(rowActions)}</div>` : '';
   const cell = `<div class="wf-cell"><span class="wf-cell-thumb"></span><span class="wf-cell-lines"><span class="wf-ph"></span><span class="wf-ph wf-ph-short"></span></span>${ops}</div>`;
-  return `<div class="wf-block wf-list"><span class="wf-tag">list</span>${comp.api ? apiBadge(comp.api) : ''}
+  return `<div class="wf-block wf-list"><span class="wf-tag">list</span>${designAnnot(comp)}${attachedActions(comp)}${comp.api ? apiBadge(comp.api) : ''}
 ${cell}
 ${cell}
 </div>`;
@@ -394,7 +502,7 @@ function renderDetail(comp, ctx) {
   const rows = fields
     ? fields.map((f) => `<div class="wf-kv"><span class="wf-label">${esc(f.name)}${f.desc ? `<i class="wf-desc">${esc(f.desc)}</i>` : ''}</span><span class="wf-ph"></span></div>`).join('\n')
     : (comp.items ?? []).map((it) => renderItem(it)).join('\n') || '<div class="wf-kv"><span class="wf-label wf-missing">⚠️ 契约缺失</span><span class="wf-ph"></span></div>';
-  return `<div class="wf-block wf-detail"><span class="wf-tag">detail</span>${key ? apiBadge(key) : ''}
+  return `<div class="wf-block wf-detail"><span class="wf-tag">detail</span>${designAnnot(comp)}${attachedActions(comp)}${key ? apiBadge(key) : ''}
 ${rows}
 </div>`;
 }
@@ -402,7 +510,7 @@ ${rows}
 /** 表单区块：items 逐项占位 + 数据源接口徽标。 */
 function renderForm(comp) {
   const items = (comp.items ?? []).map((it) => renderItem(it)).join('\n');
-  return `<div class="wf-block wf-form"><span class="wf-tag">form</span>${comp.api ? apiBadge(comp.api) : ''}<div class="wf-row">
+  return `<div class="wf-block wf-form"><span class="wf-tag">form</span>${designAnnot(comp)}${attachedActions(comp)}${comp.api ? apiBadge(comp.api) : ''}<div class="wf-row">
 ${items}
 </div></div>`;
 }
@@ -415,8 +523,9 @@ function renderModal(mo) {
         `<label class="wf-field"><span class="wf-label">${esc(fd.label ?? fd.field)}${fd.required ? '<b class="wf-req">*</b>' : ''}${pend(fd)}</span><span class="wf-input">${esc(fd.type ?? 'input')}</span></label>`,
     )
     .join('\n');
-  return `<div class="wf-modal" id="${esc(mo.id)}" hidden>
-<div class="wf-modal-head"><strong>${esc(mo.title ?? mo.id)}</strong><span class="tid">${esc(mo.id)}</span>${pend(mo)}<button type="button" class="wf-close" data-modal-close>×</button></div>
+  const drawer = mo.presentation === 'drawer'; // A27：抽屉是弹窗的呈现变体
+  return `<div class="wf-modal${drawer ? ' wf-drawer' : ''}" id="${esc(mo.id)}" hidden>
+<div class="wf-modal-head"><strong>${esc(mo.title ?? mo.id)}</strong><span class="tid">${esc(mo.id)}</span>${drawer ? '<span class="wf-density">drawer</span>' : ''}${pend(mo)}<button type="button" class="wf-close" data-modal-close>×</button></div>
 <div class="wf-modal-body">
 ${fields}
 </div>

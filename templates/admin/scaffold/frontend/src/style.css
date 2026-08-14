@@ -5,12 +5,14 @@
  *   styles/tokens.css  取色/取值的唯一入口（企业蓝 v3）
  *   styles/base.css    重置、高度链、全局排版与滚动条
  *   styles/shell.css   顶栏 / 侧栏 / 工作区标签条的皮肤
+ *   styles/layout.css  版面原语与密度档（A27：整页 grid 收编进真源，页面不再自写）
  *
  * 业务页面的样式仍写在各自 SFC 的 <style scoped> 里，只有跨组件的外壳集中在 shell.css。
  */
 @import './styles/tokens.css';
 @import './styles/base.css';
 @import './styles/shell.css';
+@import './styles/layout.css';
 
 /*
  * 品牌桥接：组件库的 --vui-* 与本工程的 --v-* 有一组同值令牌，

@@ -41,6 +41,12 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /** 演示态注入（A27）：只改内存态不落 storage——demo 用户不得泄漏进真实登录 */
+  function enterDemo(info: any) {
+    token.value = 'demo'
+    userInfo.value = info
+  }
+
   function resetState() {
     token.value = ''
     userInfo.value = null
@@ -71,6 +77,7 @@ export const useUserStore = defineStore('user', () => {
     fetchUserInfo,
     logout,
     resetState,
+    enterDemo,
     hasRole,
     hasPerm,
   }

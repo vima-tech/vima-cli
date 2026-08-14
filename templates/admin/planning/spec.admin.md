@@ -51,7 +51,15 @@ enums:
          分栏带 `- columns: [{ name: 列名, width: 264px|1fr, blocks: [区块词…] }, …]`
        带的先后即上下顺序，列内顺序即渲染顺序。layout 保持扁平不变（校验与任务点口径不动），
        regions 铺开后的区块集合必须与 layout 一致，否则 V-SPEC-12 阻断。
-       不写 regions 的页面按 layout 纵向堆叠——单列页面无需声明。 -->
+       不写 regions 的页面按 layout 纵向堆叠——单列页面无需声明。
+     - 设计声明（A27 PDL，可选、声明即承诺——设计五问的落笔处，见 planning-guide 终点清单 C）：
+       design: { pattern: list|detail|form|workbench|master-detail|board,
+                 density: compact|default|loose, fold: [组件实例名…] }（V-DSN-01/07）
+       每块可带 name（同词多例必带，V-DSN-03）/ intent / data: { shape, of, keyFields }（V-DSN-04/08）
+       动作可带 priority: primary|secondary|overflow（V-DSN-05/06）；
+       低频动作挂宿主块 actions（贴标题行）而不是独占一条 toolbar 带；
+       弹窗可带 presentation: drawer（抽屉呈现）。规格零像素——宽高坐标一概不写。
+       admin-web 词表 +3（A27）：steps（步骤条）/ collapse（折叠面板）/ anchor（锚点条）。 -->
 
 ### PAGE-01 示例列表页
 
@@ -59,6 +67,10 @@ enums:
 id: PAGE-01
 title: 示例列表
 menu: MENU-01
+design:                              # A27 设计声明（可选；设计五问的答案落在这里）
+  pattern: list
+  density: default
+  fold: [数据表]
 layout: [search, toolbar, table, pagination]
 components:
   - block: search
@@ -69,12 +81,14 @@ components:
         options: [启用, 停用]
   - block: toolbar
     items:
-      - { type: button, label: 新增, action: modal, target: MODAL-01 }
-      - { type: button, label: 批量删除, action: api, api: POST /api/example/batch-delete }
+      - { type: button, label: 新增, action: modal, target: MODAL-01, priority: primary }
+      - { type: button, label: 批量删除, action: api, api: POST /api/example/batch-delete, priority: secondary }
   - block: table
+    name: 数据表
+    intent: 定位并操作单条记录的主工作区
     api: GET /api/example/list
     rowActions:
-      - { label: 编辑, action: modal, target: MODAL-01 }
+      - { label: 编辑, action: modal, target: MODAL-01, priority: primary }
   - block: pagination
     items: []
 modals:

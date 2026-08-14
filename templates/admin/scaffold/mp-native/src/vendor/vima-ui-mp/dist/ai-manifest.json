@@ -1,0 +1,429 @@
+{
+  "manifestVersion": "1.0.0",
+  "package": "@vima-tech/ui-mp",
+  "version": "0.1.0",
+  "targets": [
+    "mp-native",
+    "h5-mobile"
+  ],
+  "note": "类契约的机读清单。取值看 tokens.wxss，用法看 docs/ui-framework/<app>/<name>.md（本清单只登记事实，不重复文档正文，避免两处漂移）。classes 与 ui.wxss 的定义集合由单测双向锁死。",
+  "components": [
+    {
+      "name": "VmPage",
+      "category": "layout",
+      "kind": "class",
+      "classes": [
+        "vm-page",
+        "vm-body",
+        "vm-sheet"
+      ],
+      "modifiers": [],
+      "doc": "VmPage.md"
+    },
+    {
+      "name": "VmHero",
+      "category": "layout",
+      "kind": "class",
+      "classes": [
+        "vm-hero",
+        "vm-hero-fx",
+        "vm-hero-glow",
+        "vm-hero-body",
+        "vm-hero-title",
+        "vm-hero-sub",
+        "vm-hero-rule-l",
+        "vm-hero-rule-r",
+        "vm-hero-panel",
+        "vm-hero-panel-hd",
+        "vm-hero-panel-title",
+        "vm-hero-panel-note",
+        "vm-hero-panel-text"
+      ],
+      "modifiers": [],
+      "doc": "VmHero.md"
+    },
+    {
+      "name": "VmCard",
+      "category": "container",
+      "kind": "class",
+      "classes": [
+        "vm-card",
+        "vm-accent",
+        "vm-accent-blue",
+        "vm-accent-cyan",
+        "vm-accent-green",
+        "vm-accent-indigo",
+        "vm-accent-amber",
+        "vm-accent-red",
+        "vm-accent-violet",
+        "vm-card-hd",
+        "vm-card-hd-main",
+        "vm-card-hd-line",
+        "vm-card-hd-sub"
+      ],
+      "modifiers": [],
+      "doc": "VmCard.md"
+    },
+    {
+      "name": "VmSection",
+      "category": "container",
+      "kind": "class",
+      "classes": [
+        "vm-sec",
+        "vm-sec-dot",
+        "vm-sec-title",
+        "vm-sec-en",
+        "vm-sec-more"
+      ],
+      "modifiers": [
+        "green",
+        "amber",
+        "indigo",
+        "red"
+      ],
+      "doc": "VmSection.md"
+    },
+    {
+      "name": "VmList",
+      "category": "data",
+      "kind": "class",
+      "classes": [
+        "vm-list-item",
+        "vm-chev"
+      ],
+      "modifiers": [
+        "top",
+        "sm",
+        "muted"
+      ],
+      "doc": "VmList.md"
+    },
+    {
+      "name": "VmKv",
+      "category": "data",
+      "kind": "class",
+      "classes": [
+        "vm-kv",
+        "vm-kv-label",
+        "vm-kv-value"
+      ],
+      "modifiers": [],
+      "doc": "VmKv.md"
+    },
+    {
+      "name": "VmTile",
+      "category": "data",
+      "kind": "class",
+      "classes": [
+        "vm-tile",
+        "vm-tile-solid",
+        "vm-tile-img"
+      ],
+      "modifiers": [
+        "lg",
+        "cyan",
+        "green",
+        "indigo",
+        "amber",
+        "red",
+        "violet"
+      ],
+      "doc": "VmTile.md"
+    },
+    {
+      "name": "VmText",
+      "category": "typography",
+      "kind": "class",
+      "classes": [
+        "vm-t1",
+        "vm-t2",
+        "vm-t3",
+        "vm-en",
+        "vm-note",
+        "vm-meta",
+        "vm-ellipsis"
+      ],
+      "modifiers": [],
+      "doc": "VmText.md"
+    },
+    {
+      "name": "VmChip",
+      "category": "display",
+      "kind": "class",
+      "classes": [
+        "vm-chip"
+      ],
+      "modifiers": [
+        "cyan",
+        "green",
+        "indigo",
+        "amber",
+        "red",
+        "violet"
+      ],
+      "doc": "VmChip.md"
+    },
+    {
+      "name": "VmBadge",
+      "category": "display",
+      "kind": "class",
+      "classes": [
+        "vm-badge",
+        "vm-badge-dot"
+      ],
+      "modifiers": [],
+      "doc": "VmBadge.md"
+    },
+    {
+      "name": "VmGrid",
+      "category": "navigation",
+      "kind": "class",
+      "classes": [
+        "vm-grid4",
+        "vm-grid-item",
+        "vm-grid-icon",
+        "vm-grid-icon-img",
+        "vm-grid-name",
+        "vm-grid-tag"
+      ],
+      "modifiers": [
+        "cyan",
+        "green",
+        "indigo",
+        "amber",
+        "red",
+        "violet"
+      ],
+      "doc": "VmGrid.md"
+    },
+    {
+      "name": "VmMetric",
+      "category": "data",
+      "kind": "class",
+      "classes": [
+        "vm-metrics",
+        "vm-metric",
+        "vm-metric-ring",
+        "vm-metric-value",
+        "vm-metric-name"
+      ],
+      "modifiers": [],
+      "doc": "VmMetric.md"
+    },
+    {
+      "name": "VmHud",
+      "category": "display",
+      "kind": "class",
+      "classes": [
+        "vm-hud",
+        "vm-hud-tag",
+        "vm-img-scrim"
+      ],
+      "modifiers": [
+        "tl",
+        "tr",
+        "bl",
+        "br"
+      ],
+      "doc": "VmHud.md"
+    },
+    {
+      "name": "VmField",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-field",
+        "vm-label",
+        "vm-label-optional",
+        "vm-error"
+      ],
+      "modifiers": [],
+      "doc": "VmField.md"
+    },
+    {
+      "name": "VmInput",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-input",
+        "vm-input-icon",
+        "vm-input-suffix",
+        "vm-input-placeholder"
+      ],
+      "modifiers": [
+        "with-icon",
+        "with-suffix",
+        "error"
+      ],
+      "doc": "VmInput.md"
+    },
+    {
+      "name": "VmTextarea",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-textarea"
+      ],
+      "modifiers": [
+        "error"
+      ],
+      "doc": "VmTextarea.md"
+    },
+    {
+      "name": "VmPicker",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-picker"
+      ],
+      "modifiers": [
+        "with-icon",
+        "placeholder",
+        "error"
+      ],
+      "doc": "VmPicker.md"
+    },
+    {
+      "name": "VmDashed",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-dashed"
+      ],
+      "modifiers": [],
+      "doc": "VmDashed.md"
+    },
+    {
+      "name": "VmSeg",
+      "category": "navigation",
+      "kind": "class",
+      "classes": [
+        "vm-seg",
+        "vm-seg-item"
+      ],
+      "modifiers": [
+        "active"
+      ],
+      "doc": "VmSeg.md"
+    },
+    {
+      "name": "VmChoice",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-choice"
+      ],
+      "modifiers": [
+        "active"
+      ],
+      "doc": "VmChoice.md"
+    },
+    {
+      "name": "VmSwitch",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-switch-row"
+      ],
+      "modifiers": [],
+      "doc": "VmSwitch.md"
+    },
+    {
+      "name": "VmUpload",
+      "category": "form",
+      "kind": "class",
+      "classes": [
+        "vm-upload",
+        "vm-upload-item",
+        "vm-upload-add"
+      ],
+      "modifiers": [],
+      "doc": "VmUpload.md"
+    },
+    {
+      "name": "VmButton",
+      "category": "action",
+      "kind": "class",
+      "classes": [
+        "vm-btn",
+        "vm-btn-primary",
+        "vm-btn-ghost"
+      ],
+      "modifiers": [],
+      "doc": "VmButton.md"
+    },
+    {
+      "name": "VmActionbar",
+      "category": "action",
+      "kind": "class",
+      "classes": [
+        "vm-actionbar",
+        "vm-actionbar-safe"
+      ],
+      "modifiers": [],
+      "doc": "VmActionbar.md"
+    },
+    {
+      "name": "VmPopup",
+      "category": "overlay",
+      "kind": "class",
+      "classes": [
+        "vm-popup",
+        "vm-popup-mask",
+        "vm-popup-panel",
+        "vm-popup-hd",
+        "vm-popup-title",
+        "vm-popup-body",
+        "vm-popup-ft"
+      ],
+      "modifiers": [],
+      "doc": "VmPopup.md"
+    },
+    {
+      "name": "VmEmpty",
+      "category": "feedback",
+      "kind": "class",
+      "classes": [
+        "vm-empty",
+        "vm-empty-icon",
+        "vm-empty-icon-img",
+        "vm-empty-text",
+        "vm-empty-hint",
+        "vm-empty-en",
+        "vm-empty-action"
+      ],
+      "modifiers": [
+        "slim"
+      ],
+      "doc": "VmEmpty.md"
+    },
+    {
+      "name": "VmLoading",
+      "category": "feedback",
+      "kind": "class",
+      "classes": [
+        "vm-loading",
+        "vm-spinner",
+        "vm-loading-text"
+      ],
+      "modifiers": [],
+      "doc": "VmLoading.md"
+    },
+    {
+      "name": "VmFootnote",
+      "category": "display",
+      "kind": "class",
+      "classes": [
+        "vm-footnote",
+        "vm-footnote-brand",
+        "vm-footnote-hotline",
+        "vm-hot",
+        "vm-agreement",
+        "vm-link",
+        "vm-link-strong"
+      ],
+      "modifiers": [],
+      "doc": "VmFootnote.md"
+    }
+  ]
+}

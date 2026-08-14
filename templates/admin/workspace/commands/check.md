@@ -28,6 +28,20 @@
    （存在时）——报告条数、按 page 分组的分布与最近 3 条摘要；文件不存在或为空
    记「无运行时错误上报」。这是浏览器侧的真实报错，比静态检查更接近「跑得通」。
 
+6.5 **版面冒烟信号（A27，契约 §6.17）**：读取 .vima/reports/layout-smoke[.<appId>].json。
+   有报告 → 报 `source`（kimi-webbridge / playwright / unknown）、`bad` 计数与按路由归组的
+   findings 摘要（bad>0 时列 probe/selector/value 前 10 条，按 route 反查归属任务派修）；
+   **无报告 → 如实报「无版面冒烟通道」**（默认 Kimi WebBridge 与 Playwright 回退均不可用，
+   或 dev server 未起；启用方式见 `/go` 5.2.5）。
+   空报告与无报告是两回事，不许把「没测」说成「零问题」。
+
+7. **跨任务集成对账（A20，契约 §6.13）**：运行 `vima converge`（确定性、只读），
+   摘录其摘要——V-INT error / warn 数、未过点位数、`byTask` 涉及的任务数。
+   这是**单任务视角看不见**的一层：漏实现（契约声明了没人写）、重复实现
+   （同一接口两处后端文件）、越界实现（越出 A18 `apis` 责任田）、授权端无调用。
+   零 error 才代表「各批产出合得起来」；有 error 时列出前 3 条与归属任务。
+   报告详见 `.vima/reports/convergence.json`。
+
 ## 深度检查（可选，仅当用户明确要求「深度检查」时）
 
 抽样 2-3 个标记 done 的任务，派发 vima-verifier 子代理做语义比对，
@@ -49,6 +63,8 @@
 🔎 追溯对账：标注 15 │ 野生 0 │ 虚报嫌疑 1（详见 .vima/reports/trace.json）
 🎯 任务点：143 通过 │ 2 豁免（导出延后二期 等，见报告 reason）│ 5 未过 / 共 150（2 个任务未逐点验收）
 🛑 运行时错误：3 条（/system/order 2 │ /system/device 1，最近：Cannot read properties…）
+🔗 集成对账：error 1 │ warn 2 │ 未过点位 5（V-INT-02 GET /api/device/list 在 2 处重复实现
+   → device-api-be / device-extra-be；详见 .vima/reports/convergence.json）
 
 建议：处理订单详情页失败项后，输入 /go 继续
 ```

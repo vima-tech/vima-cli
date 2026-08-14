@@ -39,6 +39,11 @@ enums:
 id: PAGE-01
 title: 设备列表
 menu: MENU-01
+design:                       # A27 PDL：声明即承诺（pattern/density 必填，fold 引用实例名）
+  pattern: list
+  density: default
+  fold: [设备表格]
+  fidelity: D0                # A34 V-DSN-12：每页必须显式定级；D0 是裁定，不能用「缺失」替代
 layout: [search, toolbar, table, pagination]
 components:
   - block: search
@@ -49,13 +54,15 @@ components:
         options: [在线, 离线, 维护中]
   - block: toolbar
     items:
-      - { type: button, label: 新增, action: modal, target: MODAL-01 }
-      - { type: button, label: 批量删除, action: api, api: POST /api/device/batch-delete }
+      - { type: button, label: 新增, action: modal, target: MODAL-01, priority: primary }
+      - { type: button, label: 批量删除, action: api, api: POST /api/device/batch-delete, priority: secondary }
   - block: table
+    name: 设备表格
+    intent: 管理员定位并操作单台设备的主工作区
     api: GET /api/device/list
     rowActions:
-      - { label: 编辑, action: modal, target: MODAL-01 }
-      - { label: 详情, action: nav, target: PAGE-02 }
+      - { label: 编辑, action: modal, target: MODAL-01, priority: primary }
+      - { label: 详情, action: nav, target: PAGE-02, priority: secondary }
   - block: pagination
     items: []
 modals:
@@ -76,6 +83,8 @@ apis: [GET /api/device/list, POST /api/device, POST /api/device/batch-delete]
 id: PAGE-02
 title: 设备详情
 menu: MENU-02
+design:                       # A34：只带 fidelity 的 design 块合法——A27 的 pattern/density
+  fidelity: D0                # 必填只在页面用了 A27 键（pattern/density/fold）时才触发
 layout: [toolbar, form]
 components:
   - block: toolbar

@@ -36,6 +36,26 @@
   且含 `non-goals` 键；每条 `id` 匹配 `NG-\d{2}`、`desc` 非空。
   **本期确实没有 non-goals 也必须显式写 `non-goals: []`**——「声明为空」与「没声明」
   必须可区分，省略块一律 error。
+- [ ] **V-SPEC-15**（warn，A22/F1）：弹窗字段 ↔ 提交入参双向对账。正向弹窗必填字段须在
+  `submit.api` 的入参里（否则用户填了即丢）；反向该端点必填入参须有弹窗字段可填
+  （否则提交必被 40001 拒绝）。**缺的那个字段往往正是某个业务判断的输入。**
+  三条排除项：submit 指向 GET 的弹窗跳过、路径参数跳过、存在未声明子结构的 json 聚合入参时
+  该端点整体跳过。**恒为 warn**——定位是候选清单，最终定性靠实现者实地验证。
+- [ ] **V-SPEC-16**（error，A22/F3）：跨页导航参数取值域闭环。`action: nav` 携带 `params` 时，
+- [ ] **V-DSN-01**（error，A27）：页面带 `design` 键时 `pattern` ∈ list/detail/form/workbench/master-detail/board、`density` ∈ compact/default/loose（页/块/列三级密度同规则；列 `role` 唯一取值 primary）。未声明 design 的页面不触发
+- [ ] **V-DSN-03**（error，A27）：同一区块词出现多例时逐例带 `name` 且页内唯一——否则渲染/对账/评审分不清「哪个 cards」
+- [ ] **V-DSN-04**（error，A27）：`data.shape` ∈ list/record/metrics/timeline/chart/freeform；`freeform` 必带 `intent`（自由发挥区必须声明意图）
+- [ ] **V-DSN-05**（error，A27）：`priority` ∈ primary/secondary/overflow；页面级动作（items 按钮 + actions）primary 合计 ≤1、每块 rowActions 内 primary ≤1——两个主按钮 = 没有主按钮
+- [ ] **V-DSN-06**（warn，A27）：单块 rowActions >3 条且无一条 overflow → 提示收进「更多」（ActionGroup 按密度档收纳）
+- [ ] **V-DSN-07**（error，A27）：`design.fold` 引用的组件实例名必须存在（首屏承诺不许悬空）
+- [ ] **V-DSN-08**（warn，A27）：`shape: list` 未声明 `keyFields` → 信息优先级未定
+  key 须 ∈ 目标页 `params[].name`、value 须 ∈ 该项 `values`。每个页面单看都自洽，
+  只有跨页对照才暴露——目标页对未知 key 静默落兜底分支且不报错。不携带 params 的 nav 不触发。
+- [ ] **V-SPEC-17**（error，A33）：flow 步骤引用闭环。每条流程须有非空 `steps`；步骤声明的
+  `role` / `page` / `next` / `api` 必须存在（api 归一后 ∈ 契约）。只校验已声明字段——
+  悬空引用是确凿缺陷：写 `page: PAGE-99` 的流程此前能通过全部规则。
+- [ ] **V-SPEC-18**（warn，A33）：flow 步骤角色可达性。步骤角色未拥有该步页面的菜单 →
+  提示不可达。恒 warn——页面可经 nav 从他页到达，菜单不是唯一入口，请人工复核。
 - [ ] **V-DEC-01**（error）：第八章含 markdown 表格且表头含「已否决方案」列。
 
 ## 契约（docs/contracts/*.md）
@@ -47,6 +67,16 @@
   通过 `contract` 字段引用它（admin 前后端成对纪律）。
 - [ ] **V-CON-04**（error）：契约唯一性——module 名跨文件唯一；`METHOD path` 键跨全部契约唯一
   （§9.5 唯一事实来源，防后写覆盖先写）。
+- [ ] **V-CON-08**（warn，A22/F2）：字段四面对账。同一契约 module 内按 create（POST 入参）/
+  update（PUT·PATCH 入参）/ read（GET 响应）三桶归集；**写面出现而任何 GET 响应里都没有**的字段
+  → 疑似「只进不出」（新建能填、之后查不到改不了，且前端不报错）。确属只写字段
+  （密码、批量操作入参）标 `writeOnly: true` 豁免。**只查「只进」方向**——id/createdAt/计算字段
+  天然只在响应里，反方向报出来是纯噪声。
+- [ ] **V-CON-09**（warn，A22/F4）：聚合 json 子协议。`type: json` 的字段既无 `fields` 子结构
+  又无 `enforced: false` → warn（内部零约束时写入方/读取方/后端计算方各写各的，
+  编译期与机检都看不见，运行时「存进去了但算不对」）。确实没有权威结构的显式标
+  `enforced: false`。第二条：同名聚合字段在不同 module 给出不同子结构 → 提示同名不同义，
+  **只提示不判错**（不同领域对象重名是允许的，统一成一套反而是过度抽象）。
 - [ ] **V-CON-05**（warn）：占位符特征——请求参数名形如 `q1`/`q2`，或 POST/PUT 声明空 `request: []`。
   这类内容能通过全部结构性校验却与真实需求无关，是模板套壳没填完的痕迹；确属无入参的写操作可忽略。
 - [ ] **V-CON-06**（error/warn）：契约三方计数一致——人读 `## <METHOD> /path` 小节与机读 `apis`
@@ -78,9 +108,16 @@
   负责接口数 ≤ **10**（负责集 = frontmatter `apis`，未声明则取契约全集）。
   超限即按子域拆分——批次时长取批内最大值，超大任务把本可并行的工作串行化
   （sustain-v3 实测：单任务 4527 行 = 同批最小任务 7 倍，并行槽空转率 52–54%）。
+  **A24：`status=done` 的任务不参与**——唯一行动项「拆分」已不可执行，
+  留着只会变成永不消失的 warn 并连累整张列表的可信度。
 - [ ] **V-TASK-12**（error，A18）：`apis` 每条 ∈ 该契约 apis；同契约 side=backend 的任务
   之间**负责集不重叠**（防重复实现）；若该契约下全部 backend 任务都声明了 `apis`，
   并集须等于契约全集（防漏实现）。未声明 `apis` 的任务按「负责全集」语义，不触发后两项。
+- [ ] **V-TASK-13**（warn，A20）：存在 `layer=business` 任务时，须有 `layer=pipeline` 的
+  收尾流水线任务（`full-test` + `code-audit`，模板见 `docs/tasks/_template-full-test.md`
+  与 `_template-code-audit.md`）。缺失时 `/go` 的「流水线全部通过」条件恒真，
+  全量测试与代码审计从不执行。设计期只 warn（不阻断存量项目开工），
+  收口期由 `vima converge` 的 V-INT-05 升级为 error。
 
 ## 覆盖矩阵（docs/coverage-matrix.md）
 
@@ -119,6 +156,23 @@
   单向对账防野生接口；实现完整性由 Verifier 逐点判定负责。
 - [ ] **V-CODE-02**（error）：后端带 `@vima` 标注 Controller 的类级 `@RequestMapping`
   基路径 + `@*Mapping` 子路径拼接归一后必须 ∈ 契约 apis。
+
+## 跨任务集成对账（A20；`vima converge` 执行，**不属 validate**，收口期跑）
+
+V-CODE 是**单向**对账（单个文件不得出现契约之外的接口）；下列 V-INT 是**跨任务合并
+视角**——契约的每个接口在整个代码库里被实现了几次、被谁实现。全部批次开发完成后由
+`/go` 收口闸门自动执行，也可随时手动跑 `vima converge`。
+
+- [ ] **V-INT-01**（error）：契约每个接口在带 `@vima` 标注的后端代码中至少有一处实现
+  （**仅当其负责任务全部 `status=done`** 时判定，开发中途跑不假红）。
+- [ ] **V-INT-02**（error）：同一接口不得在 ≥2 个后端文件重复实现（运行期路由冲突）。
+- [ ] **V-INT-03**（error）：实现者须在该接口的 `apis` 责任田内（仅当该契约下有任务
+  声明了 `apis` 时启用）。
+- [ ] **V-INT-04**（warn）：契约授权端（`consumers`）在其带标注代码中确有调用，
+  否则是联调断点或契约冗余。
+- [ ] **V-INT-05**（error）：存在 business 任务时必须有 pipeline 收尾任务（同 V-TASK-13）。
+- [ ] 报告 `.vima/reports/convergence.json` 的 `byTask` 已作为修复调度输入
+  （谁的问题派回谁改，不由主 Agent 自行判断归属）。
 
 ## 待确认项
 

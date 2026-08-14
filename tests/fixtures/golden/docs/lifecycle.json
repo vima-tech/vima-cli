@@ -1,5 +1,9 @@
 {
   "checklists": {
+    "DESIGNING": {
+      "briefReady": false,
+      "directionsExplored": false
+    },
     "DEVELOPING": {
       "businessTasksDone": false,
       "codeAudited": false,
@@ -20,6 +24,11 @@
     }
   },
   "currentPhase": "PLANNING",
+  "designApproval": {
+    "directions": {},
+    "pages": {}
+  },
+  "designCapability": "a34",
   "phaseHistory": [
     {
       "completedAt": "2026-08-12T09:05:00Z",

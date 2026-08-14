@@ -136,19 +136,40 @@ a:hover {
   margin-right: 0;
 }
 
+/*
+ * 三组固定宽度都要配 max-width: 100%。
+ *
+ * 下面那条容器查询的判据是**工作区**宽度，只兜得住「整页变窄」；
+ * 搜索栏被放进页内的窄容器时（如咨询处理页 280px 的会话列表侧栏）工作区仍是满宽，
+ * 兜底不触发，200px 的输入框就直接顶穿 242px 的卡身——而且是无省略号的硬裁切，
+ * 右边缘的内容连"被截断了"的提示都没有。实测溢出 24px。
+ * max-width 与容器宽度无关，任何宿主下都成立，正常场景（可用宽度 > 固定宽度）不受影响。
+ */
 .v-searchbar .vui-input,
 .v-searchbar .vui-tag-input,
 .v-searchbar .vui-input-number {
   width: var(--v-search-w-input);
+  max-width: 100%;
 }
 
 .v-searchbar .vui-select {
   width: var(--v-search-w-select);
+  max-width: 100%;
 }
 
 .v-searchbar .vui-date,
 .v-searchbar .vui-timepicker {
   width: var(--v-search-w-date);
+  max-width: 100%;
+}
+
+/*
+ * 区间选择器要单独给一档宽度：它显示的是「2026-08-01 ~ 2026-08-14」两个日期加分隔符，
+ * 按单日期的 168px 给，值一填上就被裁掉（实测数据报表页溢出 52px）。
+ * 框架给区间态挂了 .is-range，可以精确区分，不必把单日期也一起加宽。
+ */
+.v-searchbar .vui-date.is-range {
+  width: var(--v-search-w-date-range, 240px);
 }
 
 /*
@@ -161,6 +182,7 @@ a:hover {
     --v-search-w-input: 100%;
     --v-search-w-select: 100%;
     --v-search-w-date: 100%;
+    --v-search-w-date-range: 100%;
   }
 
   .v-searchbar > .vui-form-item {

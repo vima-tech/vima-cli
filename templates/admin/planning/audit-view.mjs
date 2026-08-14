@@ -1,5 +1,6 @@
 // 人类审计视图渲染器（admin 模板资产；设计 §13.2，契约 §11）
-// 五视图：① 角色权限矩阵 ② 菜单功能点 ③ 业务流程泳道 ④ 页面 UI 详情 ⑤ 业务规则（A13）。
+// 六视图：① 角色权限矩阵 ② 菜单功能点 ③ 业务流程泳道 ④ 页面 UI 详情 ⑤ 业务规则（A13）
+//        ⑥ 业务闭环（A33：逐 flow 旅程——入口可达性/状态效应/查询出口/承接任务）。
 // 另渲染「本期不做」范围红线区（A13：声明为空与没声明必须可区分）。
 // 铁律：确定性渲染——禁 Date/Math.random；所有数据经 escapeHtml；同一输入字节一致；
 //       输出串末尾单个换行；单文件零外部请求（href 仅 # 锚点）；禁 JS 完整可读（本渲染器不产出 JS）。
@@ -81,7 +82,7 @@ function collectPending(spec) {
  * @returns {string} 单文件 HTML（末尾单个换行）
  */
 export function renderReview(model) {
-  const { projectName, spec, contracts, apps = null } = model;
+  const { projectName, spec, contracts, apps = null, tasks = null } = model;
   // A16 多端：端归属（与 lib/model/apps.mjs appOf 同口径）+ 端徽标（单端不渲染，字节零扰动）
   const multi = Boolean(apps?.multi);
   const appIdOf = (entry) => {
@@ -156,6 +157,7 @@ export function renderReview(model) {
 <li><strong>③ 业务流程泳道</strong>——把每条流程从头走一遍：角色、入口页面、动作、接口、去向，与实际业务一致吗？</li>
 <li><strong>④ 页面 UI 详情</strong>——配合线框原型（docs/review/prototype.html，可按角色视角切换）逐页体验布局、字段与交互。</li>
 <li><strong>⑤ 业务规则</strong>——逐条看边界值与错误码写清了没有：这些规则会随任务发给 Builder 施工、由 Verifier 逐条核对，散文里没写进数据块的规则不会被任何人执行。</li>
+<li><strong>⑥ 业务闭环</strong>——每条流程从头验四问：用户够得着吗（入口可达性）、状态真的变吗（状态效应规则）、结果查得到吗（查询出口）、谁承接实现（任务对账）。标「无」的格子是 spec 真实的缺口，请逐格拍板。</li>
 </ol>
 <p class="guide-act">发现任何不符：<strong>不要在文档外口头拍板</strong>——告诉 Agent 修改 docs/spec.md 对应数据块，
 重跑 <code>vima validate</code> 与 <code>vima render-review</code> / <code>vima render-prototype</code> 后再看本页。
@@ -179,6 +181,7 @@ ${pending.length > 0 ? '<a class="toc-warn" href="#view-pending">⚠️ 待确�
 <a href="#view-flows">③ 业务流程泳道</a>
 <a href="#view-pages">④ 页面 UI 详情</a>
 <a href="#view-rules">⑤ 业务规则</a>
+<a href="#view-loop">⑥ 业务闭环</a>
 <span class="toc-sep">页面：</span>${pages.map((p) => `<a href="#${esc(p.id)}">${esc(p.title ?? p.id)}</a>`).join('\n')}
 </nav>`;
 
@@ -315,10 +318,28 @@ ${rows}
 ${ruleCards || '<p class="dim">（未声明任何业务规则——vima validate V-SPEC-09 会拦截）</p>'}
 </section>`;
 
+  // ── ⑥ 业务闭环（A33）：逐 flow 旅程——入口可达性 / 状态效应 / 查询出口 / 承接任务 ──
+  const contractKeysByFile = new Map();
+  for (const c of contracts ?? []) {
+    const keys = new Set();
+    for (const a of c.apis ?? []) keys.add(normApiKey(`${a.method} ${a.path}`));
+    contractKeysByFile.set(c.file, keys);
+  }
+  const loopCtx = {
+    spec, roleById, rules, contractByKey, contractKeysByFile, tasks,
+    appTag, roleLink, pageLink, menuLink,
+  };
+  const loopCards = flows.map((f) => renderLoopCard(f, loopCtx)).join('\n');
+  const viewLoop = `<section class="view" id="view-loop">
+<h2><span class="num">⑥</span>业务闭环</h2>
+<p class="vd">每条流程验四问：<strong>用户够得着吗</strong>（入口角色是否拥有入口页面的菜单）、<strong>状态真的变吗</strong>（步骤接口命中的 transition/calculation 规则）、<strong>结果查得到吗</strong>（终点页的 GET 查询出口）、<strong>谁承接实现</strong>（页面 / 接口 join 任务）。标「无」的格子不是渲染缺失——是 spec 真的没声明，正是要拍板的缺口。</p>
+${loopCards || '<p class="dim">（spec 未声明任何业务流程——第五章每条流程一个 vima:flow 块）</p>'}
+</section>`;
+
   const foot = `<footer class="foot">本审计视图为单文件自包含产物：零外部请求、不含 JS、无时间戳，同一份 spec 渲染字节一致（<code>vima render-review --check</code> 可验漂移）。<br>
 真源：<code>docs/spec.md</code> · 角色 ${esc(roles.length)} · 菜单 ${esc(menus.length)} · 页面 ${esc(pages.length)} · 流程 ${esc(flows.length)} · 规则 ${esc(rules.length)} · 本期不做 ${esc(nonGoals.length)}</footer>`;
 
-  const content = [hero, guide, toc, redline, ...(pendingList ? [pendingList] : []), viewRoles, viewMenus, viewFlows, viewPages, viewRules, foot].join('\n');
+  const content = [hero, guide, toc, redline, ...(pendingList ? [pendingList] : []), viewRoles, viewMenus, viewFlows, viewPages, viewRules, viewLoop, foot].join('\n');
   const title = `${projectName} · 审计视图`;
   const html = TEMPLATE.split('{{TITLE}}').join(esc(title)).split('{{CONTENT}}').join(content);
   return html.replace(/\n*$/, '\n');
@@ -466,5 +487,121 @@ ${interactions.length ? `<ul>\n${interactions.join('\n')}\n</ul>` : '<p class="d
 ${apiItems}
 </ul>
 ${modalCards ? `<h4>弹窗</h4>\n${modalCards}` : ''}
+</article>`;
+}
+
+/**
+ * ⑥ 中的单条流程卡（A33）：入口行（可达性判据与 V-SPEC-18 同源）+ 步骤表（状态效应 =
+ * rule.apis join，type ∈ {transition,calculation}）+ 出口行（终点页 GET 接口）+ 承接行
+ * （tasks 切片 join：fm.page 命中步骤页；backend|fullstack 任务负责集命中步骤接口——
+ * apis 声明时取声明集，否则契约全集，与 lib ownedApisOf 同口径）。
+ * 缺口一律如实标注（「无状态规则」「无查询出口」）——标注本身就是拍板人要看的信号。
+ */
+function renderLoopCard(f, ctx) {
+  const { spec, roleById, rules, contractByKey, contractKeysByFile, tasks, appTag, roleLink, pageLink, menuLink } = ctx;
+  const steps = Array.isArray(f.steps) ? f.steps : [];
+  const dim = '<span class="dim">—</span>';
+
+  // ── 入口行：首步角色 × 首步页面的菜单可达性 ──
+  const first = steps[0] ?? {};
+  let entryLine;
+  if (typeof first.page === 'string' && spec.pages.has(first.page)) {
+    const page = spec.pages.get(first.page);
+    const menuId = typeof page.menu === 'string' && page.menu !== '' ? page.menu : null;
+    const role = typeof first.role === 'string' ? roleById.get(first.role) : undefined;
+    let badge;
+    if (menuId === null) {
+      badge = '<span class="warn">⚠️ 入口页面未挂菜单（只能经 nav 从他页到达）</span>';
+    } else if (role === undefined) {
+      badge = '<span class="warn">⚠️ 入口角色未声明或不存在</span>';
+    } else if ((role.menus ?? []).includes(menuId)) {
+      badge = '✅ 角色拥有该菜单，可达';
+    } else {
+      badge = `<span class="warn">⚠️ 角色未拥有菜单 ${esc(menuId)}，不可达（V-SPEC-18）</span>`;
+    }
+    entryLine = `${first.role ? roleLink(first.role) : '<span class="dim">（未声明角色）</span>'}<span class="lane-arrow">→</span>${pageLink(first.page)}${menuId ? `（菜单 ${menuLink(menuId)}）` : ''} ${badge}`;
+  } else {
+    entryLine = '<span class="warn">⚠️ 首步未声明有效页面</span>';
+  }
+
+  // ── 步骤表：状态效应 = 步骤接口命中的 transition/calculation 规则 ──
+  const stateRulesOf = (api) => {
+    if (typeof api !== 'string' || api === '') return [];
+    const key = normApiKey(api);
+    return rules.filter((r) => r && typeof r === 'object'
+      && (r.type === 'transition' || r.type === 'calculation')
+      && Array.isArray(r.apis) && r.apis.some((a) => normApiKey(a) === key));
+  };
+  const rows = steps
+    .map((s, i) => {
+      if (!s || typeof s !== 'object') return `<tr><td>${i + 1}</td><td colspan="6">${dim}</td></tr>`;
+      const hits = stateRulesOf(s.api);
+      const effect = typeof s.api === 'string' && s.api !== ''
+        ? (hits.length > 0
+          ? hits.map((r) => `<a class="xref" href="#${esc(r.id)}"><span class="tid">${esc(r.id)}</span></a> ${esc(r.type)}`).join('、')
+          : '<span class="dim">无已声明的状态规则</span>')
+        : dim;
+      const pageCell = typeof s.page === 'string' && s.page !== ''
+        ? `${pageLink(s.page)}${appTag(spec.pages.get(s.page))}` : dim;
+      return `<tr><td>${i + 1}</td><td>${typeof s.role === 'string' && s.role !== '' ? roleLink(s.role) : dim}</td><td>${pageCell}</td><td>${esc(s.action ?? '—')}</td><td>${typeof s.api === 'string' && s.api !== '' ? apiBadge(s.api, contractByKey) : dim}</td><td>${effect}</td><td>${typeof s.next === 'string' && s.next !== '' ? pageLink(s.next) : dim}</td></tr>`;
+    })
+    .join('\n');
+
+  // ── 出口行：终点页（末步 next ?? page）的 GET 接口 = 结果查询出口 ──
+  const last = steps[steps.length - 1] ?? {};
+  const exitPageId = typeof last.next === 'string' && last.next !== '' ? last.next : last.page;
+  let exitLine;
+  if (typeof exitPageId === 'string' && spec.pages.has(exitPageId)) {
+    const gets = (spec.pages.get(exitPageId).apis ?? []).filter((a) => normApiKey(a).startsWith('GET '));
+    exitLine = gets.length > 0
+      ? `${pageLink(exitPageId)} 的 ${gets.map((a) => apiBadge(a, contractByKey)).join(' ')}`
+      : `${pageLink(exitPageId)} <span class="warn">⚠️ 无声明的查询出口（终点页没有 GET 接口）——流程结果在哪查看？请人工确认</span>`;
+  } else {
+    exitLine = '<span class="warn">⚠️ 终点页未声明或不存在</span>';
+  }
+
+  // ── 承接行：页面 join + 接口负责集 join（tasks 为 null 时如实标注缺席）──
+  let ownersLine;
+  if (tasks === null) {
+    ownersLine = '<span class="warn">⚠️ 任务清单不可用（docs/tasks 缺失或不可解析）——承接对账缺席</span>';
+  } else {
+    const hits = new Map(); // taskId → Set<来源>
+    const add = (id, src) => {
+      if (!hits.has(id)) hits.set(id, new Set());
+      hits.get(id).add(src);
+    };
+    for (const s of steps) {
+      if (!s || typeof s !== 'object') continue;
+      if (typeof s.page === 'string' && s.page !== '') {
+        for (const t of tasks) if (t.page === s.page) add(t.id, `页面 ${s.page}`);
+      }
+      if (typeof s.api === 'string' && s.api !== '') {
+        const key = normApiKey(s.api);
+        for (const t of tasks) {
+          if (t.side !== 'backend' && t.side !== 'fullstack') continue;
+          if (typeof t.contract !== 'string' || !contractKeysByFile.has(t.contract)) continue;
+          const owned = Array.isArray(t.apis) && t.apis.length > 0
+            ? new Set(t.apis.map(normApiKey))
+            : contractKeysByFile.get(t.contract);
+          if (owned.has(key)) add(t.id, `接口 ${key}`);
+        }
+      }
+    }
+    ownersLine = hits.size === 0
+      ? '<span class="dim">（无承接任务——本流程涉及的页面 / 接口尚未拆解到任务）</span>'
+      : [...hits.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([id, srcs]) => `<code>${esc(id)}</code><span class="dim">（${esc([...srcs].sort().join('、'))}）</span>`)
+        .join(' ');
+  }
+
+  return `<article class="card" id="loop-${esc(f.id)}">
+<h3>${esc(f.name)}<span class="tid">${esc(f.id)}</span>${pend(f)}</h3>
+<p class="meta">入口：${entryLine}</p>
+<div class="tw"><table><thead><tr><th>#</th><th>角色</th><th>页面</th><th>动作</th><th>接口</th><th>状态效应</th><th>去向</th></tr></thead><tbody>
+${rows}
+</tbody></table></div>
+<p class="meta">结果查询出口：${exitLine}</p>
+<p class="meta">承接任务：${ownersLine}</p>
 </article>`;
 }

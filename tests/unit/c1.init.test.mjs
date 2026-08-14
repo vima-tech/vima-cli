@@ -55,6 +55,8 @@ test('init：CLAUDE.md < 50 行、hooks 可执行位、manifest.managed > 0、li
   }
   assert.ok(manifest.files.userOwned.includes('CLAUDE.md'));
   assert.ok(manifest.files.userOwned.includes('docs/spec.md'));
+  // A30：设计语言是项目自己的决定（取向定档 + 模式库条目），随 spec 同列 userOwned
+  assert.ok(manifest.files.userOwned.includes('docs/design-language.md'));
   assert.ok(typeof manifest.initializedAt === 'string');
 
   // lifecycle：currentPhase=PLANNING，BOOTSTRAP completedAt / PLANNING enteredAt 已填
@@ -69,6 +71,7 @@ test('init：CLAUDE.md < 50 行、hooks 可执行位、manifest.managed > 0、li
   // 关键产物齐全
   for (const rel of [
     'docs/spec.md',
+    'docs/design-language.md',
     'docs/planning-guide.md',
     'docs/planning-validation/validate.checklist.md',
     'docs/planning-validation/coverage-matrix.example.md',

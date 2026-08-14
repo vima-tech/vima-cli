@@ -2,16 +2,16 @@
 
 > 本文是全部模块的**唯一接口权威**。与设计文档冲突时：文件格式/接口签名以本文为准，
 > 业务语义以 `docs/design/vima-cli-design-v2.md`（下称 §N）为准。
-> 增补项记为 A1–A17（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
+> 增补项记为 A1–A33（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
 > 更新日期：2026-08-13（对应设计文档 v2.0.5；本文随设计文档修订演进，不单独编号。
 > A16 多端应用模型为契约先行：本文 schema/规则已定稿，按 A16 三波次落实现）。
 
 ## 目录
 
 §1 阅读顺序 · §2 仓库结构与文件所有权 · §3 全局约定（3.1 错误码登记表）· §4 lib/util API ·
-§5 lib/model API · §6 文件格式 Schema（6.1–6.11）· §7 spec 结构化数据块 · §8 validate 规则表 ·
-§9 plan 批次算法 · §10 trace 规则 · §11 render 约定 · §12 增补项 A1–A17 · §13 测试与 fixtures ·
-§14 命令行为裁定补遗
+§5 lib/model API · §6 文件格式 Schema（6.1–6.19）· §7 spec 结构化数据块 ·
+§8 validate 规则表（8.1 V-INT 规则族 / converge）· §9 plan 批次算法 · §10 trace 规则 ·
+§11 render 约定 · §12 增补项 A1–A33 · §13 测试与 fixtures · §14 命令行为裁定补遗
 
 ## 1. 阅读顺序
 
@@ -32,7 +32,11 @@ lib/commands/{create,init,update,upgrade,app}.mjs [C1] + tests/unit/c1.*.test.mj
                                                 （update=更新项目产物；upgrade=升级 CLI 自身，A15；
                                                  app=端册管理 add/list，A16 Wave 3）
 lib/commands/{plan,sync,doctor}.mjs            [C2] + tests/unit/c2.*.test.mjs
-lib/commands/{validate,approve,trace,context}.mjs [C3] + tests/unit/c3.*.test.mjs
+lib/commands/{validate,approve,trace,context,converge,retro,change,certify}.mjs [C3] + tests/unit/c3.*.test.mjs
+                                                （converge=跨任务集成对账，A20；复用
+                                                 validate 导出的代码扫描原语，不复制实现；
+                                                 change=维护期变更事务，A31；
+                                                 certify=交付等级认证，A32）
 lib/commands/render-{review,prototype}.mjs
 templates/admin/planning/{audit-view,prototype}.mjs
 templates/admin/planning/{review,prototype}.template.html [C4] + tests/unit/c4.*.test.mjs
@@ -72,7 +76,8 @@ tests/e2e.test.mjs tests/helpers.mjs README.md [集成阶段统一编写，agent
   顶层 help 的 create 行须标注模板成熟度（admin=stable，其余 preview，A5 诚实分级）。
 - 所有写盘：`atomicWriteFile`；所有 JSON 落盘：`stableStringify`。
 - 渲染器/生成器**禁止** `Date.now()`、`new Date()`、`Math.random()`——字节确定性是验收项。
-  例外：create/init/approve/sync 记录真实时间戳的字段（createdAt 等）允许 `new Date().toISOString()`。
+  例外：create/init/approve/sync/change 记录真实时间戳的字段（createdAt、openedAt 等）
+  允许 `new Date().toISOString()`（change 仅限 change.json 状态文件；impact.json 属推导产物，无时间戳）。
 - 路径统一 `node:path`；项目根定位：含 `docs/lifecycle.json` 或 `.vima/manifest.json` 的当前目录
   （不向上递归查找，v2.0 简化）。
 
@@ -94,7 +99,12 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | UPGRADE_UNSUPPORTED | 4 | upgrade | 安装方式不支持自升级（源码/npm link 态、npx 临时运行）且给了 --yes（A15） |
 | REGISTRY_UNREACHABLE | 2 | upgrade | npm registry 请求失败/超时/响应缺 version（A15；不静默降级为「已是最新」） |
 | INSTALL_FAILED | 2 | upgrade | 全局安装器无法执行或以非零码结束（A15） |
-| NO_TASKS | 4 | plan | 缺 docs/tasks/ 目录（防在非 vima 项目静默产出空计划） |
+| NOT_IN_PROJECT | 4 | 全部项目内命令（A24） | 当前目录及其任何祖先都不是 vima 项目（无 `.vima/` 也无 `docs/lifecycle.json`）。**不写任何文件**——原行为按 cwd 静默工作，会把错误结论落盘（实测：在 `backend/` 下 validate 报「2 错误」并写出 `pass: false` 的报告） |
+| NO_TASKS | 4 | plan / converge / retro / certify | 缺 docs/tasks/ 目录（防在非 vima 项目静默产出空计划 / 空对账报告，且不凭空创建 .vima/reports/） |
+| CHANGE_ACTIVE | 4 | change open | 已存在非 closed 的变更包（A31 单变更在途：先 close 再开） |
+| NO_CHANGE | 4 | change impact/apply/close | 未指定 id 且无在途（非 closed）变更包可默认 |
+| CHANGE_UNPROPAGATED | 2 | change close | 传播闸门未过：受影响任务未全 done / validate 有 error / converge 未通过（A31） |
+| NO_CONTRACTS | 4 | mock | 缺 docs/contracts/ 目录或零接口（A27：mock 由契约生成，无契约即无可 mock，不写空文件） |
 | NO_RENDERER | 4 | render-review / render-prototype | 模板未声明对应渲染器 |
 | NO_LIFECYCLE | 4 | model/lifecycle | 缺 docs/lifecycle.json |
 | NO_SPEC | 4 | model/spec | 缺 docs/spec.md |
@@ -151,6 +161,10 @@ export function extractBlocks(text, kind)
 export function listChapters(text)       // → [{ level, title, line }]（# 前缀标题）
 export function hasCheckbox(text)        // → 是否含 "- [ ]" / "- [x]"
 ```
+
+**A24 新增**：`findProjectRoot(startDir) → string|null`（`lib/util/fs.mjs`）——从 `startDir`
+逐级向上查找含 `.vima/` 或 `docs/lifecycle.json` 的最近祖先目录，返回绝对路径；到文件系统根
+仍未命中返回 `null`。纯文件系统遍历，不读内容、不写盘。
 
 ## 5. lib/model API（F 实现，签名冻结）
 
@@ -257,7 +271,7 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
       "scaffold": "scaffold/frontend", "uiDocs": "ui-docs", "codeDir": "src",
       "sharedDirs": ["src/components", "src/utils", "vendor"] },
     { "id": "patient", "name": "患者端", "kind": "mp-native",
-      "scaffold": "scaffold/mp-native", "uiDocs": "ui-docs-mp", "codeDir": "src",
+      "scaffold": "scaffold/mp-native", "uiDocs": "ui-docs-vm", "codeDir": "src",
       "sharedDirs": ["src/components", "src/utils"] }
   ],
   "backend": { "scaffold": "scaffold/backend", "dir": "backend",
@@ -266,11 +280,13 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
   "planning": {
     "guide": "planning/planning-guide.md",
     "spec": "planning/spec.admin.md",
+    "designLanguage": "planning/design-language.md",
     "codingStandards": "planning/coding-standards.md",
     "checklist": "planning/validate.checklist.md",
     "contractExample": "planning/contract.example.md",
     "coverageExample": "planning/coverage-matrix.example.md",
-    "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md"],
+    "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md",
+                      "planning/_template-full-test.md", "planning/_template-code-audit.md"],
     "renderers": { "review": "planning/audit-view.mjs", "prototype": "planning/prototype.mjs" },
     "prototype": true,
     "kinds": {
@@ -289,7 +305,10 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
 
 **A16 端册化**：`apps[] + backend` 取代旧顶层 `scaffold`/`sharedDirs`/`codeDirs` 三键
 （sharedDirs 一律相对各自 dir；`backend.dir` 缺省 `"backend"`；app 条目**不含 dir**——
-落地目录由 create 按 N 计算：N=1 落项目根 `"."`，N≥2 落 `apps/<id>/`，写入 manifest）。
+落地目录由 create 计算写入 manifest：**一律 `apps/<id>/`**（A28，改判 D-A16-03 的按 N 分叉；
+改判前创建的 N=1 项目为 `"."`，仍合法）。可选顶层键 `root.scaffold`（A28 D-A28-04）：
+项目根卫生资产源目录（项目级 `.gitignore`/`README.md`），create 以 destKey 项目根拷贝、
+进 A19 骨架基线；骨架遍历一律排除 `node_modules`/`target`（构建产物防污染）。
 loader 兼容旧三键（合成单端端册），新模板一律写新形态。`planning.kinds` 是
 **词表/分栏能力/原型外壳/kind 成熟度的唯一真源**（V-SPEC-04/12 与渲染器同源于此，
 词表从 validate 代码常量迁出）；kind `status: preview` = PLANNING 全流程可用、
@@ -297,7 +316,13 @@ create/app add 跳过骨架拷贝并显式警告（A5 分级下推到 kind）。
 标记 `--apps` 缺省时的端册（admin 模板缺省仅 admin 端）。
 kinds 条目另可带 **`componentMap`**（A16：布局词/控件 type → 组件文档名数组，
 `vima context` 组件切片的映射真源；admin-web 可省略 = lib 内置现行缺省表，
-mp-native 须随 Wave 2 ui-docs 显式声明——无表则该端切片恒空，即半截实现）。
+mp-native / h5-mobile 随 ui-docs 显式声明——无表则该端切片恒空，即半截实现）。
+`componentMap` 另认一个**非词表键 `modal`**（A23）：页面声明 `modals` 时注入的弹层
+组件名。缺省 `['VLayer']`（admin-web 现行行为），mp/h5 端为 `['VmPopup']`——
+原实现把 `VLayer` 硬编码在 `componentsOfPage` 里，绕过了 componentMap 这个真源，
+等于该端弹窗切片恒空。同理弹窗字段的 `type` 映射也走 componentMap，不再走内置表。
+两个 mobile kind（`mp-native` / `h5-mobile`，A25）共用同一份 `layoutVocab`、
+`shell: phone-tabbar` 与 `componentMap`——同一种手机形态不该有两套词表。
 **goPrerequisites 的多端展开（A16）**：清单保持模板级静态；消费方（doctor 漂移检查、
 approve 前置、go.md 文案）遇 `docs/review/prototype.html` 条目时经 resolveApps 展开为
 逐端 `prototype.<appId>.html`（单端项目即旧名，零变化）——静态清单不得直接按字面
@@ -311,6 +336,11 @@ v2.0.0 骨架**只用内置 builtin 目录拷贝**（不执行 npm create/spring
 （前端 components/utils/vendor；后端 config/security 包）。
 `planning.codingStandards` → init 安装为 `docs/coding-standards.md`（managed，
 §5.2「详细规范」指针的落点）。
+`planning.designLanguage`（**A30**，可选键）→ init 安装为 `docs/design-language.md`
+（**userOwned**，变量替换，与 spec 同口径）：缺省风格取向（house style）+ 五条取向轴
+的项目定档位 + Stage A 版面模式库容器。三者都是项目自己的决定，故 update 永不覆盖。
+**纯文档资产**：不进 schema、不进机检、无渲染消费方（A30 D-A30-05）；缺此键的模板
+（preview 四模板）不安装该文件，行为逐字节不变。
 模板变量：拷贝 scaffold 时替换文件内容与文件名中的 `{{projectName}}`、`{{projectPkg}}`
 （projectName 去掉非字母数字后的小写形式）、`{{createdAt}}`；**A16 增 `{{appId}}`**——
 create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单端根布局同样注入其
@@ -333,14 +363,15 @@ create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单�
   "install": { "minimal": false, "skipScan": false },
   "files": { "managed": [{ "path": ".claude/commands/go.md", "checksum": "sha256:<hex>" }],
              "scaffold": [{ "path": "src/App.vue", "checksum": "sha256:<hex>" }],
-             "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/contracts/", "docs/tasks/",
+             "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/design-language.md",
+                            "docs/contracts/", "docs/tasks/",
                             "docs/raw/", "docs/coverage-matrix.md"] } }
 ```
 
 **A16 端册（schemaVersion "1" → "2"）**：`apps[]`/`backend` 由 create 写入（`{{projectPkg}}`
-等变量已渲染为具体路径；sharedDirs 相对各自 dir）。N=1 前端 `dir: "."`（存量布局不变），
-N≥2 一律 `apps/<id>/`；`vima app add` 后补端到根布局项目时允许混合布局（dir 是数据，
-消费方经 resolveApps 无感）。v1 manifest（无 apps 键）由 resolveApps 合成默认端册，
+等变量已渲染为具体路径；sharedDirs 相对各自 dir）。create 写入的 dir **一律 `apps/<id>/`**（A28；
+改判前的单端项目为 `"."`——存量布局不迁移）；存量根布局与 `vima app add` 后补端
+形成的混合布局**永久合法**（dir 是数据，消费方经 resolveApps 无感）。v1 manifest（无 apps 键）由 resolveApps 合成默认端册，
 `vima update` 迁移为 v2。**（A19 落实）**：update 检测到缺 `apps` 键时，把 `resolveApps`
 合成的端册写入并置 `schemaVersion: "2"`；**后端共享层按模板 `backend.sharedDirs` 渲染且逐个
 校验目录在位**，缺一个就整体放弃迁移（保持 v1）——因为 guard-shared 对 v1 走内置字面量兜底、
@@ -501,7 +532,19 @@ JSON Lines（每行一个 JSON 对象），由骨架 vite dev 中间件 `/__vima
 ## 组件文档切片                          ← 按受限词表映射出的组件，各附 docs/ui-framework/<名>.md 全文
 ## 业务规则切片                          ← A13：按 apis 交集过滤的 vima:rules 条目 + 全局规则；spec 缺失时标注跳过
 ## 本期不做（范围红线）                  ← A13：vima:non-goals 全量；空清单渲染为「本期无 non-goals 声明」
+## 系统底座接口索引                      ← A22：**无 @vima 标注**代码（= 底座/共享层）提供的能力：
+                                            各端 <dir>/<codeDir>/api/** 的导出函数名 + 请求路径、
+                                            后端无标注 controller 的 Mapping 路径。只出名字与路径，
+                                            不贴实现（字节预算是硬约束）。无命中时渲染一句说明
+## 真源片段                              ← A22：spec 已纳入本包的文本中形如 `docs/raw/<路径>` 的引用
+                                            （可带 :行号 / :起-止），附被引用文件片段。带行号取该行
+                                            前后各 20 行，不带行号取整文件；单文件上限 8 KB，超出截断注明
 ## 编码规范（docs/coding-standards.md）  ← 原文；缺失时标注跳过
+## 项目补充规范                          ← A24：`docs/coding-standards.local.md` 存在时附于此。
+                                            **不入 manifest、不受管、doctor 不校验**——受管的
+                                            coding-standards.md 是唯一随 context 分发到每个任务的
+                                            规范文件，项目往里加内容会让 doctor ⑧ 长期报「被手改」；
+                                            本节让项目定制不污染受管基线。init 不创建它（按需新建）
 ```
 
 **业务规则切片的过滤口径**（A13，确定性无启发式）：任务 apis 集合 =
@@ -556,6 +599,227 @@ docs/ui-framework）一律「标注跳过」不报错——存在性问题归 va
 | `consecutiveResumes ≥ 5` | 放行 + stderr 提示已达续跑上限 |
 | 其余（`in-progress` 且未达上限） | 阻止停轮，stdout 输出续跑指令 JSON |
 
+### 6.13 .vima/reports/convergence.json（A20，`vima converge` 输出）
+
+跨任务集成对账报告。**每次扫描的确定性快照**——不含手工状态与豁免字段：
+修好了就扫不出来（A20「不做」第 2 条）。
+
+```json
+{ "schemaVersion": "1",
+  "scope": { "markedBackendFiles": 12, "markedFrontendFiles": 30, "contractApis": 251,
+             "skipped": null },
+  "summary": { "errors": 2, "warnings": 1, "openPoints": 3, "runtimeErrors": 0,
+               "unmarkedDone": 0 },
+  "findings": [
+    { "rule": "V-INT-02", "level": "error", "key": "GET /api/food/list",
+      "owners": ["food-api-be", "diet-api-be"],
+      "paths": ["backend/src/.../FoodController.java", "backend/src/.../DietController.java"],
+      "message": "接口 GET /api/food/list 在 2 处后端文件重复实现（…）" }
+  ],
+  "openPoints": [ { "taskId": "order-detail-fe", "point": "RULE-03 …", "kind": "failed" } ],
+  "unmarkedDone": ["shared-base"],
+  "byTask": { "food-api-be": ["V-INT-02 GET /api/food/list"],
+              "diet-api-be": ["V-INT-02 GET /api/food/list"] } }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `scope.skipped` | `null` 或 `"no-marked-backend"`——带 `@vima` 标注的后端文件为 0 时 V-INT-01/02/03 整族跳过（纯前端项目 / 未开工项目不假红） |
+| `findings[].owners` | 该 finding 归属的 taskId 数组（责任田判定见 §8 V-INT 组说明）；无法归属时为 `[]` |
+| `findings[].paths` | 相关文件相对项目根、`/` 分隔、升序 |
+| `openPoints` | 聚合 `.vima/reports/<taskId>-verifier.json` 的 points：`kind` ∈ `failed`（未过）/ `ng`（A13 `NG-xx 越界`，不计豁免）。**豁免（waived）不计入** |
+| `summary.runtimeErrors` | `runtime-errors.jsonl` 条数；**只报告不计退出码**（追加式历史含已修复旧条目） |
+| `summary.unmarkedDone` | 顶层 `unmarkedDone` 数组的长度 |
+| `unmarkedDone` | `status=done` 且 `layer ∈ {shared,business}` 却无任何 `@vima` 标注的 taskId（升序；§10 trace 同口径，内联计算不 shell out）。warn 语义，不计退出码 |
+| `byTask` | taskId → 该任务名下 finding 摘要数组，**修复调度的确定性输入**（`/go` 收口闸门按此归组派发，主 Agent 不自行判断派给谁） |
+
+排序：`findings` 按 `rule` → `key` → 首个 `path` 升序；`byTask` 的 key 与数组元素均升序
+（`stableStringify` 已保证 key 排序，数组由生成端排）。**同一输入必须字节一致**。
+
+退出码：`errors > 0 || openPoints.length > 0` → 2；`--strict` 时 `warnings > 0` 也 → 2。
+
+### 6.14 .vima/reports/retro.json + docs/retro/vima-feedback.md（A21，`vima retro` 输出）
+
+项目复盘的确定性采集。**离线、只读、默认脱敏**——机读 JSON 与人读 issue 正文同源，
+同一输入字节一致（阶段时长取 `phaseHistory` 已落盘的时间戳，**不读系统时钟**）。
+
+```json
+{ "schemaVersion": "1",
+  "anonymized": true,
+  "fingerprint": { "templateId": "admin", "vimaVersion": "3.0.2", "apps": 2,
+                   "phases": [{ "phase": "PLANNING", "days": 3 }] },
+  "tasks": { "total": 42, "byLayer": {"shared":1,"business":39,"pipeline":2},
+             "bySide": {"backend":12,"frontend":27,"fullstack":3},
+             "retried": 9, "maxRetry": 2, "failed": 0, "blocked": 0,
+             "declaredApis": 12, "conflictsWith": 3 },
+  "batches": { "count": 11, "maxParallel": 8, "sizes": [1,8,8,6,2], "levels": 5 },
+  "convergence": { "V-INT-01": 0, "V-INT-02": 2, "V-INT-03": 1, "V-INT-04": 5, "V-INT-05": 0,
+                   "openPoints": 3, "unmarkedDone": 0 },
+  "verification": { "reports": 40, "maxRound": 3, "points": 812, "failedPoints": 3,
+                    "waived": 4, "ngViolations": 1 },
+  "shared": { "changeRequests": 2 },
+  "planning": { "pendingConfirm": 0, "ruleHits": { "V-TASK-07": 12, "V-CON-02": 3 } },
+  "runtime": { "errors": 0 },
+  "scale": { "pages": 48, "entities": 66, "rules": 31, "nonGoals": 7,
+             "contractApis": 206, "matrixRows": 48 },
+  "observations": [ { "id": "OBS-retry", "signal": "retried/total = 21%",
+                      "note": "…", "target": "docs/tasks/_template-*.md 验收清单粒度" } ] }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `anonymized` | 默认 `true`：产物**只有计数与分布**，不含 taskId / 接口路径 / 页面 ID / 业务规则文本。`--with-ids` 置 `false` 并携带标识（自用仓库时用）。**安全默认值的方向是「泄露要显式」** |
+| `fingerprint.phases[].days` | 由 `phaseHistory` 的 `enteredAt`/`completedAt` 差值算出；缺时间戳记 `null`，不猜 |
+| `planning.ruleHits` | validate 报告里 error/warn **按规则 id 的命中分布**——哪条规则最常被违反 = 框架引导最缺的地方 |
+| `observations` | **阈值驱动的静态表**（条件 → 观察句 + 建议落点），命中才输出。每条 `target` 必须指向 **vima-cli 的框架资产**，不指向业务代码——反哺的是框架，不是项目 |
+
+`docs/retro/vima-feedback.md` 是同一份数据的 issue 正文投影（标题 + 指纹表 + 信号表 +
+观察项 + 供人工补充的空白段）。**两者必须同源渲染**，不分别维护。
+
+退出码：0（采集成功）。`docs/tasks/` 不存在 → `NO_TASKS`（exit 4），不写任何文件
+（同 plan/converge 守卫）。
+
+### 6.15 .vima/retro-state.json（A21，反哺询问的一次性记录）
+
+```json
+{ "schemaVersion": "1", "asked": true, "answer": "yes|no", "askedAt": "<ISO>" }
+```
+
+由**主 Agent** 在 `/go` 步骤 6 询问后写入（CLI 不写）。`asked=true` 时同一项目不再自动
+弹反哺询问——拒绝一次就不该被反复骚扰。用户主动说「反哺一下」时不受此限。
+
+### 6.16 .vima/mock/contract-mock.json（A27，`vima mock` 输出）
+
+从 `docs/contracts/*.md` 的机读块确定性生成（stableStringify，同输入同字节）：
+
+```json
+{ "schemaVersion": "1",
+  "apis": [ { "method": "GET", "path": "/api/device/list",
+              "datasets": { "default": <resp>, "empty": <resp>, "many": <resp>, "long": <resp> } } ] }
+```
+
+- **8 种字段类型 8 条固定规则**（零随机零时间戳）：`string`→`"<name>_<i>"`、`number`→`i`、
+  `boolean`→`i%2==0`、`date`→`2026-01-<01+i>`、`datetime`→`2026-01-<01+i>T08:00:00Z`、
+  `array`→`[]`、`object`/`json`→`{}`（有 `fields` 子结构则按子字段递归）；enum/options 有值时
+  string 取 `values[i % len]`。
+- **数据量四档**：`default` 3 行 / `empty` 0 行 / `many` 20 行 / `long` 1 行且 string 字段为
+  >120 字定长超长文本——空与超长恰是暴露版面缺陷最有效的两档。响应字段含 `records`/分页语义时
+  包 `{ records, total, pageNum, pageSize }`，否则平铺对象（列表判定：GET + response 含 id 类字段
+  的启发不做——**只按契约声明**：response 即样本对象；多行仅对 GET 生成，写操作恒 default 单对象）。
+- 统一包装 `{ code: 200, message: "ok", data: … }` 由**消费端**（骨架 demo 分支）补，文件本体只存 data。
+- 无契约目录/零接口 → `NO_CONTRACTS` exit 4（§3.1 登记）。
+
+### 6.17 .vima/reports/layout-smoke.json（A27，Kimi WebBridge 默认输出）
+
+```json
+{ "schemaVersion": "1", "source": "kimi-webbridge", "viewports": [375, 1280, 1920],
+  "pages": [ { "route": "/device", "viewport": 1280,
+               "findings": [ { "probe": "overflow-x", "selector": ".opt-card", "value": 30 } ] } ],
+  "bad": 0 }
+```
+
+七探针：`overflow-x`（横向溢出且祖先无滚动容器）/ `void`（无纵向滚动且页底空洞 >120px）/
+`clipped`（overflow hidden 裁切）/ `gap`（相邻兄弟间隙 >40px）/ `scale`（gap/padding 计算值
+∉ 令牌取值集）/ `overlap`（兄弟盒相交）/ `wrap`（动作行内元素 offsetTop 不一致 = 意外换行）。
+默认通道加载 `$kimi-webbridge`，从 `/__gallery` 取业务路由，用 CDP 设置三视口，并在页面
+动态导入骨架 `scripts/layout-probe.mjs` 执行同一组探针。`source` 可取 `kimi-webbridge` 或
+`playwright`；兼容旧报告，字段缺失时消费方显示 `unknown`。Kimi WebBridge 启动/重试后仍
+不可用才运行骨架 `npm run smoke`（`scripts/layout-smoke.mjs`）作为 Playwright 回退。
+
+**诚实降级**：默认与回退通道均不可用，或 dev server 未起 → **不写文件**——空报告会被
+读成「跑过且零问题」，比没有更糟（A7 同款纪律）。/check 无报告时如实报「无版面冒烟通道」。
+
+### 6.18 .vima/changes/<changeId>/（A31，`vima change` 变更包）
+
+changeId 形如 `chg-001`（三位序号，取现存最大 +1）。**同一时间只允许一个非 closed
+变更包**（CHANGE_ACTIVE）。目录三件套：
+
+```
+change.json            # 状态文件（允许真实时间戳，§3 例外）
+baseline/docs/spec.md              # open 时的逐字节快照（spec 缺失则不拷、记 null）
+baseline/docs/contracts/*.md       # open 时全部契约快照（目录镜像 docs/，供 loadSpec/loadContracts 直读）
+impact.json            # 影响面推导产物（无时间戳，同基线 + 同现状 → 同字节）
+```
+
+```json
+// change.json
+{ "schemaVersion": "1", "id": "chg-001", "description": "设备列表增加批量删除",
+  "status": "open",                       // open|applied|closed
+  "openedAt": "<ISO>", "appliedAt": null, "closedAt": null,
+  "baseline": { "spec": "<sha256|null>",
+                "contracts": { "docs/contracts/device-api.md": "<sha256>" } },
+  "reopened": [],                         // apply 写入：被重开（done→pending）的 taskId 升序
+  "closedSourceHash": null }              // close 写入：{ spec, contracts } 现状哈希（同 baseline 形态）
+```
+
+```json
+// impact.json
+{ "schemaVersion": "1", "changeId": "chg-001",
+  "spec": { "pages":   { "added": [], "removed": [], "modified": ["PAGE-01"] },
+            "menus":   { "added": [], "removed": [], "modified": [] },
+            "roles":   { "added": [], "removed": [], "modified": [] },
+            "flows":   { "added": [], "removed": [], "modified": [] },
+            "rules":   { "added": [], "removed": [], "modified": [] },
+            "nonGoals":{ "added": [], "removed": [], "modified": [] },
+            "entities":{ "added": [], "removed": [], "modified": [] } },
+  "apis": { "added": ["POST /api/device/batch-delete"], "removed": [], "modified": [] },
+  "affectedTasks": [ { "taskId": "device-list-fe", "status": "done",
+                       "reasons": ["页面 PAGE-01 变更", "契约 docs/contracts/device-api.md 接口变更命中负责集"] } ],
+  "reopen": ["device-list-fe"],
+  "recheck": ["vima validate", "vima render-review", "vima render-prototype",
+              "vima render-matrix", "vima converge"],
+  "summary": { "specChanges": 1, "apiChanges": 1, "affectedTasks": 1, "reopen": 1 } }
+```
+
+- diff 口径：pages/menus/roles/flows/rules/nonGoals 按 id、entities 按 name、接口按归一键
+  （method 大写 + 单空格，同 V-SPEC-07）；`modified` = 条目 `stableStringify` 不等。
+  各数组升序，字节确定。
+- 受影响任务推导（reasons 逐条留痕）：`fm.page` ∈ 变更页（modified/removed）；
+  `fm.contract` 契约的变更键 ∩ 任务负责集（`ownedApisOf`，A18 缺省语义）非空；
+  变更规则 `rule.apis` ∩ 任务接口集（page.apis ∪ 契约负责集，A13 context 同口径）非空；
+  **全局规则变更 → 全部 business 任务**。`reopen` = 受影响 ∩ `status=done`。
+- `recheck` 静态推导：validate 恒在列；spec 任一类变更 → render-review / render-prototype；
+  页面或接口变更 → render-matrix；任务或接口受影响 → converge。
+- 子命令行为：`open` 建包（描述必填）；`impact` 只重算并写 impact.json；`apply` = 重算 +
+  重开 reopen 清单（saveTaskFrontmatter：status→pending、updatedAt 刷新）+ 回写 reopened/
+  appliedAt/status=applied；`close` = 重算 + 三重闸门（①受影响任务全 done ②进程内
+  `validateProject` 零 error ③存在 reopen 或接口变更时进程内跑 converge 且 exit 0）→
+  通过写 closedSourceHash/closedAt/status=closed，否则 CHANGE_UNPROPAGATED exit 2；
+  `list` 打印全部包（id/状态/描述/影响计数）。baseline 保留不删（审计证据）。
+
+### 6.19 .vima/reports/certify.json（A32，`vima certify` 输出）
+
+只读证据聚合，**无时间戳，同输入同字节**；exit 恒 0（评估不是闸门）。
+`docs/tasks/` 缺失 → NO_TASKS exit 4，不写文件。
+
+```json
+{ "schemaVersion": "1",
+  "templateMaturity": "stable",           // A5 template.json status；模板不可解析时 null
+  "deliveryLevel": "spec-approved",       // none | spec-approved | implemented | converged | pipeline-green
+  "notCertified": "deployable/stable 需要部署环境与运行期证据，vima 不采集、也不认证",
+  "levels": [
+    { "level": "spec-approved", "satisfied": true,
+      "evidence": ["docs/lifecycle.json checklists.PLANNING.tasksApproved=true (tasksApprovedAt 2026-08-14T00:00:00Z)"],
+      "missing": [] },
+    { "level": "implemented", "satisfied": false, "evidence": [],
+      "missing": ["任务未 done：device-list-fe（共 3 个）", "缺 Verifier 通过报告：device-api-be"] },
+    { "level": "converged", "satisfied": false, "evidence": [],
+      "missing": ["未生成 .vima/reports/convergence.json（先跑 vima converge）"] },
+    { "level": "pipeline-green", "satisfied": false, "evidence": [],
+      "missing": ["pipeline 任务未全部 done：full-test"] } ] }
+```
+
+| 等级 | 判据（全部取自磁盘既有真源） |
+|---|---|
+| `spec-approved` | lifecycle `checklists.PLANNING.tasksApproved === true` |
+| `implemented` | shared+business 任务数 >0 且全 done；每个 done 的 business 任务有 `<taskId>-verifier.json` 且 `result: "pass"` |
+| `converged` | convergence.json 存在且 `summary.errors=0`、`summary.openPoints=0`（证据附该文件 sha256） |
+| `pipeline-green` | ≥1 个 pipeline 任务且全部 done |
+
+`deliveryLevel` = 自底向上**连续**满足的最高级（跳级不算）。stdout 摘要须同时明示
+templateMaturity 与 deliveryLevel 的语义区别（「模板 stable ≠ 项目 stable」）与
+notCertified 行。**不写 lifecycle**（等级由证据推导，不落第二状态真源）。
+
 ## 7. spec 结构化数据块（唯一机器真源，§13.2/§13.3）
 
 写在 docs/spec.md 各章内，围栏格式：<code>```yaml vima:&lt;kind&gt;</code> … <code>```</code>。
@@ -608,12 +872,55 @@ modals:
     fields:
       - { field: name, label: 设备名称, type: input, required: true }
     submit: { api: POST /api/device }
+params:                      # A22 可选：本页接受的导航参数与取值域（F3 跨页 key 一致性）
+  - { name: step, values: [screening, assessment, followup] }
 apis: [GET /api/device/list, POST /api/device, POST /api/device/batch-delete]
 ```
 交互仅三种（§13.3）：`action: nav`（target=PAGE-xx）、`action: modal`（target=MODAL-xx）、
-`action: api`（api="METHOD /path"）。**nav 的 target 必须与本页同端**（A16，V-SPEC-13
+`action: api`（api="METHOD /path"）。
+
+**A22 导航参数（F3）**：`action: nav` 可带 `params: { step: screening }`——跳转时携带的参数。
+声明时 key 必须 ∈ 目标页 `params[].name`、value 必须 ∈ 该项 `values`（V-SPEC-16）。
+页面的 `params` 是**该页导航参数取值域的唯一声明处**：多个入口各用各的 key 约定、
+目标页静默落兜底分支是实测过的功能级故障，且每个页面单看都自洽、只有跨页对照才暴露。
+不携带 `params` 的 nav 完全不触发本规则——规则由声明主动开启，存量项目零影响。
+
+**nav 的 target 必须与本页同端**（A16，V-SPEC-13
 ——小程序页面无法「导航」到桌面后台页；跨端交接只表达在 `vima:flow`，step 的端由其
 page 推导，flow 不加新键）。`regions`（A14）仅 kind 声明 `regions: true` 的端可用（A16）。
+
+**A27 PDL 设计声明（全部可选；「声明即承诺」——缺省行为与现状逐字节一致，一旦声明即全量校验）**：
+
+```yaml
+design:                      # 页面级设计声明（V-DSN-01：声明时 pattern/density 必填且 ∈ 枚举）
+  pattern: workbench         # ∈ list|detail|form|workbench|master-detail|board
+  density: default           # ∈ compact|default|loose（页面基准密度档）
+  fold: [待办清单, 患者卡片]  # 首屏承诺：组件实例 name 数组（V-DSN-07 引用必须存在）
+regions:
+  - columns:
+      - { name: 主工作区, width: 1fr, blocks: [cards], role: primary, density: compact }
+        # A27：列可带 role: primary（视觉主次）与 density（局部密度档）
+components:
+  - block: cards
+    name: 待办清单            # 实例名。V-DSN-03：同词多例必须逐例带 name 且页内唯一
+    intent: 医师进入后第一眼要处理的事   # 一句话存在理由（人审对象）
+    data:                    # 内容语义（V-DSN-04）
+      shape: list            # ∈ list|record|metrics|timeline|chart|freeform；freeform 必带 intent
+      of: 随访待办            # 数据是什么（自由文本）
+      keyFields: [患者, 逾期天数]   # 信息优先级（V-DSN-08：shape:list 缺它 → warn）
+    density: compact         # 块级密度档（覆盖页面基准）
+    actions:                 # A27 操作附着点：贴本块标题行，不新起横带；
+      - { type: button, label: 开处方, action: nav, target: PAGE-12, priority: primary }
+        # 条目 schema 同 toolbar button，参与既有全部交互校验与 V-TASK-07 计点
+```
+
+- `items[]` 按钮与 `rowActions[]` 可带 `priority: primary|secondary|overflow`（V-DSN-05：
+  枚举校验；**页面级动作**（items+actions）primary 合计 ≤1；每块 `rowActions` 内 primary ≤1；
+  单块行内动作 >3 且无一个 overflow → V-DSN-06 warn）。
+- `modals[]` 可带 `presentation: dialog|drawer`（缺省 dialog；drawer 渲染为右侧抽屉，
+  componentMap 的 modal 映射按 presentation 取 VLayer/VDrawer——A27 C-A27-03）。
+- 附着点选「宿主块收编」而非按钮声明 anchor：天然表达「贴谁」，无引用解析、无悬空引用
+  这一类新错误。「放不放得下」不在规格期判定——由 L2 探针在运行期量测（换行是事实）。
 
 ### vima:roles / vima:menus（第六章 权限）
 ```yaml
@@ -681,6 +988,17 @@ apis:
     errors:
       - { code: 40001, msg: 参数校验失败 }
 ```
+
+**A22 字段可选键**（三个都可选，缺省即现状；出自 sustain-v3 实测的两类字段级盲区）：
+
+| 键 | 用途 |
+|---|---|
+| `readOnly: true` / `writeOnly: true` | 显式声明单向字段，豁免 V-CON-08 四面对账。**豁免必须显式，不靠猜**——`password` 只写、`createdAt` 只读、计算字段只出现在响应都是合法的，但「只加了 POST 忘了 GET/PUT」也长这样，机器分不清 |
+| `fields: [{name, type, required}]` | `type: json` 聚合字段的**子协议**（一层，不递归）。声明后 V-SPEC-15 把子字段名并入弹窗对账集 |
+| `enforced: false` | 声明该 `type: json` 字段**确实没有权威结构**（实测存在：`summarize(Object surveyDays)` 按键名递归求和、`PrintTemplateService` 对 `fieldConfig` 整体透传不解析）。「无强制结构」应当能被如实表达，而不是留白让人以为漏写了 |
+
+`type: json` 而 `fields` 与 `enforced` 皆无 → V-CON-09 warn。**不强制同名聚合字段统一子结构**
+——实测 `content` 在 6 个模块里是 6 种领域对象且确实是有意的，统一成一套是过度抽象。
 表格列头渲染的唯一字段来源 = 对应 api 的 response 字段（§13.3）。
 **A16 契约纪律**：不同端需要不同数据形状 ⇒ 必须是不同端点（不建模 per-consumer
 response 变体；一个 module 可同时服务多端，端点单一真源不拆）。授权闭环见 §8 V-CON-07。
@@ -691,8 +1009,8 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 |---|---|---|
 | V-SPEC-01 | error | docs/spec.md 九章齐全，标题前缀：`## 1. 系统概述` `## 2. 数据模型` `## 3. 页面清单` `## 4. 接口清单` `## 5. 业务规则` `## 6. 权限设计` `## 7. 技术栈` `## 8. 关键决策记录` `## 9. 本期不做`（第八章为 A4 吸收项，第九章为 A13） |
 | V-SPEC-02 | error | vima:entities 存在；每个 entity 有非空 fields |
-| V-SPEC-03 | error | 每个 vima:page 四要素齐全：layout 非空、components 非空、apis 非空、每个交互 action∈{nav,modal,api} 且 target/api 字段匹配 |
-| V-SPEC-04 | error | layout 与 components[].block 词汇 ⊆ 页面归属端 kind 的 `layoutVocab`（A16 端化：词表取自 template `planning.kinds`，与渲染器同源；缺省 = admin-web 现行 7 词 {toolbar,search,table,form,cards,tabs,pagination}；mp-native 8 词 {search,list,cards,form,tabs,banner,detail,actionbar}） |
+| V-SPEC-03 | error | 每个 vima:page 四要素齐全：layout 非空、components 非空、apis 非空、每个交互 action∈{nav,modal,api} 且 target/api 字段匹配。**A27**：交互条目 = components[].items[] 带 action + components[].actions[] + rowActions[]（三处同校验同计点）；`modals[].presentation` 若声明须 ∈ {dialog,drawer} |
+| V-SPEC-04 | error | layout 与 components[].block 词汇 ⊆ 页面归属端 kind 的 `layoutVocab`（A16 端化：词表取自 template `planning.kinds`，与渲染器同源；缺省 = admin-web 10 词 {toolbar,search,table,form,cards,tabs,pagination,steps,collapse,anchor}（A27 +3）；mp-native 8 词 {search,list,cards,form,tabs,banner,detail,actionbar}） |
 | V-SPEC-05 | error | nav target 指向存在的 PAGE-xx；modal target 在本页 modals 中定义；PAGE/MODAL/ROLE/MENU/FLOW/RULE/NG ID 全文档唯一（后两类 A13） |
 | V-SPEC-06 | error | 每个 role.menus 非空且指向存在的 MENU；无角色覆盖且未标 `uncovered: true` 的菜单 → error |
 | V-SPEC-07 | error | 每页 apis ⊆ 契约 apis（跨文件交叉引用） |
@@ -703,6 +1021,19 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-SPEC-12 | error | 分栏版面（A14）：页面块 `regions` 可选，模型为「纵向若干带，每带全宽或横切成列」。声明时每带须且只须有一个非空 `blocks` 或 `columns`；列须为映射且 `blocks` 非空、`width` 匹配 `^\d+(\.\d+)?(px|fr)$`（缺省 `1fr`）；全部区块词 ∈ 布局词表；regions 铺开后的区块多重集必须等于 `layout`（防两处漂移）。未声明 `regions` 的页面完全不触发本规则；仅 kind 声明 `regions: true` 的端可用——mobile 端页面声明 regions 即 error（A16，手机单列） |
 | V-SPEC-13 | error | 端归属（A16）：多端项目每个 page/menu 必须带 `app` 且 ∈ 端册（单端可省略 = 唯一端；声明时任意 N 均须合法）；`action: nav` 的 target 页面须与本页同端；menu.page 须与 menu.app 同端 |
 | V-SPEC-14 | error | 端覆盖（A16）：端册每个 app 在 spec 中 ≥1 个页面（防「入册未设计」漂移） |
+| V-SPEC-15 | warn | **弹窗字段 ↔ 提交入参双向对账（A22/F1）**：正向 `modal.fields[].required==true` 的 `field` ∈ 该 modal `submit.api` 对应契约 api 的入参名集合；反向该 api `request[].required==true` 的 `name` ∈ 该 modal `fields[].field`。**三条排除项（缺一则误报率高到没人看）**：① `submit.api` 为 `GET` → 整个 modal 跳过（选择/参考类弹窗字段本就不提交）；② 契约必填入参名 ∈ 该 api 路径的 `{name}` 占位符 → 反向跳过（路径参数由上下文提供）；③ api 存在 `type: json` 入参且未声明 `fields` 子结构 → 该 api 双向整体跳过（聚合字段可由多个弹窗字段拼成），已声明 `fields` 时把子字段名并入比对集、必填子字段参与反向对账。**定位是候选清单不是判决**，故恒为 warn 不升 error |
+| V-SPEC-16 | error | **跨页导航参数取值域闭环（A22/F3）**：`action: nav` 携带 `params` 时，每个 key ∈ 目标页 `params[].name`、每个 value ∈ 该项 `values`；目标页未声明 `params` 却收到携带参数的 nav → error。不携带 `params` 的 nav 完全不触发（规则由声明主动开启，存量项目零影响） |
+| V-SPEC-17 | error | **flow 步骤引用闭环（A33）**：每条 vima:flow 须有非空 `steps`；步骤**声明的** `role` ∈ roles、`page` / `next` ∈ pages、`api` 归一后 ∈ 契约 apis（归一同 V-SPEC-07）。只校验已声明字段（省略即不触发对应子项，声明即承诺同 A27）；悬空引用是确凿缺陷，error 不误伤存量 |
+| V-SPEC-18 | warn | **flow 步骤角色可达性（A33）**：步骤同时声明 `role` 与 `page` 且该页挂有菜单（`page.menu`）时，该 role 的 `menus` 须含此菜单，否则提示「角色对该步页面不可达」。恒 warn：页面可经 nav 从他页到达，菜单不是唯一入口——候选清单请人复核，同 V-SPEC-15 定位 |
+| V-DSN-01 | error | **PDL 设计声明完整性（A27，声明即承诺）**：页面带 `design` 键时，`pattern` 必填 ∈ {list,detail,form,workbench,master-detail,board}、`density` 必填 ∈ {compact,default,loose}；未带 `design` 的页面完全不触发（存量零影响，下同） |
+| V-DSN-03 | error | **同词多例实例名（A27）**：同一 `block` 词在 components 出现 >1 次时，每例必须带 `name` 且页内唯一（否则渲染/对账/评审三处都分不清「哪个 cards」）；单例可省 |
+| V-DSN-04 | error | **内容形态枚举（A27）**：`data.shape` ∈ {list,record,metrics,timeline,chart,freeform}；`shape: freeform` 必须同时带 `intent`（自由发挥区必须声明意图，诚实标注好过假覆盖） |
+| V-DSN-05 | error | **动作优先级（A27）**：`priority` ∈ {primary,secondary,overflow}（items 按钮 / actions / rowActions 三处通用）；**页面级动作**（items 按钮 + actions 合计）`primary` ≤1；每块 `rowActions` 内 `primary` ≤1。未声明 priority 的动作不参与计数 |
+| V-DSN-06 | warn | **行内动作收纳提示（A27）**：单块 `rowActions` >3 条且无一条 `overflow` → 提示收进「更多」（骨架 ActionGroup 按密度档收纳：compact 2 / default 3 / loose 4） |
+| V-DSN-07 | error | **首屏承诺引用闭环（A27）**：`design.fold` 的每个元素 ∈ 本页 components[].name 集合（悬空承诺 = 谎言） |
+| V-DSN-08 | warn | **列表信息优先级（A27）**：`data.shape: list` 的块未声明 `keyFields` → 提示信息优先级未定（列表没有主字段，渲染与实现都只能瞎排） |
+| V-CON-08 | warn | **字段四面对账·疑似只进不出（A22/F2）**：同一契约 module 内按 `create`（POST 的 request）/ `update`（PUT·PATCH 的 request）/ `read`（GET 的 response）三桶归集字段名，**只出现在其中一个桶**的字段 → warn。带 `readOnly: true` 或 `writeOnly: true` 的字段不参与。**GET 列表与详情响应合并为一个 `read` 桶**（原议为四面）：合并后判据更保守，`id`/`createdAt` 这类天然出现在多个 GET 响应的字段自然免疫，而三条实测实例（只在 `create` 桶）照样命中 |
+| V-CON-09 | warn | **聚合 json 子协议（A22/F4）**：`type: json` 的字段既无 `fields` 子结构又无 `enforced: false` → warn（内部结构零约束时写入方/读取方/后端计算方各写各的，编译期与机检都看不见，运行时表现为「存进去了但算不对」）。第二条子检查：同名聚合字段在不同契约 module 给出**不同子结构** → warn「同名不同义，确认是否有意」——只提示不判错，实测同名不同义确实可以是有意的 |
 | V-DEC-01 | error | 第八章含 markdown 表格且表头含「已否决方案」列（A4） |
 | V-CON-01 | error | 每个契约 api 五要素：method/path/request/response/errors（request 允许空数组，字段须显式存在） |
 | V-CON-02 | warn | 契约 api 未被任何页面 apis 引用（孤儿接口） |
@@ -722,8 +1053,9 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-TASK-08 | warn | 任务正文引用的接口须 ∈ 作用域（带 page 取该页 apis，否则取 contract 契约 apis）。V-TASK-07 只数复选框不看内容，产物重建后清单会长期停在旧端点上。含否定式措辞（真源无/已废弃/不请求…）的行不计入 |
 | V-TASK-09 | warn | 任务正文内嵌「契约声明的 N 个接口」与契约条目数一致（契约一改即漂，此前无规则覆盖） |
 | V-TASK-10 | error | 任务端归属（A16）：多端项目 side=frontend\|fullstack 任务必须带 `app` ∈ 端册；side=backend 禁止携带 app（任意 N）；带 page 的任务 task.app 必须 == 该页归属端 |
-| V-TASK-11 | warn | 任务规模上限（A18）：`layer=business` 且 `side ∈ {backend,fullstack}` 的任务，负责接口数 > **10** → 提示按子域拆分。负责集 = `fm.apis`（声明时）否则契约 apis 全集。理由见 A18：批次时长取批内最大值，超大任务把本可并行的工作串行化 |
+| V-TASK-11 | warn | 任务规模上限（A18）：`layer=business` 且 `side ∈ {backend,fullstack}` 的任务，负责接口数 > **10** → 提示按子域拆分。负责集 = `fm.apis`（声明时）否则契约 apis 全集。理由见 A18：批次时长取批内最大值，超大任务把本可并行的工作串行化。**A24：`status=done` 的任务不参与**——本规则的唯一行动项是「拆分任务」，对已完成任务不可执行；永不消失的 warn 会训练用户忽略整张 warn 列表，把 A22 那批同为 warn 的字段级规则一起废掉 |
 | V-TASK-12 | error | 任务负责接口集闭环（A18）：`fm.apis` 每条归一后 ∈ 该契约 apis；同一契约下 side=backend 的任务中，声明了 `apis` 的**两两不相交**（防重复实现）；若该契约下全部 backend 任务都声明了 `apis`，其并集须 == 契约全集（防漏实现）。未声明 `apis` 的任务不触发后两项 |
+| V-TASK-13 | warn | 收尾流水线存在性（A20）：存在 `layer=business` 任务却无任何 `layer=pipeline` 任务 → 提示补 `full-test`/`code-audit`。**设计期只 warn**（不阻断存量项目开工，守 A19 升级可达性）；收口期由 V-INT-05 升级为 error |
 | V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
 | V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
@@ -732,6 +1064,39 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 
 `vima validate`：全部 error 通过 → exit 0 并把 `checklists.PLANNING.artifactsValidated=true` 写回
 lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规则。报告落盘 §6.8。
+
+### 8.1 V-INT 规则族（A20；`vima converge` 实现，**不属 validate**）
+
+跨任务集成对账。V-CODE-01/02 是**单向**对账（代码不得出现契约之外的接口，作用域是
+单个文件）；V-INT 是**跨任务合并视角**（契约的每个接口在整个代码库里被实现了几次、
+被谁实现）。二者互补，共用同一套扫描原语（`scanMarkedFiles` / `feApiKey` /
+`mappingPath` / `normalizePathParams`，由 `lib/commands/validate.mjs` 导出，converge 复用不复制）。
+
+**责任田判定**（贯穿 V-INT-01/03）：某契约 api 的**负责任务集** = 该契约下
+`layer=business` 且 **`side ∈ {backend, fullstack}`**（与 V-TASK-11「承担实现的 side」
+同口径——只认 backend 会让「一个任务做完前后端」的形态整体逃过 V-INT-01/03）
+的任务中，负责接口集含该 api 的任务。
+单个任务的负责集取 `ownedApisOf`（A18 缺省语义）——声明 `apis` 时取其归一集，
+**未声明时取契约全集**。因此「无人声明 apis」自然退化为「全部 backend 任务都负责」，
+而「A 声明了 [x]、B 未声明」时 B 仍负责全集，不会把 y 判成无人负责。
+负责任务集为空（该契约无 backend 任务）时 V-INT-01 不报——那是 V-CON-03 的职责，
+converge 不重复报同一件事。
+
+**后端作用域守卫**：带 `@vima` 标注的后端文件数为 0 → V-INT-01/02/03 整族跳过，
+报告标 `scope.skipped = "no-marked-backend"`（纯前端项目 / 未开工项目不假红）。
+
+| 规则 | 级别 | 判据 |
+|------|------|------|
+| V-INT-01 | error | **接口零实现**：契约 api 归一后在带 `@vima` 标注的后端 Mapping 集合中出现 0 次。**仅当该接口的负责任务全部 `status=done`** 时判定——开发中途跑不假红 |
+| V-INT-02 | error | **接口重复实现**：同一归一键出现在 **≥2 个不同后端文件**（同文件多处不报——方法重载/多注解属正常）。报告列出全部文件及其 `@vima` 归属 |
+| V-INT-03 | error | **越界实现**：某接口的实现文件 `@vima` taskId 集合 ∩ 该接口负责任务集 = ∅。**仅当该契约下 ≥1 个 backend 任务声明了 `apis`** 时启用（否则责任田 = 契约全集，恒不越界） |
+| V-INT-04 | warn | **消费端调用缺失**：契约 api 的 `consumers` 含端 X，但端 X 的带标注代码中无任何该接口调用（单端项目退化为「无任何带标注前端调用」）。**仅当该端存在带 `@vima` 标注的文件**时判定 |
+| V-INT-05 | error | **缺收尾流水线**：存在 `layer=business` 任务却无任何 `layer=pipeline` 任务——收口的载体不存在，闸门形同虚设（设计期同一判据为 V-TASK-13 warn） |
+
+`vima converge`：报告落盘 §6.13；退出码见 §6.13。`--json` 时报告同时输出 stdout；
+`--strict` 时 warn 也阻断。converge 是**只读命令**（报告文件除外），不改任何产物与状态。
+第 0 步与 plan 同一道守卫（§9 第 0 步）：`docs/tasks/` 不存在 → `NO_TASKS`（exit 4），
+**不写任何文件**——空报告会被误读成「集成对账通过」。
 
 ## 9. plan 批次算法（C2；§19.9）
 
@@ -781,12 +1146,23 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   // templates/admin/planning/prototype.mjs
   export function renderPrototype(model) → { html, manifest }
   // model = { projectName, spec: loadSpec 结果, contracts: loadContracts 结果,
-  //           apps: resolveApps 结果 }   // A16：渲染器词表/外壳与 validate 同源于 kinds
+  //           apps: resolveApps 结果,    // A16：渲染器词表/外壳与 validate 同源于 kinds
   //                                      // 配置，渲染器自身的 BLOCK_WORDS 常量退役
+  //           tasks: 任务切片 | null }   // A33（仅 renderReview 消费）：loadTasks 后只取
+  //                                      // {id,layer,side,app,page,contract,apis}——刻意不含
+  //                                      // status/retryCount/updatedAt（D-A33-01：运行态入渲染
+  //                                      // 产物会把 A12 新鲜度机检搅成常红）。docs/tasks 缺失或
+  //                                      // 不可解析（TASK_FM）→ null，第⑥视图如实标注。
+  //                                      // run 与 checkReviewFresh 必须同口径构建（单一实现）
   ```
 - 单文件 HTML：样式全内联，无任何外部 URL（href/src 只允许 # 锚点与 data: URI）；无时间戳。
-- 审计视图五视图（§13.2）：角色权限矩阵（含权限盲区高亮）/菜单功能点/业务流程泳道/
-  页面 UI 详情/**业务规则**（A13：按 entity 分组，type 徽标，apis 复用 `apiBadge`）。
+- 审计视图六视图（§13.2）：角色权限矩阵（含权限盲区高亮）/菜单功能点/业务流程泳道/
+  页面 UI 详情/**业务规则**（A13：按 entity 分组，type 徽标，apis 复用 `apiBadge`）/
+  **业务闭环**（A33：逐 flow 旅程表——入口行带角色可达性徽标（判据与 V-SPEC-18 同源）、
+  步骤行带接口徽标 + 状态效应规则（rule.apis join，type ∈ {transition,calculation}）、
+  出口行列终步去向页的 GET 接口为「结果查询出口」（无则如实标注）、承接行 join
+  model.tasks（fm.page 命中步骤页 + backend|fullstack 任务负责集命中步骤接口；
+  tasks 为 null 时整行如实标注不可用））。
   另渲染 **「本期不做」范围红线区**（A13：vima:non-goals 逐条，位置在审核指引之后；
   空清单时渲染「本期未声明 non-goals」而非整段省略——声明为空与没声明必须可区分）。
   禁 JS 完整可读（JS 仅渐进增强）。
@@ -828,7 +1204,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实，均见 v2.1-amendments.md）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。
@@ -874,7 +1250,8 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   kind 词表/外壳/成熟度配置化（§6.3 `planning.kinds`）；原型按端渲染（§6.7/§11）；
   请求门面 `request.<verb>(path)` 为各 kind 骨架契约；A7 证据按端拆文件（§6.10）；
   guard/trace/context 全部改读端册（§10/§14）。选型（用户裁定）：患者端 kind=mp-native
-  （微信原生+TS，vendored Vant Weapp）；N=1 保持根布局；consumers 多端必填。
+  （微信原生+TS，vendored Vant Weapp）；~~N=1 保持根布局~~（A28 改判：create 一律
+  `apps/<id>/`，存量根布局仍合法）；consumers 多端必填。
   三波次交付与验收判据见 v2.1-amendments.md A16。
 - **A17 /go 批间连续性**：会话预算改单一任务计数（8 任务/次，批次数不设上限——
   shared/pipeline 串行批下按批计数会在 3 个任务后过早截断）；用户输入 /go 即构成对
@@ -903,6 +1280,46 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   manifest 增 `files.scaffold` 骨架基线（create 记录落盘内容哈希）+ `vima update --scaffold-diff`
   只读三方比较报告（**只报告不写盘**；无基线的存量项目如实说明能力边界）。
 
+- **A20 开发完成后的收敛期**：新增 `vima converge` 跨任务集成对账（V-INT 规则族 §8.1，
+  报告 §6.13）——现有校验全是「单任务对自己」，漏实现 / 重复实现 / 越界实现三类并行产出
+  冲突此前全部漏网；`/go` 步骤 5 由「直接进 MAINTAINING」改为**收口闸门**（converge →
+  按 `byTask` 归组增量修复 → 重跑，最多 3 轮 → pipeline 批次 → MAINTAINING），
+  收敛循环不是停点；补上 `layer=pipeline` 收尾流水线的任务模板
+  （`templates/admin/planning/_template-full-test.md` + `_template-code-audit.md` + planning-guide 第 5 步 +
+  `planning.taskTemplates`）——此前 plan/go 都消费 pipeline 任务，却无任何资产生成它，
+  致「流水线全部通过」的进阶条件恒真；新增 V-TASK-13（warn，设计期早提示）
+  与 V-INT-05（error，收口期强制）。
+
+- **A21 经验反哺回路**：新增 `vima retro`（§6.14）——项目跑完那一刻磁盘上恰好躺着最完整的
+  一手证据（retryCount 分布、V-INT 命中、sharedChangeRequest、豁免与越界、批次形态、
+  validate 规则命中分布），过后即散；A18/A20 都是靠事后人工重建证据才立的项，本项把这条
+  回路做成固定环节。采集**离线只读、默认脱敏**（只出计数与分布，`--with-ids` 才带标识——
+  vima-cli 是公开仓库而使用它的常是客户项目）；观察项是**阈值驱动的静态表**，每条 target
+  指向框架资产而非业务代码。交互询问与 `gh issue create` 提交都在工作区层（`/go` 步骤 6，
+  含「有没有想表达但框架表达不了的东西」必问项 + `.vima/retro-state.json` 防重复骚扰），
+  **CLI 不联网、不提交、不提 PR**——守「`vima upgrade` 是全仓唯一联网命令」与
+  「不执行真实 git push」两条既有纪律。
+
+- **A22 字段级机检 + 上下文两条检索线**（出自 `docs/design/sustain-v3-field-feedback.md`）：
+  此前全部规则都停在**引用级**（页面 apis ⊆ 契约、菜单功能点 ∈ 契约、代码路径 ∈ 契约），
+  **没有一条查到字段级**——于是在 doctor 全绿、validate 0 错误的前提下仍藏着功能级阻断
+  （弹窗必填字段契约里没有 ⇒ 提交必被 40001 拒绝）。新增 V-SPEC-15（弹窗字段↔入参双向对账，
+  warn + 三条实测排除项）、V-SPEC-16（跨页导航参数取值域，error 但由声明主动开启）、
+  V-CON-08（字段三桶对账查「只进不出」，`readOnly`/`writeOnly` 显式豁免）、
+  V-CON-09（聚合 json 子协议 `fields` / `enforced: false`）；`vima:page` 增 `params`、
+  `action: nav` 增 `params`、契约字段增 `readOnly`/`writeOnly`/`fields`/`enforced`（全可选）。
+  `vima context` 增两节——**系统底座接口索引**与 **spec 指名的 `docs/raw/` 真源片段**：
+  实测最大的系统性返工源是 Builder 把契约当唯一事实来源，「契约里没写」= 「系统里没有」
+  ⇒ 降级实现，连 spec 正文指名的真源都不去看，因为上下文包里没有它。
+
+- **A24 工具可信度与项目定制**（同源反馈的第二批，经逐条核实后重排优先级）：新增
+  `findProjectRoot`（§4）与顶层 `NOT_IN_PROJECT` 守卫（§3.1）——CLI 原先按 cwd 静默工作，
+  在子目录会给出**假结论并把它落盘**；V-TASK-11 增 `status=done` 豁免（§8，防「永不消失的
+  warn」连累 A22 那批 warn 规则的可信度）；`vima context` 增「项目补充规范」节（§6.11，
+  `docs/coding-standards.local.md` 不受管，让项目定制不污染受管基线）；`vima retro` 增
+  `worked`（§6.14，正面信号）。**三条核实结论**：`conflictsWith` 早已存在（缺的是引导）、
+  A18 默认并行度 8 已消解预算不整除、冷启动检查因需运行时而降级为 pipeline 验收项。
+
 - 单测框架：`node:test` + `node:assert/strict`；文件名 `tests/unit/<owner>.<topic>.test.mjs`。
 - 黄金夹具 `tests/fixtures/golden/`（D1 编写，必须能全绿通过 validate/plan/render/trace）：
   ```
@@ -917,7 +1334,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
                                full-test 为 layer: pipeline，dependsOn: [device-list-fe]
   docs/coverage-matrix.md      无缺口
   docs/lifecycle.json          currentPhase: PLANNING（schemaVersion 2.0）
-  src/api/device.ts            首行注释 // @vima device-list-fe
+  apps/admin/src/api/device.ts 首行注释 // @vima device-list-fe（A28 布局）
   backend/src/main/java/demo/DeviceController.java   // @vima device-api-be
   ```
   夹具中 status：shared-base=done 且刻意不带 @vima 标注（制造 1 个虚报 warn 供 trace 测试），
@@ -925,10 +1342,11 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 多端夹具 `tests/fixtures/golden-multi/`（A16 Wave 1）：双端（admin-web + mp-native）
   最小项目——manifest v2 端册、双端 page/menus（含 tabbar 菜单）、带 consumers 的契约
   （≥1 个仅 patient 可见接口，供 V-CON-07/V-CODE-01 越权用例）、双端任务（含 app 字段）。
-  **单端黄金夹具保持不动**，同时充当 N=1 兼容回归（产物字节与端册化之前一致）。
+  单端黄金夹具随 A28 迁至 `apps/admin/` 布局（此前「保持不动充当 N=1 兼容回归」的使命
+  改由存量形态承接：手写 manifest（dir `"."`）的单测夹具覆盖旧布局寻址分支）。
 - 单测不得依赖网络；可执行 `node bin/vima.mjs`（用 `node:child_process` spawnSync）。
 - e2e（集成阶段统一写）：临时目录 create --no-git --no-install → init → 覆盖黄金夹具 →
-  validate → render-review/-prototype（+--check）→ plan → trace → approve → doctor → update。
+  validate → render-review/-prototype（+--check）→ plan → trace → converge → approve → doctor → update。
 - workspace 文字资产测试（`tests/unit/d2.workspace.test.mjs`）：A3 三条 grep 判据、
   guard-shared.mjs 目录集 ⊆ template.json sharedDirs、全部模板 status ∈ {stable,preview}
   且 admin=stable——防文字资产与配置漂移。
@@ -938,6 +1356,64 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 - 公共 helper（`tests/helpers.mjs`）：`BIN`（bin/vima.mjs 绝对路径）与
   `runCli(args, opts) → { status, stdout, stderr, out }`（out=stdout+stderr 合并，
   统一用 `process.execPath` 而非 PATH 上的 node，保证 engines 约束下测试跑在当前解释器）。
+
+- **A23 自研 vima-ui-mp**：mp-native 的组件库改为自研 vendored 类契约框架
+  （112 个 `.vm-*` 类 + 75 个 `--vm-*` 令牌，零 JS/零依赖/零自定义组件），
+  改判 A16 的 D-A16-02（不再 vendor Vant Weapp）；`componentMap` 增非词表键 `modal`
+  并让弹窗字段 type 也走 componentMap（§6.3）；类名闭包由单测双向锁死，**不设白名单**。
+- **A25 h5-mobile 收编为 kind**：H5 由空壳独立模板收编为 admin 模板第三个 kind；
+  `vima-ui-h5` 与 `vima-ui-mp` **共用同一份类契约与令牌**（`.css` 由 `.wxss` 按
+  「`wxss`→`css`」全局替换一一对应，单测锁死），只为浏览器缺失的四件事加组件；
+  两个 mobile kind 共用 `layoutVocab`/`shell`/`componentMap`（§6.3）。
+- **A27 Design-First 第一批**：PDL 页面设计语言（`design`/`name`/`intent`/`data.shape`/
+  `actions`+`priority`/`fold`/列 `role`·`density`/modal `presentation`，全部可选、声明即承诺，
+  §7）+ V-DSN 规则族（§8）+ L0 渲染器 shape 驱动升级 + admin 词表 +3（steps/collapse/anchor）+
+  `vima mock`（§6.16）+ demo 态/画廊 + 七探针版面冒烟（§6.17）+ post-write 裸尺寸与根类
+  覆写机检 + 骨架版面原语/密度/ActionGroup。库侧（令牌化收敛/行为层抽取）与主题显式延后。
+- **A28 create 布局对称化**（改判 D-A16-03）：create 端册布局一律 `apps/<id>/`（含 N=1，
+  kind 无关，§6.3/§6.4）；存量根布局（dir `"."`）与混合布局永久合法——init（A19 存量升级）
+  继续如实写 `"."`，不提供迁移命令（D-A28-02）；单端 ui-docs 保持平铺（D-A28-03）。
+  新增**项目根卫生资产**（D-A28-04）：模板 `root.scaffold`（§6.3）落项目级
+  `.gitignore`/`README.md` 到项目根，create 与 A19 基线同源拷贝；骨架遍历排除
+  `node_modules`/`target`（防模板本地构建污染进基线）。单端黄金夹具随之迁至
+  `apps/admin/`（§13）。
+- **A29 Claude Design 视觉真源工序**（carelink-admin 试点实证定案）：**纯工序资产，
+  零文件格式/模块接口变更**——视觉真源 = 逐页高保真稿（PLANNING 出稿并登记
+  `docs/review/design-links.md`，D-A29-05：文档约定不进 schema），开发按稿 1:1，
+  /go 收口新增 5.2.6 设计稿校准轮（冒烟归零后逐页对照稿校准样式，修复走 5.2 回修
+  通道再复跑冒烟）；与 A27 分工：线框/PDL/七探针守结构下限原样不减，稿守视觉上限。
+  开启说明（`/design consent` / claude.ai/design/settings）与未接入降级口径写进
+  planning-guide 第 8 节；`_template-fe.md` 增设计稿登记行。
+- **A30 设计工序两段化 + 产品风格取向**（兑现 A27 延后项 P28 / 提案 §12.1 的 R2）：
+  A29 的逐页整页稿改为两段——**Stage A 版面语言**（全项目一次：每个 `design.pattern`
+  一张模式参考页 → 人审定版面 → **固化进仓库**：版面类落 `src/styles/layout.css`、
+  刻度取值落 `src/styles/tokens.css`、模式库条目落 `docs/design-language.md`，云端稿作废）
+  + **Stage B 逐页内容稿**（只决策内容区，不动壳层/间距刻度/卡片形态；新版面走
+  sharedChangeRequest 回 Stage A 收编）。新增 `planning.designLanguage` 键（§6.3）→
+  init 装 `docs/design-language.md`（**userOwned**，§6.4）——**风格推导方法论**
+  （D-A30-06/07，非配好的主题）：不变层 8 条（不参与推导）+ 观察量 8 项（**从 spec/契约
+  读，读不到就问，推断项标 `pendingConfirm`**，复用信息源分级纪律）+ 推导规则 8 条
+  → 取向轴 7 条（内容密度/容器化程度/装饰度/强调手法/形状性格/深色锚/底色温度）
+  + 色彩纲领 3 判据 + 旧信号 grep 清单 + 自检判据 6 条（**刻意不做成 CLI 规则**）
+  + 定档产物（含规则冲突裁定位）+ 3 份已推导范例（禁直接套用）+ 模式库容器 + 出稿提示骨架。
+  go.md 5.2.6 增**回修分流**（版面级回 Stage A 一处修全站 / 页面级派回本页任务）；
+  `_template-fe.md` 增「所属 pattern」行。**零 schema / 零机检 / 零渲染器改动**
+  （D-A30-05：主观取向机检不出来，假机检比没有更坏），`lib/` 仅 init 落点清单加一条。
+- **A31 维护期变更事务**：新增 `vima change`（open/list/impact/apply/close，§6.18）——
+  变更包 = 基线快照 + 确定性影响面 + 传播闸门；受影响任务推导与 reopen（done→pending）、
+  recheck 静态表、close 三重闸门（受影响任务全 done + 进程内 validateProject 零 error +
+  有任务/接口影响时 converge exit 0）。三个新错误码（§3.1）。**单变更在途**（多 change
+  并存未立项）。同时兑现 ai-scaffold-benchmarks T2-8（该条自此以 A31 为唯一规格）；
+  与 A20「不做缺陷台账状态机」的边界论证见 v2.1-amendments A31。
+- **A32 交付等级认证**：新增 `vima certify`（§6.19）——四级阶梯
+  spec-approved → implemented → converged → pipeline-green，每级证据取自磁盘既有真源；
+  **显式非宣称** deployable/stable（PACT 八级「宣称大于实现」的教训对症吸收）；
+  templateMaturity（A5 status）与 deliveryLevel 双轴分离展示；不写 lifecycle
+  （等级由证据推导，不落第二状态真源）；exit 恒 0。
+- **A33 业务闭环主视图**：flows 补引用机检（V-SPEC-17 error 步骤引用闭环 /
+  V-SPEC-18 warn 角色可达性，§8）+ 审计视图第⑥视图「业务闭环」（§11）；
+  渲染 model 增 tasks 切片（不含 status，D-A33-01）。不新建产物文件、
+  不把 flows 塞进 prototype.manifest.json（无消费方即镀金）。
 
 ## 14. 命令行为裁定补遗（v2.0 实现层，设计文档相应节加注）
 
@@ -1006,12 +1482,17 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
   无 `--template` 且非 TTY → usage exit 3；`--force` 允许在已存在目录中创建并
   覆盖同名文件，**不清空目录**。
   **A16**：`--apps <id:kind,...>`（如 `--apps admin:admin-web,patient:mp-native`）声明
-  端册；缺省 = 模板 `apps[].default` 端（单端，落项目根 `dir "."`）；N≥2 全部落
-  `apps/<id>/`。id 须唯一且匹配 `^[a-z0-9][a-z0-9-]*$`（同 taskId 词法）、
+  端册；缺省 = 模板 `apps[].default` 端；布局一律 `apps/<id>/`（A28，含单端；
+  改判前的存量单端项目为 `dir "."`，仍合法）。id 须唯一且匹配 `^[a-z0-9][a-z0-9-]*$`（同 taskId 词法）、
   kind ∈ `planning.kinds`（非法 → usage exit 3）；
   kind status=preview → 入册但跳过骨架拷贝并显式警告（PLANNING 可先行）；逐端执行
   npm install（有 package.json 的端）。已有 manifest 的目录 `--force` 重跑：合并端册
   与 files 不清空；templateId 不同 → TEMPLATE_MISMATCH exit 4（§3.1/§6.4）。
+- **mock（A27，`vima mock`）**：读 `docs/contracts/*.md` 机读块，按 §6.16 规则确定性生成
+  `.vima/mock/contract-mock.json`（stableStringify + atomicWriteFile，两跑同字节）。
+  消费方：admin 骨架的 vite `/__vima/mock` 中间件与 request 层 demo 分支（`?__mock=` 切档）、
+  h5 骨架 request 层 demo 分支、`scripts/layout-smoke.mjs` 的页面数据来源。
+  **mock 必须由契约生成不得手写**——手写 mock = 第二份契约 = 必然漂移。
 - **app（A16 Wave 3）**：`vima app add <id> --kind <kind>` = 拷贝该 kind 骨架到
   `apps/<id>/`（首端在根的存量项目允许混合布局）+ 端册追加 + 该端 ui-docs 安装到
   `docs/ui-framework/<id>/`；id 已存在 → APP_EXISTS exit 4；kind preview 同 create

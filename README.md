@@ -13,7 +13,7 @@ vima-cli 不是又一个 Agent——它是给 Claude Code 配的「宪法体系 
 CLI 命令完成，**不留给 Agent 概率性行为**。
 
 - 需求真源：[docs/design/vima-cli-design-v2.md](docs/design/vima-cli-design-v2.md)（§N 引用格式）
-- 设计增补 A1–A8：[docs/design/v2.1-amendments.md](docs/design/v2.1-amendments.md)（A1–A5 吸收自 PACT，A6–A7 吸收自 AI-First 评估，A8 吸收自市场对标）
+- 设计增补 A1–A24：[docs/design/v2.1-amendments.md](docs/design/v2.1-amendments.md)（A1–A5 吸收自 PACT，A6–A7 吸收自 AI-First 评估，A8 吸收自市场对标，A9–A12 吸收自 mattpocock/skills 对标，A13–A20 出自专题讨论与真实项目实测）
 - 吸收溯源与资产移植映射：[docs/pact-absorption.md](docs/pact-absorption.md)
 - 内部实现契约（文件格式/接口/规则唯一权威）：[docs/internal-contracts.md](docs/internal-contracts.md)
 
@@ -35,7 +35,7 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 
 # --- DEVELOPING ---
 # 对 Agent 说 /go：三道闸门 → vima plan 批次计划 → 子代理批内并行 → Verifier 验收 → 断点续跑
-# 对 Agent 说 /check：客观完成度报告（状态统计 + 构建信号 + trace 对账）
+# 对 Agent 说 /check：客观完成度报告（状态统计 + 构建信号 + trace 对账 + converge 集成对账）
 
 # --- MAINTAINING：日常零命令 ---
 # “帮我在设备列表加个批量删除” —— Agent 读 lifecycle 自动感知阶段，定位任务文件直接干
@@ -55,8 +55,14 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 | `vima approve` | 用户评审的机械确认，写 tasksApproved 留痕 | 4=前置未满足/有 pendingConfirm |
 | `vima plan [--json]` | 任务 frontmatter → 拓扑批次计划（环检测） | 2=依赖环/缺依赖 |
 | `vima trace [--strict] [--dir <p>]` | 代码 `@vima <taskId>` 标注 ↔ 任务对账：抓**野生**与**虚报** | 2=野生（--strict 时含虚报） |
+| `vima converge [--json] [--strict]` | 跨任务集成对账（V-INT）：**漏实现/重复实现/越界实现**收口 | 2=有 error 或未过点位 |
+| `vima retro [--json] [--with-ids]` | 项目复盘采集 → 可反哺 vima-cli 的 issue 正文（默认脱敏） | 4=非 vima 项目 |
+| `vima change open\|list\|impact\|apply\|close` | 维护期变更事务：基线快照 → 影响面 → done 任务重开 → 传播闸门 | 2=闸门未过；4=在途冲突/无在途 |
+| `vima certify [--json]` | 交付等级认证（四级证据阶梯，显式不宣称 deployable/stable） | 恒 0（评估非闸门）；4=非 vima 项目 |
+| `vima app list` / `vima app add <id> --kind <k>` | 端册生命周期：查看 / 后补前端端（新端落 `apps/<id>/`，既有端零迁移） | 4=端 id 已存在（APP_EXISTS） |
+| `vima mock` | 契约 → 确定性 demo 数据（8 类型固定规则 × 四档数据量，两跑同字节） | 4=无契约（NO_CONTRACTS） |
 | `vima sync [--dry-run]` | frontmatter → taskStats + tasks/README.md 确定性重建 | — |
-| `vima doctor [--json]` | 九项体检（环境/宪法/状态一致性/对齐产物漂移） | 2=任一 ❌ |
+| `vima doctor [--json]` | 十二项体检（环境/宪法/状态一致性/对齐产物漂移/端册/产物形态） | 2=任一 ❌ |
 | `vima upgrade [--yes]` | 升级 vima CLI 自身到 npm 最新版（默认只检查，`--yes` 才安装） | 4=当前安装方式不支持自升级 |
 
 每个命令支持 `vima <command> --help` 或 `vima help <command>` 在终端查看完整用法与示例。
@@ -66,7 +72,25 @@ vima approve                              # 4. 评审确认机械留痕（/go �
 | 模板 | 技术栈 | 状态 |
 |---|---|---|
 | `admin` | Vue 3 + TS + Vite + vendored 组件库 / Java 21 + Spring Boot | **stable**（规划体系全量落地；系统底座内置：认证/RBAC 到按钮级/用户/角色/菜单/部门/字典/配置/文件/日志/消息/定时任务/在线用户/Excel 导入导出/API 文档——PLANNING 只覆盖业务需求） |
-| `cli` / `script` / `lib` / `h5` | Node CLI / Python / TS 库 / Vue3+Vant | preview（仅骨架占位，init 拒绝运行） |
+| `cli` / `script` / `lib` | Node CLI / Python / TS 库 | preview（仅骨架占位，init 拒绝运行） |
+| `h5` | —— | **已收编**（A25）：移动端 H5 现在是 `admin` 模板的一个 kind，见下表 |
+
+### admin 模板的三种端（kind，A16 一后端 × 多前端）
+
+| kind | 技术栈 | UI 框架 | 状态 |
+|---|---|---|---|
+| `admin-web` | Vue 3 + TS + Vite | vendored `@vima-tech/ui-admin`（63 组件） | stable |
+| `mp-native` | 微信原生小程序 + TS（零转译层） | vendored `@vima-tech/ui-mp` | stable |
+| `h5-mobile` | Vue 3 + Vite + TS | vendored `@vima-tech/ui-h5` | stable |
+
+`vima-ui-mp` 与 `vima-ui-h5` **共用同一份类契约与令牌**（112 个 `.vm-*` 类 + 75 个
+`--vm-*` 令牌，两端文件字节一致、单测锁死）；差别只在行为——小程序用 `wx.*` 原生能力，
+H5 用四个自带组件（`VmNavbar`/`VmTabbar`/`VmToast`/`VmDialog`）。
+
+```bash
+vima create nutri -t admin --apps admin:admin-web,patient:mp-native   # 建项目时定端册
+vima app add ph5 --kind h5-mobile                                     # 存量项目后补端
+```
 
 ## 核心机制
 
@@ -74,12 +98,20 @@ vima approve                              # 4. 评审确认机械留痕（/go �
   审计视图给人审全不全、线框原型给人审是不是想要的、manifest 给 Verifier 对账实现——
   四者同源渲染，`--check` 字节级抓漂移，永不分别维护。
 - **批次驱动调度（§10）**：`/go` 三道闸门（机械校验 → 语义抽查/可选冷读深检 → approve 留痕）后，
-  主 Agent 按 `vima plan` 的确定性批次计划派发子代理：共享层串行 → 业务批内并行（≤5）→ 流水线收尾；
-  批后 git commit 形成回滚点；断点续跑靠 frontmatter + lifecycle，不靠对话记忆。
+  主 Agent 按 `vima plan` 的确定性批次计划派发子代理：共享层串行 → 业务批内并行（≤8，`--max-parallel` 可配）
+  → **收口闸门**（A20：`vima converge` 集成对账 → 归组修复 → 重跑）→ 流水线收尾；
+  检查点 git commit 须 `/go --commit` 显式授权（A18），不带则完全不碰 git；
+  断点续跑靠 frontmatter + lifecycle，不靠对话记忆。
 - **五道防线 + 写保护**：分步执行 → 独立 Verifier → PreToolUse hook 拦共享层写入（令牌机制）→
   完成定义（构建信号）→ 主 Agent 汇总。
 - **代码可反查回规格（A1，吸收自 PACT）**：业务代码带 `@vima <taskId>` 标注，
   `vima trace` 机械对账——图谱说做了代码没有=虚报，代码有规格没有=野生。
+- **开发完成 ≠ 完成（A20）**：并行批次各自为战，漏实现/重复实现/越界实现是单任务视角
+  看不见的；`vima converge` 把全部产出当成一个整体对账，报告的 `byTask` 直接就是修复派工单。
+- **经验反哺回路（A21）**：项目跑完那一刻磁盘上躺着最完整的一手证据（重试分布、集成冲突
+  命中、共享层变更请求、豁免与越界、规则命中分布），过后即散。`vima retro` 确定性采集并
+  渲染成 issue 正文（**默认脱敏**，只出计数与分布），`/go` 收尾时问一次是否反哺给 vima-cli
+  ——把此前全靠自觉的「真实项目 → 评估 → 立项」回路做成固定环节。
 
 ## 与设计文档 v2.0 的已知偏离
 

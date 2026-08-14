@@ -19,6 +19,10 @@ async function cloneGolden(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-c3-validate-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(GOLDEN, root, { recursive: true });
+  // A28：黄金夹具已迁 apps/admin/ 布局；本文件的用例折回根布局（src/），
+  // 专职覆盖存量项目（无 manifest → v1 兜底端册 dir "."）的寻址分支（契约 §13）。
+  await cp(path.join(root, 'apps/admin/src'), path.join(root, 'src'), { recursive: true });
+  await rm(path.join(root, 'apps'), { recursive: true, force: true });
   return root;
 }
 
@@ -609,8 +613,8 @@ test('V-CON-05：q1 式占位参数名与写操作空请求体 → warn', async 
   await mutate(
     root,
     'docs/contracts/device-api.md',
-    '      - { name: ids, type: array, required: true }',
-    '      - { name: q1, type: string, required: true }',
+    '      - { name: ids, type: array, required: true, writeOnly: true }',
+    '      - { name: q1, type: string, required: true, writeOnly: true }',
   );
   const r = vima(root, 'validate', '--artifact', 'docs/contracts');
   assert.equal(r.code, 0, `占位符只是 warn；stderr: ${r.stderr}`);
@@ -981,6 +985,33 @@ test('V-TASK-12：同契约两个 backend 任务负责集重叠 → exit 2；不
   assert.match(dup.stderr, /同时被任务/);
 });
 
+// ── A20 收尾流水线存在性（V-TASK-13）──
+
+test('V-TASK-13：黄金夹具含 full-test（pipeline）→ 零警告；删掉后 warn 且仍 exit 0', async (t) => {
+  const root = await cloneGolden(t);
+  const base = (vima(root, 'validate'), await readReport(root));
+  assert.equal(base.warnings.filter((w) => w.rule === 'V-TASK-13').length, 0);
+
+  await rm(path.join(root, 'docs/tasks/full-test.md'));
+  const r = vima(root, 'validate');
+  const report = await readReport(root);
+  const hits = report.warnings.filter((w) => w.rule === 'V-TASK-13');
+  assert.equal(hits.length, 1, `应命中 1 条 V-TASK-13；stderr: ${r.stderr}`);
+  assert.match(hits[0].message, /pipeline/);
+  // warn 不阻断：存量项目不因本规则被挡在 /go 之外（A19 升级可达性）
+  assert.equal(r.code, 0, `V-TASK-13 应为 warn 而非 error；stderr: ${r.stderr}`);
+});
+
+test('V-TASK-13：无 business 任务的项目不触发（规则自锚定）', async (t) => {
+  const root = await cloneGolden(t);
+  for (const f of ['device-api-be.md', 'device-list-fe.md', 'full-test.md']) {
+    await rm(path.join(root, 'docs/tasks', f));
+  }
+  vima(root, 'validate');
+  const report = await readReport(root);
+  assert.equal(report.warnings.filter((w) => w.rule === 'V-TASK-13').length, 0);
+});
+
 test('V-TASK-12：全部 backend 任务声明 apis 但并集漏接口 → exit 2', async (t) => {
   const root = await cloneGolden(t);
   await mutate(
@@ -1003,4 +1034,501 @@ test('apis 结构非法（空数组）→ frontmatter 校验拦截，exit 2', as
   // loadTasks 的 TASK_FM 在 validate 内被归一为 V-TASK-01 条目（既有口径），断言消息本体
   assert.match(r.stderr, /V-TASK-01/);
   assert.match(r.stderr, /apis 必须是非空的接口字符串数组/);
+});
+
+// ── A22 字段级机检（sustain-v3 实战反馈 F1–F4）──
+// 这四条规则的成败全在误报边界上：反馈文档实测三版脚本给出 54 → 32 → 13，前两个都是错的。
+// 因此每条规则的「不该报」用例与「该报」用例同等重要。
+
+test('V-SPEC-15 正向：弹窗必填字段不在提交入参里 → warn（用户填了即丢）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '{ field: name, label: 设备名称, type: input, required: true }',
+    '{ field: notInContract, label: 幽灵字段, type: input, required: true }',
+  );
+  const r = vima(root, 'validate');
+  const report = await readReport(root);
+  const hits = report.warnings.filter((w) => w.rule === 'V-SPEC-15');
+  // 正向（弹窗多字段）+ 反向（契约 name 无处填）各一条
+  assert.equal(hits.length, 2, `stderr: ${r.stderr}`);
+  assert.ok(hits.some((h) => /notInContract/.test(h.message) && /填了即丢/.test(h.message)));
+  assert.ok(hits.some((h) => /必填入参 "name"/.test(h.message)));
+  assert.equal(r.code, 0, 'V-SPEC-15 恒为 warn（定位是候选清单，不是判决）');
+});
+
+test('V-SPEC-15 反向：契约必填入参在弹窗里无处填 → warn（提交必被参数校验拒绝）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/contracts/device-api.md',
+    '      - { name: name, type: string, required: true }',
+    '      - { name: name, type: string, required: true }\n      - { name: scaleType, type: string, required: true }',
+  );
+  const report = (vima(root, 'validate'), await readReport(root));
+  const hits = report.warnings.filter((w) => w.rule === 'V-SPEC-15');
+  assert.equal(hits.length, 1, JSON.stringify(hits));
+  assert.match(hits[0].message, /scaleType/);
+});
+
+test('V-SPEC-15 误报边界：submit 指向 GET 的弹窗整体跳过（选择/参考类字段本就不提交）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'submit: { api: POST /api/device }', 'submit: { api: GET /api/device/list }');
+  await mutate(
+    root, 'docs/spec.md',
+    '{ field: name, label: 设备名称, type: input, required: true }',
+    '{ field: notInContract, label: 幽灵字段, type: input, required: true }',
+  );
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(report.warnings.filter((w) => w.rule === 'V-SPEC-15').length, 0);
+});
+
+test('V-SPEC-15 误报边界：未声明子结构的 json 聚合入参 → 该端点双向整体跳过', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '{ field: name, label: 设备名称, type: input, required: true }',
+    '{ field: notInContract, label: 幽灵字段, type: input, required: true }',
+  );
+  await mutate(
+    root, 'docs/contracts/device-api.md',
+    '      - { name: name, type: string, required: true }',
+    '      - { name: name, type: string, required: true }\n      - { name: payload, type: json }',
+  );
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(
+    report.warnings.filter((w) => w.rule === 'V-SPEC-15').length, 0,
+    '聚合字段可由多个弹窗字段拼成，无从判断嵌套时必须跳过（实测这是误报主因）',
+  );
+});
+
+test('V-SPEC-15 与 F4 联动：json 声明了 fields 子结构 → 子字段名并入比对集，不再误报', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '{ field: name, label: 设备名称, type: input, required: true }',
+    '{ field: nested, label: 嵌套字段, type: input, required: true }',
+  );
+  await mutate(
+    root, 'docs/contracts/device-api.md',
+    '      - { name: name, type: string, required: true }',
+    '      - { name: payload, type: json, fields: [{ name: nested, type: string }] }',
+  );
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(report.warnings.filter((w) => w.rule === 'V-SPEC-15').length, 0);
+});
+
+test('V-SPEC-16：nav 携带 params 而目标页未声明 → exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '{ label: 详情, action: nav, target: PAGE-02, priority: secondary }',
+    '{ label: 详情, action: nav, target: PAGE-02, priority: secondary, params: { step: screening } }',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-SPEC-16');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].message, /未声明该导航参数/);
+});
+
+test('V-SPEC-16：取值不在目标页取值域内 → exit 2；合法取值 → 放行', async (t) => {
+  for (const [val, code] of [['bogus', 2], ['screening', 0]]) {
+    const root = await cloneGolden(t);
+    await mutate(
+      root, 'docs/spec.md',
+      '{ label: 详情, action: nav, target: PAGE-02, priority: secondary }',
+      `{ label: 详情, action: nav, target: PAGE-02, priority: secondary, params: { step: ${val} } }`,
+    );
+    await mutate(root, 'docs/spec.md', 'id: PAGE-02', 'id: PAGE-02\nparams:\n  - { name: step, values: [screening, followup] }');
+    const r = vima(root, 'validate');
+    assert.equal(r.code, code, `step=${val} 期望 exit ${code}；stderr: ${r.stderr}`);
+  }
+});
+
+test('V-SPEC-16：不携带 params 的 nav 完全不触发（规则由声明主动开启，存量项目零影响）', async (t) => {
+  const root = await cloneGolden(t);
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(report.errors.filter((e) => e.rule === 'V-SPEC-16').length, 0);
+});
+
+// ── A33 flow 引用闭环（V-SPEC-17 error / V-SPEC-18 warn）──
+
+test('V-SPEC-17：黄金夹具 flow 全绿——存量合法流程零误伤', async (t) => {
+  const root = await cloneGolden(t);
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(report.errors.filter((e) => e.rule === 'V-SPEC-17').length, 0);
+  assert.equal(report.warnings.filter((w) => w.rule === 'V-SPEC-18').length, 0);
+});
+
+test('V-SPEC-17：步骤引用不存在的 page / role / next / api → 逐项 error，exit 2', async (t) => {
+  const cases = [
+    ['page: PAGE-01, action: 点击新增并提交设备表单', 'page: PAGE-99, action: 点击新增并提交设备表单', /不存在的页面 "PAGE-99"/],
+    ['role: ROLE-01, page: PAGE-01, action: 点击新增', 'role: ROLE-99, page: PAGE-01, action: 点击新增', /不存在的角色 "ROLE-99"/],
+    ['next: PAGE-02', 'next: PAGE-98', /去向 next 引用不存在的页面 "PAGE-98"/],
+    ['api: POST /api/device, next: PAGE-01', 'api: POST /api/ghost, next: PAGE-01', /不在任何契约中/],
+  ];
+  for (const [from, to, re] of cases) {
+    const root = await cloneGolden(t);
+    await mutate(root, 'docs/spec.md', from, to);
+    const r = vima(root, 'validate');
+    assert.equal(r.code, 2, `变异 "${to}" 应 exit 2；stderr: ${r.stderr}`);
+    const hits = (await readReport(root)).errors.filter((e) => e.rule === 'V-SPEC-17');
+    assert.equal(hits.length, 1, `变异 "${to}"：${JSON.stringify(hits)}`);
+    assert.match(hits[0].message, re);
+  }
+});
+
+test('V-SPEC-17：流程无 steps → error（空流程无法审计闭环）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    'steps:\n  - { role: ROLE-01, page: PAGE-01, action: 点击新增并提交设备表单, api: POST /api/device, next: PAGE-01 }\n'
+      + '  - { role: ROLE-01, page: PAGE-01, action: 点击行内详情, api: GET /api/device/detail, next: PAGE-02 }',
+    'steps: []',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const hits = (await readReport(root)).errors.filter((e) => e.rule === 'V-SPEC-17');
+  assert.equal(hits.length, 1, JSON.stringify(hits));
+  assert.match(hits[0].message, /没有任何 steps/);
+});
+
+test('V-SPEC-17：只校验已声明字段——省略 role/api 的步骤不触发（声明即承诺）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '  - { role: ROLE-01, page: PAGE-01, action: 点击行内详情, api: GET /api/device/detail, next: PAGE-02 }',
+    '  - { page: PAGE-01, action: 点击行内详情, next: PAGE-02 }',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+});
+
+test('V-SPEC-18：步骤角色未拥有该页菜单 → warn（不改退出码）', async (t) => {
+  const root = await cloneGolden(t);
+  // ROLE-02 只有 MENU-01；把第二步（PAGE-02 / MENU-02）的角色换成 ROLE-02
+  await mutate(
+    root, 'docs/spec.md',
+    '  - { role: ROLE-01, page: PAGE-01, action: 点击行内详情, api: GET /api/device/detail, next: PAGE-02 }',
+    '  - { role: ROLE-02, page: PAGE-02, action: 查看详情, api: GET /api/device/detail }',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, 'warn 不改退出码');
+  const hits = (await readReport(root)).warnings.filter((w) => w.rule === 'V-SPEC-18');
+  assert.equal(hits.length, 1, JSON.stringify(hits));
+  assert.match(hits[0].message, /角色 ROLE-02 未拥有页面 PAGE-02 的菜单 MENU-02/);
+});
+
+test('V-CON-08：字段只出现在写面 → warn；标 writeOnly 后豁免', async (t) => {
+  for (const [extra, expect] of [['', 1], [', writeOnly: true', 0]]) {
+    const root = await cloneGolden(t);
+    await mutate(
+      root, 'docs/contracts/device-api.md',
+      '      - { name: name, type: string, required: true }',
+      `      - { name: name, type: string, required: true }\n      - { name: secretCode, type: string${extra} }`,
+    );
+    const report = (vima(root, 'validate'), await readReport(root));
+    const hits = report.warnings.filter((w) => w.rule === 'V-CON-08');
+    assert.equal(hits.length, expect, `extra="${extra}"：${JSON.stringify(hits)}`);
+    if (expect > 0) assert.match(hits[0].message, /只进不出/);
+  }
+});
+
+test('V-CON-08 误报边界：只读字段（id/createdAt）不报——只查「只进」方向', async (t) => {
+  const root = await cloneGolden(t);
+  const report = (vima(root, 'validate'), await readReport(root));
+  const hits = report.warnings.filter((w) => w.rule === 'V-CON-08');
+  assert.deepEqual(hits, [], '黄金夹具的 id/createdAt/status 只在响应里，反方向报出来是纯噪声');
+});
+
+test('V-CON-09：type json 无子协议 → warn；enforced: false 显式豁免', async (t) => {
+  for (const [extra, expect] of [['', 1], [', enforced: false', 0]]) {
+    const root = await cloneGolden(t);
+    await mutate(
+      root, 'docs/contracts/device-api.md',
+      '      - { name: name, type: string, required: true }',
+      `      - { name: name, type: string, required: true }\n      - { name: blob, type: json, writeOnly: true${extra} }`,
+    );
+    const report = (vima(root, 'validate'), await readReport(root));
+    const hits = report.warnings.filter((w) => w.rule === 'V-CON-09');
+    assert.equal(hits.length, expect, `extra="${extra}"：${JSON.stringify(hits)}`);
+    if (expect > 0) assert.match(hits[0].message, /既无 fields 子结构/);
+  }
+});
+
+test('V-YAML-01（A22 修正）：嵌套 flow 集合是合法标准 YAML，不再误报', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/contracts/device-api.md',
+    '      - { name: name, type: string, required: true }',
+    '      - { name: payload, type: json, fields: [{ name: nested, type: string }] }',
+  );
+  const report = (vima(root, 'validate'), await readReport(root));
+  assert.equal(
+    report.warnings.filter((w) => w.rule === 'V-YAML-01').length, 0,
+    'fields: [{ ... }] 与 params: { ... } 都是合法标准 YAML，规则目标是 plain scalar 里的花括号',
+  );
+});
+
+// ── A24/F10：V-TASK-11 只对可调整的任务生效 ──
+
+test('V-TASK-11：status=done 的任务不再触发拆分建议（清不掉的 warn 会废掉整个 warn 列表）', async (t) => {
+  const root = await cloneGolden(t);
+  // 复用超限契约的构造方式：补到 11 个接口（人读小节 + 机读块同步，避免 V-CON-06 不一致）
+  const rel = 'docs/contracts/device-api.md';
+  const p = path.join(root, rel);
+  let text = await readFile(p, 'utf8');
+  const extraSections = [];
+  const extraApis = [];
+  for (let i = 1; i <= 7; i++) {
+    extraSections.push(`## GET /api/device/y${i}\n\n- 请求：无\n- 响应：\`{ ok: boolean }\`\n- 错误码：40001\n`);
+    extraApis.push(
+      `  - method: GET\n    path: /api/device/y${i}\n    request: []\n`
+        + '    response: "{ ok }"\n    errors: [40001]\n',
+    );
+  }
+  text = text.replace('\`\`\`yaml vima:contract', `${extraSections.join('\n')}\n\`\`\`yaml vima:contract`);
+  text = text.replace(/\n\`\`\`\s*$/, `\n${extraApis.join('')}\`\`\`\n`);
+  await writeFile(p, text);
+
+  // 任务仍是 pending：规则命中（此时「拆分」是可执行的行动项）
+  vima(root, 'validate');
+  const pending = await readReport(root);
+  assert.equal(
+    pending.warnings.filter((w) => w.rule === 'V-TASK-11').length, 1,
+    'pending 任务应命中 V-TASK-11',
+  );
+
+  // 置 done：规则不再命中（唯一行动项已不可执行）
+  await mutate(root, 'docs/tasks/device-api-be.md', 'status: pending', 'status: done');
+  vima(root, 'validate');
+  const done = await readReport(root);
+  assert.equal(
+    done.warnings.filter((w) => w.rule === 'V-TASK-11').length, 0,
+    '已完成任务的唯一行动项「拆分」不可执行，不应再报——永不消失的 warn 会训练用户忽略整张列表',
+  );
+});
+
+test('V-TASK-11 豁免只限本条：V-TASK-07/08/09 在任务 done 后仍然生效（它们仍可执行）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/tasks/device-list-fe.md', 'status: pending', 'status: done');
+  await mutate(
+    root, 'docs/tasks/device-list-fe.md',
+    '## 验收清单',
+    '## 验收清单\n\n- [ ] 调用 GET /api/device/notinpage 返回结构与契约一致',
+  );
+  vima(root, 'validate');
+  const report = await readReport(root);
+  assert.ok(
+    report.warnings.some((w) => w.rule === 'V-TASK-08'),
+    'V-TASK-08（引用漂移）在任务完成后仍可执行——补清单/改引用都做得到，不该豁免',
+  );
+});
+
+// ── V-DSN PDL 设计语言（A27）：声明即承诺，未声明零影响 ──
+
+/**
+ * 把 golden spec 剥回 A27 之前的存量形态（design 块整块删除 + A27 附属键）。
+ * design 块同时承载 A27 pattern/density/fold 与 A34 fidelity，按 YAML 顶层边界
+ * 整块删除，避免新增 design 子键后遗留悬空缩进。
+ */
+async function stripPdlKeys(root) {
+  const p = path.join(root, 'docs/spec.md');
+  let text = await readFile(p, 'utf8');
+  text = text
+    .replace(/^design:[^\n]*\n(?: {2}[^\n]*\n)*/gm, '')
+    .replace(/\n    name: 设备表格\n    intent: 管理员定位并操作单台设备的主工作区/, '')
+    .replace(/, priority: (?:primary|secondary)/g, '');
+  await writeFile(p, text);
+}
+
+/** 把项目标成 pre-A34 存量（V-DSN-12 据此整体豁免，D-A34-18）。 */
+async function markLegacy(root) {
+  const p = path.join(root, 'docs/lifecycle.json');
+  const lc = JSON.parse(await readFile(p, 'utf8'));
+  lc.designCapability = 'legacy';
+  await writeFile(p, `${JSON.stringify(lc, null, 2)}\n`);
+}
+
+test('V-DSN 兼容性：pre-A34 存量项目剥掉 design 声明 → 零 V-DSN 发现（A27 未声明零影响的承诺仍成立）', async (t) => {
+  const root = await cloneGolden(t);
+  await stripPdlKeys(root);
+  await markLegacy(root); // 存量形态 spec ⇔ 存量项目：designCapability: legacy
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+  const report = await readReport(root);
+  const dsn = [...report.errors, ...report.warnings].filter((e) => e.rule.startsWith('V-DSN'));
+  assert.deepEqual(dsn, [], '存量 spec 不得出现任何 V-DSN 发现');
+});
+
+// ── V-DSN-12（A34 D-A34-01）：fidelity 必须显式声明，堵住「不写 = 不是 D1/D2 = 跳过全部设计流程」 ──
+
+test('V-DSN-12 否定用例：A34 项目缺 design.fidelity → 逐页 error（规则必须真的会红）', async (t) => {
+  const root = await cloneGolden(t);
+  await stripPdlKeys(root); // 夹具是 designCapability: a34，不标 legacy
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2, 'A34 项目缺定级必须失败');
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-12');
+  assert.equal(hits.length, 2, `golden 两页各报一条，实得 ${hits.length}`);
+  assert.match(hits[0].message, /未声明 design\.fidelity/);
+  assert.match(hits[0].message, /D0 也要写出来/, '须点明「缺失」不等价于 D0');
+});
+
+test('V-DSN-12：显式写 D0 即通过——D0 是裁定，不是缺省', async (t) => {
+  const root = await cloneGolden(t);
+  const r = vima(root, 'validate');
+  const report = await readReport(root);
+  assert.equal(report.errors.filter((e) => e.rule === 'V-DSN-12').length, 0, `stderr: ${r.stderr}`);
+});
+
+test('V-DSN-01 放松：只带 A34 键的 design 块合法（不连带把 pattern/density 变成全页强制）', async (t) => {
+  const root = await cloneGolden(t);
+  vima(root, 'validate');
+  const report = await readReport(root);
+  // PAGE-02 的 design 块只有 fidelity，既不该报 pattern 缺失也不该报 density 缺失
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-01' && /PAGE-02/.test(e.message));
+  assert.deepEqual(hits, [], 'fidelity-only 的 design 块不得触发 A27 完整性');
+});
+
+test('V-DSN-01：pattern/density 非法、列 role/density 非法 → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'pattern: list', 'pattern: fancy');
+  await mutate(root, 'docs/spec.md', 'density: default', 'density: cozy');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-01');
+  assert.equal(hits.length, 2, JSON.stringify(hits));
+  assert.match(hits[0].message, /pattern "fancy" 非法/);
+  assert.match(hits[1].message, /density "cozy" 非法/);
+});
+
+test('V-DSN-03：同词多例缺实例名 → error；补齐唯一 name → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  // PAGE-02 加第二个 form 块（同词多例）且都不带 name
+  await mutate(
+    root, 'docs/spec.md',
+    'layout: [toolbar, form]',
+    'layout: [toolbar, form, form]',
+  );
+  await mutate(
+    root, 'docs/spec.md',
+    `  - block: form
+    api: GET /api/device/detail`,
+    `  - block: form
+    api: GET /api/device/detail
+    items:
+      - { type: text, label: 基本信息 }
+  - block: form`,
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-03');
+  assert.ok(hits.length >= 2, `同词两例均缺 name 应逐例报：${JSON.stringify(hits)}`);
+});
+
+test('V-DSN-04：shape 非法 → error；freeform 无 intent → error；带 intent → 放行', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    '    intent: 管理员定位并操作单台设备的主工作区\n',
+    '    data: { shape: table3d }\n',
+  );
+  let r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  let report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-DSN-04' && /shape "table3d" 非法/.test(e.message)));
+
+  await mutate(root, 'docs/spec.md', 'data: { shape: table3d }', 'data: { shape: freeform }');
+  r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-DSN-04' && /freeform 但缺 intent/.test(e.message)));
+
+  await mutate(root, 'docs/spec.md', 'data: { shape: freeform }', 'data: { shape: freeform }\n    intent: 自由布局的设备拓扑图');
+  r = vima(root, 'validate');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+});
+
+test('V-DSN-05：priority 非法与页面级双 primary → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md',
+    'action: api, api: POST /api/device/batch-delete, priority: secondary',
+    'action: api, api: POST /api/device/batch-delete, priority: urgent');
+  let r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  let report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-DSN-05' && /priority "urgent" 非法/.test(e.message)));
+
+  await mutate(root, 'docs/spec.md', 'priority: urgent', 'priority: primary');
+  r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-DSN-05' && /2 个 primary/.test(e.message)),
+    '页面级 items+actions 合计两个 primary 应报（两个主按钮 = 没有主按钮）');
+});
+
+test('V-DSN-07：fold 引用不存在的实例 → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'fold: [设备表格]', 'fold: [设备表格, 不存在的块]');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-DSN-07' && /不存在的组件实例 "不存在的块"/.test(e.message)));
+});
+
+test('V-DSN-06/08（warn）：行内动作超限无 overflow、shape:list 无 keyFields → 只警告不阻断', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    `    rowActions:
+      - { label: 编辑, action: modal, target: MODAL-01, priority: primary }
+      - { label: 详情, action: nav, target: PAGE-02, priority: secondary }`,
+    `    data: { shape: list }
+    rowActions:
+      - { label: 编辑, action: modal, target: MODAL-01, priority: primary }
+      - { label: 详情, action: nav, target: PAGE-02, priority: secondary }
+      - { label: 导出, action: api, api: GET /api/device/list }
+      - { label: 归档, action: api, api: GET /api/device/list }`,
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, `warn 不阻断，stderr: ${r.stderr}`);
+  const report = await readReport(root);
+  assert.ok(report.warnings.some((e) => e.rule === 'V-DSN-06' && /4 条且无一条 overflow/.test(e.message)));
+  assert.ok(report.warnings.some((e) => e.rule === 'V-DSN-08' && /未声明 keyFields/.test(e.message)));
+});
+
+test('A27 actions 附着点：并入既有交互校验（悬空 nav 报 V-SPEC-05；跨端 nav 报 V-SPEC-13）与任务计点', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(
+    root, 'docs/spec.md',
+    `  - block: table
+    name: 设备表格`,
+    `  - block: table
+    name: 设备表格
+    actions:
+      - { type: button, label: 快捷新增, action: nav, target: PAGE-99 }`,
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-05' && /actions\[0\] nav 指向不存在的页面 "PAGE-99"/.test(e.message)),
+    `actions 条目须走同一套交互校验：${JSON.stringify(report.errors.filter((e) => e.rule === 'V-SPEC-05'))}`,
+  );
+});
+
+test('modal presentation：drawer 合法、其余非法（A27 C-A27-03）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '  - id: MODAL-01\n    title: 设备表单', '  - id: MODAL-01\n    presentation: drawer\n    title: 设备表单');
+  let r = vima(root, 'validate');
+  assert.equal(r.code, 0, `drawer 应合法：${r.stderr}`);
+  await mutate(root, 'docs/spec.md', 'presentation: drawer', 'presentation: popover');
+  r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-03' && /presentation "popover" 非法/.test(e.message)));
 });

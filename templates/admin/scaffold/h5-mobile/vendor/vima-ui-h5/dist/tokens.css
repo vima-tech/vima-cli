@@ -1,0 +1,155 @@
+/**
+ * vima-ui-mp · 设计令牌（唯一真源）
+ *
+ * 取值来路（A23 的 D-A23-03）：
+ *   色板 / 圆角 / 投影 —— 1:1 对齐 admin 模板的 `src/styles/tokens.css`（企业蓝 v3），
+ *     同一模板的两个端必须是同一套视觉，换品牌时两处一起改。
+ *   尺寸 / 字阶 —— 取自提取源 `juvenile-guard` 小程序 `common/design.css` 的实测值
+ *     （34 个真实页面上跑过的观感），单位保持 px（D-A23-04：px 在小程序里是设备无关像素，
+ *     文字物理尺寸跨机型一致；转 rpx 会引入舍入漂移且与提取源观感不再一致）。
+ *
+ * 纪律：
+ *   1. 类样式只引用 var(--vm-*)，不写裸色值——写死一个 #hex，换品牌时它就留在原地。
+ *   2. 本文件定义的令牌必须有人用，ui.css 用到的令牌必须在此定义（单测双向锁死，
+ *      见 tests/unit/c4.ui-mp.test.mjs）。没人用的令牌不是「预留」，是死代码。
+ *   3. 换肤不改本文件：在 app.css 里 @import 一份 themes/*.css 覆盖即可。
+ */
+
+/*
+ * 选择器同时写 `page` 与 `.vm-page`：`page` 是小程序的页面根元素；浏览器里它是一个
+ * 不存在的元素类型选择器（合法、匹配不到、不报错），于是本文件在 WXSS 与 CSS 两端
+ * 可以是**同一份字节**（A25），vima-ui-h5 直接复用，不存在两套令牌各自漂移。
+ */
+page,
+.vm-page {
+  /* ---------- 色板 ---------- */
+  /* 顶部主视觉用海军蓝，内容区用雾蓝与白，靠文字、边框、层级建立系统感。 */
+  --vm-navy-900: #173b5f;
+  --vm-navy-700: #2c739e;
+  --vm-primary: #2f73c5;
+  --vm-primary-strong: #235c9b;
+  --vm-cyan: #48b7cf;
+
+  --vm-bg: #e9f0f7;
+  --vm-surface: #ffffff;
+  --vm-surface-soft: #fbfcfe;
+  --vm-border: #dce5f1;
+  --vm-border-soft: #eef3f9;
+
+  --vm-text-title: #0e1b33;
+  --vm-text-body: #33425f;
+  --vm-text-sub: #51617d;
+  --vm-text-weak: #7d8ba2;
+  --vm-text-faint: #9aa8bf;
+  --vm-on-dark: #ffffff;
+  --vm-on-dark-body: #dbeaf5;
+  --vm-on-dark-accent: #e7f6fb;
+
+  /* 语义强调色（chip / tile / accent 条 / sec 圆点共用同一组） */
+  --vm-accent-blue: #2f73c5;
+  --vm-accent-cyan: #48b7cf;
+  --vm-accent-green: #35c17e;
+  --vm-accent-indigo: #5a6cf0;
+  --vm-accent-amber: #ff9500;
+  --vm-accent-red: #ff3b30;
+  --vm-accent-violet: #8b5cf6;
+
+  /* 强调色的浅底与描边（chip / tile 的底板，由深色主色推导，保持同族） */
+  --vm-soft-blue: #e7f0fd;
+  --vm-soft-cyan: #e5f6fb;
+  --vm-soft-green: #e2f8ec;
+  --vm-soft-indigo: #eceffb;
+  --vm-soft-amber: #fdf3e5;
+  --vm-soft-red: #fdecee;
+  --vm-soft-violet: #f2eafc;
+
+  --vm-disabled: #c3d2e6;
+
+  /* ---------- 渐变 ---------- */
+  --vm-hero-grad:
+    radial-gradient(circle at 82% -15%, rgba(72, 183, 207, 0.24), transparent 34%),
+    linear-gradient(155deg, #0d2438 0%, var(--vm-navy-900) 48%, var(--vm-navy-700) 100%);
+  --vm-hero-glow: radial-gradient(circle, rgba(72, 183, 207, 0.2), rgba(72, 183, 207, 0) 68%);
+  /* 顶部主视觉的网格底纹，构成「科技感」的核心手法之一 */
+  --vm-grid-fx:
+    linear-gradient(115deg, transparent 42%, rgba(142, 211, 227, 0.06) 42.5%, transparent 43%),
+    repeating-linear-gradient(0deg, rgba(139, 194, 220, 0.045) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(139, 194, 220, 0.045) 0 1px, transparent 1px 28px);
+  --vm-page-grad:
+    radial-gradient(circle at 92% 9%, rgba(47, 115, 197, 0.075), transparent 25%),
+    linear-gradient(180deg, #f1f5fa 0%, #e9f0f7 42%, #e5edf6 100%);
+  --vm-btn-grad: linear-gradient(135deg, #235c9b 0%, #2f73c5 58%, #3f9ab4 125%);
+  --vm-accent-grad: linear-gradient(90deg, #2f73c5, #48b7cf, transparent);
+
+  /* ---------- 形状 ---------- */
+  --vm-radius-card: 16px;
+  --vm-radius-ctl: 13px;
+  --vm-radius-sm: 9px;
+  --vm-radius-pill: 999px;
+  --vm-radius-sheet: 26px;
+
+  /* ---------- 投影 ---------- */
+  --vm-shadow-card: 0 1px 2px rgba(16, 45, 83, 0.03), 0 10px 26px -22px rgba(16, 45, 83, 0.45);
+  --vm-shadow-btn: 0 12px 24px -14px rgba(35, 92, 155, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --vm-shadow-sheet: 0 -12px 30px -24px rgba(3, 27, 68, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --vm-shadow-popup: 0 -18px 44px -26px rgba(8, 38, 80, 0.55);
+  --vm-shadow-inset: inset 0 1px 2px rgba(10, 40, 100, 0.025);
+
+  /* ---------- 字体 ---------- */
+  /* 全是系统预装字体，不下载 webfont：小程序首屏不闪、离线可用。 */
+  --vm-font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* 字阶。适老化（.vm-aging）只重定义这一组，全站随之放大——
+   * 这正是「类样式一律引令牌」的兑现处：加了新类也自动适老，不用逐类补覆盖。 */
+  --vm-font-hero: 20px;
+  --vm-font-h1: 17px;
+  --vm-font-h2: 15px;
+  --vm-font-body: 14px;
+  --vm-font-sub: 13px;
+  --vm-font-small: 12.5px;
+  --vm-font-note: 11px;
+  --vm-font-tag: 10.5px;
+  --vm-font-en: 9.5px;
+
+  --vm-weight-title: 800;
+  --vm-weight-bold: 700;
+  --vm-weight-medium: 600;
+
+  /* ---------- 间距与尺寸 ---------- */
+  --vm-gap-xs: 4px;
+  --vm-gap-sm: 8px;
+  --vm-gap-md: 12px;
+  --vm-gap-lg: 16px;
+  --vm-gap-xl: 22px;
+
+  --vm-pad-page: 16px;
+  --vm-pad-body: 18px;
+  --vm-control-h: 46px;
+  --vm-btn-h: 48px;
+  --vm-list-min-h: 58px;
+  --vm-tile-size: 34px;
+
+  /* ---------- 动效 ---------- */
+  --vm-ease: cubic-bezier(0.22, 0.9, 0.32, 1);
+  --vm-duration: 0.38s;
+}
+
+/**
+ * 适老化模式（A23 的 D-A23-05，吸收自 sustain-mp 的 .aging）。
+ * 用法：页面根节点 <view class="vm-page vm-aging">，或在 app.ts 里按用户开关拼类名。
+ * 只放大字阶与控件高——间距与圆角不动，否则一屏装不下内容反而更难用。
+ */
+.vm-aging {
+  --vm-font-hero: 22px;
+  --vm-font-h1: 19px;
+  --vm-font-h2: 17px;
+  --vm-font-body: 16px;
+  --vm-font-sub: 15px;
+  --vm-font-small: 14px;
+  --vm-font-note: 13px;
+  --vm-font-tag: 12px;
+  --vm-font-en: 11px;
+  --vm-control-h: 52px;
+  --vm-btn-h: 54px;
+  --vm-list-min-h: 64px;
+}

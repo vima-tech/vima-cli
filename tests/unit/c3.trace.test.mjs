@@ -17,6 +17,10 @@ async function cloneGolden(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-c3-trace-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(GOLDEN, root, { recursive: true });
+  // A28：黄金夹具已迁 apps/admin/ 布局；本文件的用例折回根布局（src/），
+  // 专职覆盖存量项目（无 manifest → v1 兜底端册 dir "."）的寻址分支（契约 §13）。
+  await cp(path.join(root, 'apps/admin/src'), path.join(root, 'src'), { recursive: true });
+  await rm(path.join(root, 'apps'), { recursive: true, force: true });
   return root;
 }
 

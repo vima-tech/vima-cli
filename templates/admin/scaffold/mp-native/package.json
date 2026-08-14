@@ -1,0 +1,15 @@
+{
+  "name": "{{projectName}}-{{appId}}",
+  "version": "0.1.0",
+  "private": true,
+  "description": "{{projectName}} · 微信小程序端（原生 + TypeScript）",
+  "scripts": {
+    "runtime:collect": "node scripts/collect-runtime-errors.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "miniprogram-api-typings": "^4.0.4",
+    "miniprogram-automator": "^0.12.1",
+    "typescript": "^5.5.4"
+  }
+}

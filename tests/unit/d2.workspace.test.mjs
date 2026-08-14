@@ -22,6 +22,105 @@ test('A3 冷读门：go.md 满足三条验收 grep 判据（v2.1-amendments A3�
   assert.ok(goMd.includes('pendingConfirm'), '可推断项裁定分支须标 pendingConfirm');
 });
 
+test('A29 视觉稿工序：planning-guide 开启说明 + go.md 校准轮 + fe 模板设计稿行（防漂移）', async () => {
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('/design consent'), 'planning-guide 须含 Claude Design 开启命令说明');
+  assert.ok(guide.includes('claude.ai/design'), 'planning-guide 须含 claude.ai/design 指引');
+  assert.ok(guide.includes('design-links.md'), 'planning-guide 须登记设计稿台账文件名');
+  assert.ok(guide.includes('不得拿线框冒充视觉稿'), 'planning-guide 须写明未接入降级口径');
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('5.2.6'), 'go.md 须含 5.2.6 校准轮步骤');
+  assert.ok(goMd.includes('设计稿校准轮'), 'go.md 须含设计稿校准轮触发词');
+  const feTpl = await readFile(path.join(ADMIN, 'planning/_template-fe.md'), 'utf8');
+  assert.ok(feTpl.includes('设计稿'), '_template-fe 须含设计稿登记行');
+});
+
+test('A27 版面冒烟：默认 Kimi WebBridge、Playwright 仅回退且共用探针（防漂移）', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('默认 Kimi WebBridge'), '/go 须明确 Kimi WebBridge 是默认通道');
+  assert.ok(goMd.includes('$kimi-webbridge'), '/go 须显式加载 kimi-webbridge skill');
+  assert.ok(goMd.includes('Playwright 仅回退'), '/go 须限定 Playwright 只作回退');
+  assert.ok(goMd.includes('source: "kimi-webbridge"'), '默认报告须记录适配器来源');
+  assert.ok(goMd.includes('不要关闭 session/tab'), '真实浏览器会话须遵守不擅自关闭纪律');
+
+  const checkMd = await readFile(path.join(ADMIN, 'workspace/commands/check.md'), 'utf8');
+  assert.ok(checkMd.includes('kimi-webbridge / playwright / unknown'), '/check 须兼容新旧报告并展示来源');
+  assert.ok(checkMd.includes('Playwright 回退均不可用'), '/check 无报告口径须覆盖两条通道');
+
+  const smoke = await readFile(path.join(ADMIN, 'scaffold/frontend/scripts/layout-smoke.mjs'), 'utf8');
+  const probe = await readFile(path.join(ADMIN, 'scaffold/frontend/scripts/layout-probe.mjs'), 'utf8');
+  assert.ok(smoke.includes("from './layout-probe.mjs'"), 'Playwright 回退须复用唯一探针实现');
+  assert.ok(smoke.includes("source: 'playwright'"), 'Playwright 回退报告须记录来源');
+  assert.ok(probe.includes('export function probeInPage'), '浏览器侧共享探针须可被两通道导入');
+
+  const contract = await readFile(path.join(CLI_ROOT, 'docs/internal-contracts.md'), 'utf8');
+  assert.ok(contract.includes('Kimi WebBridge 默认输出'), '§6.17 须冻结默认适配器');
+  assert.ok(contract.includes('`source` 可取 `kimi-webbridge` 或'), '§6.17 须冻结来源枚举');
+});
+
+test('A30 设计工序两段化：design-language 资产 + guide 两段式 + go.md 回修分流（防漂移）', async () => {
+  // ── 风格推导方法论（D-A30-06/07：不变层 + 观察量 + 推导规则 + 色彩纲领 + 范例）──
+  const dl = await readFile(path.join(ADMIN, 'planning/design-language.md'), 'utf8');
+  assert.ok(dl.includes('克制的专业工具感'), 'design-language 须写明不变层的一句话骨相');
+  assert.ok(dl.includes('不变层'), 'design-language 须有不参与推导的不变层');
+  assert.ok(dl.includes('单一品牌色'), '不变层须含单一品牌色准则');
+  assert.ok(dl.includes('深色只作「锚」'), '不变层须写明深色只作锚（受库侧浅色裸值限制）');
+
+  // 观察量：8 项且必须挂「禁推断」纪律，否则「需求分析」退化为凭空判断
+  for (const o of ['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O7', 'O8']) {
+    assert.ok(dl.includes(o), `design-language 须含观察量「${o}」`);
+  }
+  assert.ok(dl.includes('禁推断'), '观察量须复用 planning-guide 的信息源分级纪律');
+  assert.ok(dl.includes('pendingConfirm'), '观察量推断项须走 pendingConfirm 裁定');
+
+  // 推导规则：8 条，覆盖 7 条取向轴
+  for (const r of ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']) {
+    assert.ok(dl.includes(r), `design-language 须含推导规则「${r}」`);
+  }
+  for (const axis of ['内容密度', '容器化程度', '装饰度', '强调手法', '形状性格', '深色锚', '底色温度']) {
+    assert.ok(dl.includes(axis), `design-language 须含取向轴「${axis}」`);
+  }
+  assert.ok(
+    dl.includes('内容密度」与 PDL `density` 不是一回事'),
+    'design-language 须区分取向轴内容密度与 PDL density（两者混用即失控）',
+  );
+
+  // 色彩纲领 / 旧信号 / 自检 / 产物 / 范例
+  assert.ok(dl.includes('相距 ≥ 30°') || dl.includes('相距 ≥30°'), '色彩纲领须给出色相距离判据');
+  assert.ok(dl.includes('旧信号'), 'design-language 须含可 grep 的旧信号清单');
+  assert.ok(dl.includes('自检判据'), 'design-language 须含定档后的自检判据');
+  assert.ok(dl.includes('本项目定档'), 'design-language 须留推导产物落点');
+  assert.ok(dl.includes('规则冲突与裁定'), '产物须留规则冲突的裁定位');
+  assert.ok(dl.includes('参考范例'), '三套方案须降级为范例');
+  assert.ok(dl.includes('不得直接套用'), '范例须显式禁止直接套用（否则退回挑主题）');
+  assert.ok(dl.includes('版面模式库'), 'design-language 须含 Stage A 模式库容器');
+  assert.ok(dl.includes('出稿提示骨架'), 'design-language 须含出稿提示骨架');
+
+  // ── 模板键与安装落点（D-A30-03）──
+  const tpl = JSON.parse(await readFile(path.join(ADMIN, 'template.json'), 'utf8'));
+  assert.equal(tpl.planning.designLanguage, 'planning/design-language.md', 'template.json 须声明 designLanguage 键');
+
+  // ── planning-guide 两段式工序 ──
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('Stage A'), 'planning-guide 须含 Stage A 版面语言段');
+  assert.ok(guide.includes('Stage B'), 'planning-guide 须含 Stage B 页面内容稿段');
+  assert.ok(guide.includes('是「推导」不是「挑选」'), 'Stage A 第 1 步须是推导而非挑主题（D-A30-06）');
+  assert.ok(guide.includes('观察量'), 'planning-guide 须要求先填观察量再推档位');
+  assert.ok(guide.includes('design-language.md'), 'planning-guide 须指向设计语言真源文件');
+  assert.ok(guide.includes('云端稿到此作废'), 'planning-guide 须写明 Stage A 产出固化纪律（D-A30-02）');
+  assert.ok(guide.includes('不动壳层'), 'planning-guide 须写明 Stage B 的不越界口径（D-A30-04）');
+
+  // ── go.md 5.2.6 回修分流（版面级 vs 页面级）──
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('回修分流'), 'go.md 5.2.6 须含回修分流');
+  assert.ok(goMd.includes('版面级'), 'go.md 须区分版面级不一致');
+  assert.ok(goMd.includes('一处修全站'), 'go.md 须写明版面级回 Stage A 一处修全站');
+
+  // ── 任务卡带所属 pattern ──
+  const feTpl = await readFile(path.join(ADMIN, 'planning/_template-fe.md'), 'utf8');
+  assert.ok(feTpl.includes('所属 pattern'), '_template-fe 须含所属 pattern 行');
+});
+
 test('A17/A18 批间连续性：go.md 预算任务计数 + 提交授权 + 合法停点（A17 基线，A18 改阈值与授权口径）', async () => {
   const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
   assert.ok(goMd.includes('最多推进 24 个任务'), '会话预算须按任务计数（A18：24 任务/次）');
@@ -82,6 +181,136 @@ test('A18 批次调度效率：七条规格的文字资产落位（v2.1-amendmen
   for (const rule of ['V-TASK-11', 'V-TASK-12']) {
     assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
   }
+});
+
+test('A20 收敛期：收口闸门 + 收尾流水线模板 + 规则镜像（v2.1-amendments A20 验收判据镜像）', async () => {
+  // 2）收口闸门写进 go.md 步骤 5
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('vima converge'), 'go.md 步骤 5 须调用 vima converge');
+  assert.ok(goMd.includes('收口闸门'), 'go.md 须以「收口闸门」命名步骤 5');
+  assert.ok(goMd.includes('byTask'), '修复轮次须按报告 byTask 归组派发（确定性归属）');
+  assert.ok(goMd.includes('最多 3 轮'), '收敛循环须有轮次上限');
+  assert.ok(
+    !/所有任务 done 且流水线（layer=pipeline）任务全部通过 →\n\s*更新 lifecycle/.test(goMd),
+    '旧的「直接进 MAINTAINING」写法须被收口闸门取代',
+  );
+  // 4）/check 收敛栏
+  const checkMd = await readFile(path.join(ADMIN, 'workspace/commands/check.md'), 'utf8');
+  assert.ok(checkMd.includes('converge'), 'check.md 须输出集成对账栏');
+  // 修复轮标注归属（sustain-v3 实战反馈 F5：Builder 会自造假 taskId 被 trace 判野生）
+  assert.ok(
+    /不得新造 taskId/.test(goMd),
+    'go.md 修复轮须禁止新造 taskId（否则追溯链上多一个查不到出处的洞）',
+  );
+  const builder = await readFile(path.join(ADMIN, 'workspace/agents/vima-builder.md'), 'utf8');
+  assert.ok(/不得新造 taskId/.test(builder), 'vima-builder 须镜像修复轮标注归属规则');
+  assert.ok(builder.includes('convergence.json'), 'vima-builder 须知道收口闸门修复读哪份报告');
+  // 宪法同步（否则维护期 Agent 不知道 done ≠ 完成）
+  const constitution = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
+  assert.ok(constitution.includes('收口闸门'), '宪法工作协议须同步收口闸门口径');
+
+  // 3）收尾流水线任务模板存在、进 taskTemplates、planning-guide 强制生成
+  const tpl = JSON.parse(await readFile(path.join(ADMIN, 'template.json'), 'utf8'));
+  for (const rel of ['planning/_template-full-test.md', 'planning/_template-code-audit.md']) {
+    assert.ok(
+      tpl.planning.taskTemplates.includes(rel),
+      `template.json planning.taskTemplates 须含 ${rel}（否则 init 不会安装）`,
+    );
+    const text = await readFile(path.join(ADMIN, rel), 'utf8');
+    assert.ok(text.includes('layer: pipeline'), `${rel} 须是 layer=pipeline 任务`);
+  }
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('full-test'), 'planning-guide 任务拆解须要求生成 full-test');
+  assert.ok(guide.includes('code-audit'), 'planning-guide 任务拆解须要求生成 code-audit');
+
+  // 1/3）规则镜像：checklist 逐条登记 V-INT 族与 V-TASK-13
+  const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
+  for (const rule of ['V-INT-01', 'V-INT-02', 'V-INT-03', 'V-INT-04', 'V-INT-05', 'V-TASK-13']) {
+    assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
+  }
+});
+
+test('A31/A32/A33：变更事务纪律、交付等级口径与规则镜像落位（增补项验收判据镜像）', async () => {
+  // A31：宪法的维护期条目须走变更事务，而不再是散文式「先改 spec 再改代码」
+  const constitution = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
+  assert.ok(constitution.includes('vima change open'), '宪法维护期条目须接 vima change');
+  assert.ok(constitution.includes('vima change close'), '须写明关闭闸门这一步');
+  assert.ok(
+    /闸门不过|未传播完/.test(constitution),
+    '闸门语义必须写明——否则 Agent 会把「改完代码」当成变更结束',
+  );
+
+  // A32：完成报告须用 certify 的等级词，且不得把 pipeline-green 说成可部署/稳定
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('vima certify'), 'go.md 完成报告须跑 vima certify');
+  assert.ok(
+    /不得把它说成「可部署 \/ 稳定运行」|不采集也不认证/.test(goMd),
+    '显式非宣称是 A32 的灵魂，必须写进工作流资产',
+  );
+
+  // A33：规则镜像
+  const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
+  for (const rule of ['V-SPEC-17', 'V-SPEC-18']) {
+    assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
+  }
+});
+
+test('A21 经验反哺：go.md 步骤 6 询问环节落位（v2.1-amendments A21 验收判据镜像）', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('vima retro'), 'go.md 步骤 6 须调用 vima retro');
+  assert.ok(
+    goMd.includes('想表达但框架表达不了'),
+    '表达力缺口是 CLI 采不到、只有人知道的一问（A14/A16 的来源），必须留在询问里',
+  );
+  assert.ok(goMd.includes('gh issue create'), '同意反哺后须给出实际提交命令');
+  assert.ok(goMd.includes('retro-state'), '须记录已询问，拒绝后不重复骚扰');
+  assert.ok(goMd.includes('不静默失败'), 'gh 不在场时须降级为打印命令而非静默吞掉');
+  assert.ok(
+    /不.{0,6}代劳|不代为提 PR/.test(goMd),
+    'PR 不由项目侧 Agent 代劳（仓库纪律：不执行真实 git push）',
+  );
+});
+
+test('A22 字段级机检：规则镜像与规划引导落位（v2.1-amendments A22 验收判据镜像）', async () => {
+  const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
+  for (const rule of ['V-SPEC-15', 'V-SPEC-16', 'V-CON-08', 'V-CON-09']) {
+    assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
+  }
+  // 误报边界必须写进 checklist——这四条规则的成败全在边界上（实测 54→32→13 前两个都是错的）
+  assert.ok(checklist.includes('三条排除项'), 'V-SPEC-15 的排除项须可查');
+  assert.ok(/只查「只进」方向/.test(checklist), 'V-CON-08 须写明只查一个方向及其理由');
+
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('弹窗字段必须与提交端点入参对齐'), 'planning-guide 须引导弹窗字段对齐');
+  assert.ok(guide.includes('params'), 'planning-guide 须引导导航参数取值域');
+
+  const example = await readFile(path.join(ADMIN, 'planning/contract.example.md'), 'utf8');
+  for (const key of ['writeOnly', 'readOnly', 'enforced: false']) {
+    assert.ok(example.includes(key), `contract.example 须示范可选键 ${key}`);
+  }
+});
+
+test('A24 工具可信度与项目定制：文字资产落位（v2.1-amendments A24 验收判据镜像）', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  // F6：合法停点举例补全（不新增 stopReason 取值，只补举例——A17 白名单③已覆盖语义）
+  assert.ok(goMd.includes('无其他可派批次'), 'go.md 停点举例须含「依赖未满足且无其他可派批次」');
+  assert.ok(!goMd.includes('blocked-by-barrier'), '不得新增 stopReason 取值（gate 已够用）');
+  // F7：预算与并行度的整除关系
+  assert.ok(goMd.includes('floor(24'), 'go.md 须写明预算与 maxParallel 的整除关系');
+
+  // 六：并发写策略只此一处官方口径，且指向 A8 就有的 conflictsWith
+  const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
+  assert.ok(guide.includes('conflictsWith'), 'planning-guide 须引导用 conflictsWith 排开抢文件的任务');
+  const std = await readFile(path.join(ADMIN, 'planning/coding-standards.md'), 'utf8');
+  assert.ok(/追加，不要整体覆盖/.test(std), '编码规范须给出官方并发写策略');
+  assert.ok(std.includes('conflictsWith'), '并发写策略须给出「不同批」这条出路');
+  // F9：受管文件里指路到不受管的项目追加区
+  assert.ok(std.includes('coding-standards.local.md'), '受管规范须指路 local 追加区');
+
+  // 三：冷启动断言口径（降级为 pipeline 验收项，不做成 CLI 规则）
+  const fullTest = await readFile(path.join(ADMIN, 'planning/_template-full-test.md'), 'utf8');
+  assert.ok(fullTest.includes('能解析出全部'), 'full-test 须固化「A 跑完后 B 能解析出全部 N 条」的断言口径');
+  assert.ok(fullTest.includes('空库'), 'full-test 须要求空库冷启动验证');
 });
 
 test('A9/A10/A11 吸收项满足验收 grep 判据（v2.1-amendments A9–A11，mattpocock 对标）', async () => {
@@ -377,30 +606,156 @@ test('guard-shared A16：端册面拦 apps/<id>/ 共享层；无令牌 exit 2、
   assert.equal(runGuard(root, 'apps/patient/src/components/Btn.ts').status, 0, 'v1 面不认 apps/（诚实回退）');
 });
 
-test('post-write A16：apps/<id>/src 业务代码不逃逸机检；新形态 manifest 按端对账', async (t) => {
+test('post-write A16/A23：多端业务代码不逃逸机检；admin-web 与 mp-native 各查各的规范面', async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-pw-multi-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, 'apps/patient/src/pages'), { recursive: true });
+  await mkdir(path.join(root, 'src/views'), { recursive: true });
   await mkdir(path.join(root, '.vima'), { recursive: true });
   await mkdir(path.join(root, 'docs/review'), { recursive: true });
   await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
-  // 幻包名导入出现在患者端目录 → exit 2（端册化后机检面不失覆盖，A16 回测缺口②）
-  await writeFile(path.join(root, 'apps/patient/src/pages/bad.ts'), "import { x } from '@vima/ui';\n");
-  const r = runHook(root, 'apps/patient/src/pages/bad.ts');
-  assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-  assert.match(r.stderr, /幻包名/);
-  // 新形态 manifest（顶层 apps map）区块对账：缺 data-block → exit 2
+
+  // ── admin-web 端（根布局）：幻包名导入 → exit 2（端册化后机检面不失覆盖，A16 回测缺口②）
+  await writeFile(path.join(root, 'src/views/bad.ts'), "import { x } from '@vima/ui';\n");
+  const rAdmin = runHook(root, 'src/views/bad.ts');
+  assert.equal(rAdmin.status, 2, `stderr: ${rAdmin.stderr}`);
+  assert.match(rAdmin.stderr, /幻包名/);
+
+  // ── mp-native 端：Vue 那套规范不适用（该端没有 @vima/ui 这个概念），不误报
+  await writeFile(path.join(root, 'apps/patient/src/pages/note.ts'), "// 患者端普通 ts\n");
+  assert.equal(runHook(root, 'apps/patient/src/pages/note.ts').status, 0, 'mp 端不应套用 Vue 规范');
+
+  // ── mp-native 端专属：页面根缺 vm-page → exit 2（A23）
+  await writeFile(path.join(root, 'apps/patient/src/pages/p11.wxml'),
+    '<view data-page="PAGE-11"><view data-block="banner"></view></view>');
+  const rNoRoot = runHook(root, 'apps/patient/src/pages/p11.wxml');
+  assert.equal(rNoRoot.status, 2, `stderr: ${rNoRoot.stderr}`);
+  assert.match(rNoRoot.stderr, /页面根缺少 vm-page 类/);
+
+  // ── mp-native 端专属：.wxss 裸色值 → exit 2；令牌写法放行（A23）
+  await writeFile(path.join(root, 'apps/patient/src/pages/p11.wxss'), '.x { color: #ff0000; }\n');
+  const rColor = runHook(root, 'apps/patient/src/pages/p11.wxss');
+  assert.equal(rColor.status, 2, `stderr: ${rColor.stderr}`);
+  assert.match(rColor.stderr, /字面量色值/);
+  await writeFile(path.join(root, 'apps/patient/src/pages/p11.wxss'), '.x { color: var(--vm-primary); }\n');
+  assert.equal(runHook(root, 'apps/patient/src/pages/p11.wxss').status, 0);
+
+  // ── vendor 是共享层（guard-shared 已挡写），post-write 跳过，不报两套话
+  await mkdir(path.join(root, 'apps/patient/src/vendor/vima-ui-mp/dist'), { recursive: true });
+  await writeFile(path.join(root, 'apps/patient/src/vendor/vima-ui-mp/dist/t.wxss'), 'page { color: #123456; }\n');
+  assert.equal(runHook(root, 'apps/patient/src/vendor/vima-ui-mp/dist/t.wxss').status, 0, 'vendor 应跳过');
+
+  // ── 新形态 manifest（顶层 apps map）区块对账：.wxml 缺 data-block → exit 2
   await writeFile(path.join(root, 'docs/review/prototype.manifest.json'), JSON.stringify({
     schemaVersion: '1',
     apps: { patient: { pages: [{ id: 'PAGE-11', layout: ['banner', 'form'], modals: [] }] } },
   }));
-  await writeFile(path.join(root, 'apps/patient/src/pages/page11.vue'),
-    '<template><div class="vui-page" data-page="PAGE-11"><div data-block="banner"/></div></template>');
-  const r2 = runHook(root, 'apps/patient/src/pages/page11.vue');
-  assert.equal(r2.status, 2);
+  await writeFile(path.join(root, 'apps/patient/src/pages/p11.wxml'),
+    '<view class="vm-page" data-page="PAGE-11"><view data-block="banner"></view></view>');
+  const r2 = runHook(root, 'apps/patient/src/pages/p11.wxml');
+  assert.equal(r2.status, 2, `stderr: ${r2.stderr}`);
   assert.match(r2.stderr, /缺区块标记 data-block：form/);
   // 标记齐全 → 放行
-  await writeFile(path.join(root, 'apps/patient/src/pages/page11.vue'),
-    '<template><div class="vui-page" data-page="PAGE-11"><div data-block="banner"/><div data-block="form"/></div></template>');
-  assert.equal(runHook(root, 'apps/patient/src/pages/page11.vue').status, 0);
+  await writeFile(path.join(root, 'apps/patient/src/pages/p11.wxml'),
+    '<view class="vm-page" data-page="PAGE-11"><view data-block="banner"></view><view data-block="form"></view></view>');
+  assert.equal(runHook(root, 'apps/patient/src/pages/p11.wxml').status, 0);
+});
+
+test('post-write 规范面按 kind 分派：h5 页面不被套用 admin 的 vui-page 规则（A25）', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-pw-h5-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'apps/ph5/src/views'), { recursive: true });
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify({
+    schemaVersion: '2',
+    templateId: 'admin',
+    apps: [
+      { id: 'admin', kind: 'admin-web', dir: '.', codeDir: 'src', sharedDirs: [] },
+      { id: 'ph5', kind: 'h5-mobile', dir: 'apps/ph5', codeDir: 'src', sharedDirs: [] },
+    ],
+  }));
+
+  // 正确的 h5 页面：根是 vm-body（vm-page 在 App.vue 根上）→ 放行。
+  // 回归点：套 admin 面时这里会报「页面根缺少 vui-page 类」，把对的说成错的。
+  await writeFile(path.join(root, 'apps/ph5/src/views/P07.vue'),
+    '<template><div class="vm-body" data-page="PAGE-07"><div data-block="list"></div></div></template>');
+  const ok = runHook(root, 'apps/ph5/src/views/P07.vue');
+  assert.equal(ok.status, 0, `正确的 h5 页面应放行，stderr: ${ok.stderr}`);
+
+  // 错误的 h5 页面：根既非 vm-body 也非 vm-sheet
+  await writeFile(path.join(root, 'apps/ph5/src/views/Bad.vue'),
+    '<template><div class="wrong" data-page="PAGE-08"></div></template>');
+  const bad = runHook(root, 'apps/ph5/src/views/Bad.vue');
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /页面根缺少 vm-body \/ vm-sheet 类/);
+
+  // h5 专属的两条导入/反馈规范
+  await writeFile(path.join(root, 'apps/ph5/src/views/Imp.vue'),
+    "<script setup lang=\"ts\">\nimport { toast } from '../../../../vendor/vima-ui-h5/dist/components/VmToast.vue'\n"
+    + "function go(){ if (confirm('x')) toast('y') }\n</script>\n"
+    + '<template><div class="vm-body" data-page="PAGE-07"><div data-block="list"></div></div></template>');
+  const imp = runHook(root, 'apps/ph5/src/views/Imp.vue');
+  assert.equal(imp.status, 2);
+  assert.match(imp.stderr, /深路径导入 vendor\/vima-ui-h5/);
+  assert.match(imp.stderr, /confirmAsync/);
+
+  // .vue 的 <style> 块裸色值同样被拦
+  await writeFile(path.join(root, 'apps/ph5/src/views/Color.vue'),
+    '<template><div class="vm-body" data-page="PAGE-07"><div data-block="list"></div></div></template>\n'
+    + '<style scoped>.x { color: #ff0000; }</style>');
+  const col = runHook(root, 'apps/ph5/src/views/Color.vue');
+  assert.equal(col.status, 2);
+  assert.match(col.stderr, /字面量色值/);
+  assert.match(col.stderr, /vima-ui-h5\/dist\/tokens\.css/, '提示应指向本端的 tokens');
+});
+
+test('post-write A27：业务页裸尺寸与页面根覆写被拦；密度档/令牌写法放行；壳层页不受伤', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-pw-a27-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'src/views'), { recursive: true });
+  await mkdir(path.join(root, 'apps/patient/src/pages/p1'), { recursive: true });
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+
+  // ── admin 业务页：裸 padding → 拦；换 var() → 放行
+  await writeFile(path.join(root, 'src/views/P01.vue'),
+    '<template><div class="vui-page" data-page="PAGE-01"><div data-block="table"></div></div></template>\n'
+    + '<style scoped>.x { padding: 0 14px; }</style>');
+  let r = runHook(root, 'src/views/P01.vue');
+  assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+  assert.match(r.stderr, /裸尺寸/);
+  assert.match(r.stderr, /密度档/);
+
+  await writeFile(path.join(root, 'src/views/P01.vue'),
+    '<template><div class="vui-page" data-page="PAGE-01"><div data-block="table"></div></div></template>\n'
+    + '<style scoped>.x { padding: 0 var(--v-gap-lg); --local-w: 14px; width: var(--local-w); }</style>');
+  assert.equal(runHook(root, 'src/views/P01.vue').status, 0, '令牌与局部定义写法应放行');
+
+  // ── admin 业务页：覆写页面根 height → 拦
+  await writeFile(path.join(root, 'src/views/P01.vue'),
+    '<template><div class="vui-page" data-page="PAGE-01"><div data-block="table"></div></div></template>\n'
+    + '<style scoped>.vui-page { height: 100%; }</style>');
+  r = runHook(root, 'src/views/P01.vue');
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /覆写了页面根类 \.vui-page 的 height/);
+
+  // ── 壳层页（无 data-page）写 px 不受伤（骨架内置页与组件不在管辖内）
+  await writeFile(path.join(root, 'src/views/Shell.vue'),
+    '<template><div class="whatever"></div></template>\n<style scoped>.x { padding: 14px; }</style>');
+  assert.equal(runHook(root, 'src/views/Shell.vue').status, 0, '非业务页不查裸尺寸');
+
+  // ── mp 端：页面 wxss 按 sibling wxml 的 data-page 判定
+  await writeFile(path.join(root, 'apps/patient/src/pages/p1/index.wxml'),
+    '<view class="vm-page" data-page="PAGE-11"><view data-block="list"></view></view>');
+  await writeFile(path.join(root, 'apps/patient/src/pages/p1/index.wxss'), '.x { margin: 10px; }\n');
+  r = runHook(root, 'apps/patient/src/pages/p1/index.wxss');
+  assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+  assert.match(r.stderr, /裸尺寸/);
+  await writeFile(path.join(root, 'apps/patient/src/pages/p1/index.wxss'), '.x { margin: var(--vm-gap-md); }\n');
+  assert.equal(runHook(root, 'apps/patient/src/pages/p1/index.wxss').status, 0);
+
+  // ── hook 永不检查组件使用（P17 声明落在头注，这里锁死语义：手写 <table> 不被拦）
+  await writeFile(path.join(root, 'src/views/P02.vue'),
+    '<template><div class="vui-page" data-page="PAGE-02"><div data-block="table"><table><tr><td>手写表格</td></tr></table></div></div></template>');
+  assert.equal(runHook(root, 'src/views/P02.vue').status, 0, '不检查是否使用组件——表达形式的选择权在页面');
 });

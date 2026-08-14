@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/mine/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "{{projectName}}",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#e9f0f7",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#7d8ba2",
+    "selectedColor": "#2f73c5",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

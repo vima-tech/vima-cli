@@ -1,0 +1,3 @@
+# 演示态（A27）：vite --mode demo 时加载。VITE_DEMO 是全部 demo 分支的唯一开关——
+# 生产构建（vite build）不加载本文件，demo 代码路径被静态消除，产物零泄漏。
+VITE_DEMO=1

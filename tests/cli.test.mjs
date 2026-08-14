@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, readdir, mkdir, writeFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { runCli, CLI_ROOT } from './helpers.mjs';
 
@@ -16,6 +16,18 @@ const ALL_COMMANDS = [
 async function emptyDir(t) {
   const dir = await mkdtemp(path.join(tmpdir(), 'vima-cli-route-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+/**
+ * A24：带项目标记的临时目录。项目内命令现在会向上定位项目根，找不到就 NOT_IN_PROJECT——
+ * 要测「命令自身的前置错误码」必须先让它认得出这是个项目，否则测到的是顶层守卫。
+ */
+async function projectDir(t) {
+  const dir = await emptyDir(t);
+  // 标记用空的 .vima/ 而非 docs/lifecycle.json——后者会顺带满足 sync 的前置，
+  // 让「各命令自身的前置错误码」测不出来。空目录足以让 findProjectRoot 认出这是项目。
+  await mkdir(path.join(dir, '.vima'), { recursive: true });
   return dir;
 }
 
@@ -109,7 +121,7 @@ test('version / --version / -v：裸版本号 = package.json version，exit 0', 
   }
 });
 
-test('parseArgs 中文翻译：未知选项 / 缺少取值 / 多余位置参数，均带 --help 提示行', () => {
+test('parseArgs 中文翻译：未知选项 / 缺少取值 / 多余位置参数，均带 --help 提示行', async (t) => {
   const unknown = runCli(['create', '--bogus', 'x']);
   assert.equal(unknown.status, 3);
   assert.match(unknown.stderr, /^vima create: USAGE: 未知选项 "--bogus"/);
@@ -120,13 +132,15 @@ test('parseArgs 中文翻译：未知选项 / 缺少取值 / 多余位置参数�
   assert.equal(missing.status, 3);
   assert.match(missing.stderr, /缺少取值/);
 
-  const positional = runCli(['validate', 'extra']); // validate 不收位置参数
+  // validate 是项目内命令：A24 后必须在项目里跑，否则先撞顶层 NOT_IN_PROJECT 守卫
+  const dir = await projectDir(t);
+  const positional = runCli(['validate', 'extra'], { cwd: dir }); // validate 不收位置参数
   assert.equal(positional.status, 3);
   assert.match(positional.stderr, /多余的位置参数 "extra"/);
 });
 
-test('错误码矩阵（契约 §3.1）：空目录前置错误以稳定 code 输出到 stderr', async (t) => {
-  const dir = await emptyDir(t);
+test('错误码矩阵（契约 §3.1）：项目内的前置错误以稳定 code 输出到 stderr', async (t) => {
+  const dir = await projectDir(t);
   const cases = [
     [['plan'], 4, 'NO_TASKS'],
     [['sync'], 4, 'NO_LIFECYCLE'],
@@ -142,11 +156,62 @@ test('错误码矩阵（契约 §3.1）：空目录前置错误以稳定 code �
 });
 
 test('DEBUG 堆栈门控（契约 §14）：默认无堆栈，DEBUG=vima 时附带', async (t) => {
-  const dir = await emptyDir(t);
+  const dir = await projectDir(t);
   const off = runCli(['plan'], { cwd: dir });
   assert.equal(off.status, 4);
   assert.ok(!/\n\s+at /.test(off.stderr), '默认不应输出堆栈');
   const on = runCli(['plan'], { cwd: dir, env: { DEBUG: 'vima' } });
   assert.equal(on.status, 4);
   assert.match(on.stderr, /\n\s+at /, 'DEBUG=vima 应附堆栈');
+});
+
+// ── A24 项目根感知（顶层守卫）──
+
+test('A24：项目内命令在子目录运行 → 定位项目根，结果与在根一致且不产生游离报告', async (t) => {
+  const dir = await projectDir(t);
+  await mkdir(path.join(dir, 'backend', 'src'), { recursive: true });
+  await mkdir(path.join(dir, 'docs'), { recursive: true });
+  await writeFile(path.join(dir, 'docs', 'lifecycle.json'), JSON.stringify({ schemaVersion: '2.0', taskStats: {} }));
+  const atRoot = runCli(['sync', '--dry-run'], { cwd: dir });
+  const atSub = runCli(['sync', '--dry-run'], { cwd: path.join(dir, 'backend') });
+  assert.equal(atSub.status, atRoot.status, '子目录结果须与项目根一致');
+  assert.match(atSub.stderr, /已定位项目根/, '定位提示须走 stderr（stdout 留给机读输出）');
+  const stray = await readdir(path.join(dir, 'backend'));
+  assert.ok(!stray.includes('.vima'), '不得在子目录凭空创建 .vima/');
+});
+
+test('A24：非项目目录 → NOT_IN_PROJECT exit 4，且一个文件都不写', async (t) => {
+  const dir = await emptyDir(t);
+  for (const cmd of ['validate', 'plan', 'converge', 'retro', 'trace', 'certify']) {
+    const r = runCli([cmd], { cwd: dir });
+    assert.equal(r.status, 4, `${cmd} 应 exit 4，stderr: ${r.stderr}`);
+    assert.match(r.stderr, new RegExp(`^vima ${cmd}: NOT_IN_PROJECT: `));
+  }
+  assert.deepEqual(await readdir(dir), [], '顶层守卫拒绝后不得留下任何文件');
+});
+
+test('A24：doctor 与 init 不受顶层守卫拒绝（各有既定的「无项目」语义）', async (t) => {
+  const dir = await emptyDir(t);
+  const doc = runCli(['doctor'], { cwd: dir });
+  assert.equal(doc.status, 0, 'doctor 在非项目目录应降级运行而非拒绝');
+  assert.match(doc.stdout, /非 vima 项目/);
+  const ini = runCli(['init', '--template', 'nosuch'], { cwd: dir });
+  assert.equal(ini.status, 3, 'init 应走到自身的模板校验，而不是被守卫挡下');
+  assert.match(ini.stderr, /NO_TEMPLATE/);
+});
+
+test('A24：大于管道缓冲区的 stdout 不被截断（process.exit 会丢弃未 flush 的写入）', async (t) => {
+  // 实测过的失效形态：`vima context --stdout | grep` 在恰好 8192 字节处被腰斩且不报错，
+  // 机读输出（converge/retro/plan 的 --json）在真实项目上同样会被截断。
+  const golden = path.join(CLI_ROOT, 'tests', 'fixtures', 'golden');
+  const dir = await emptyDir(t);
+  await cp(golden, dir, { recursive: true });
+
+  const r = runCli(['context', 'device-list-fe', '--stdout'], { cwd: dir });
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  const bytes = Buffer.byteLength(r.stdout, 'utf8');
+  assert.ok(bytes > 8192, `上下文包应大于一个管道缓冲区才有意义，实际 ${bytes} 字节`);
+  assert.notEqual(bytes, 8192, '恰好 8192 字节 = 被管道缓冲区截断');
+  assert.ok(r.stdout.trimEnd().endsWith('```') || /\n$/.test(r.stdout), '输出须完整收尾');
+  assert.ok(r.stdout.includes('## 编码规范'), '末尾分节须完整出现（截断时它会消失）');
 });

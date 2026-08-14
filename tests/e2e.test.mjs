@@ -1,5 +1,5 @@
 // 端到端黄金链路（契约 §13）：create → init → 注入黄金规划产物 → validate →
-// render-review/-prototype(+--check) → plan → trace → approve → doctor → sync。
+// render-review/-prototype(+--check) → plan → trace → converge → approve → doctor → sync。
 // 每步断言退出码与关键产物；负面路径验证漂移/野生标注被机检抓住。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,21 +31,23 @@ after(async () => {
   await rm(sandbox, { recursive: true, force: true });
 });
 
-test('①create：admin 骨架落地，前端在项目根（设计 §15）', async () => {
+test('①create：admin 骨架落地，端在 apps/admin/（A28）+ 根卫生资产', async () => {
   const r = vima(['create', 'demo-sys', '--template', 'admin', '--no-git', '--no-install'], sandbox);
   assert.equal(r.code, 0, r.out);
   for (const f of [
-    'package.json',
-    'src/main.ts',
-    'src/utils/request.ts',
-    'src/views/login/index.vue',
-    'vendor/vima-ui-admin/package.json',
+    'apps/admin/package.json',
+    'apps/admin/src/main.ts',
+    'apps/admin/src/utils/request.ts',
+    'apps/admin/src/views/login/index.vue',
+    'apps/admin/vendor/vima-ui-admin/package.json',
     'backend/pom.xml',
     '.vima/manifest.json',
+    'README.md',
+    '.gitignore',
   ]) {
     await stat(path.join(proj, f));
   }
-  const pkg = JSON.parse(await readFile(path.join(proj, 'package.json'), 'utf8'));
+  const pkg = JSON.parse(await readFile(path.join(proj, 'apps/admin/package.json'), 'utf8'));
   assert.equal(pkg.name, 'demo-sys', '变量 {{projectName}} 应已替换');
 });
 
@@ -64,7 +66,7 @@ test('②init：工作环境就绪（宪法<50 行、hooks 可执行、lifecycle
 });
 
 test('③注入黄金规划产物后 validate 全绿', async () => {
-  for (const dir of ['docs', 'src', 'backend']) {
+  for (const dir of ['docs', 'apps', 'backend']) {
     await cp(path.join(GOLDEN, dir), path.join(proj, dir), { recursive: true, force: true });
   }
   const r = vima(['validate']);
@@ -98,7 +100,7 @@ test('⑤plan：批次序列与模式正确（§9 算法）', async () => {
 test('⑥trace：黄金态通过；野生标注 → exit 2（A1 吸收项）', async () => {
   assert.equal(vima(['trace']).code, 0, '黄金态（2 标注 + 1 虚报 warn）应通过');
   assert.equal(vima(['trace', '--strict']).code, 2, '--strict 下虚报应失败');
-  const target = path.join(proj, 'src/api/device.ts');
+  const target = path.join(proj, 'apps/admin/src/api/device.ts');
   const orig = await readFile(target, 'utf8');
   await appendFile(target, '// @vima not-a-real-task\n');
   const r = vima(['trace']);
@@ -108,12 +110,74 @@ test('⑥trace：黄金态通过；野生标注 → exit 2（A1 吸收项）', a
   await writeFile(target, orig);
 });
 
+test('⑥bis converge：黄金态零 error；复制一份 Controller 造重复实现 → exit 2（A20）', async () => {
+  const r = vima(['converge']);
+  assert.equal(r.code, 0, `黄金态应零 error：${r.out}`);
+  const report = JSON.parse(await readFile(path.join(proj, '.vima/reports/convergence.json'), 'utf8'));
+  assert.equal(report.schemaVersion, '1');
+  assert.equal(report.summary.errors, 0);
+
+  const { writeFile, rm } = await import('node:fs/promises');
+  const ctrl = path.join(proj, 'backend/src/main/java/demo/DeviceController.java');
+  const copy = path.join(proj, 'backend/src/main/java/demo/DeviceCopyController.java');
+  const src = await readFile(ctrl, 'utf8');
+  // 夹具 Controller 无 Spring 注解 → 先补一处 Mapping，再复制成第二份制造冲突
+  const annotated = src
+    .replace('public class DeviceController {', '@RequestMapping("/api/device")\npublic class DeviceController {')
+    .replace('    public Object list(', '    @GetMapping("/list")\n    public Object list(');
+  await writeFile(ctrl, annotated);
+  await writeFile(copy, annotated.replace(/DeviceController/g, 'DeviceCopyController'));
+  const dup = vima(['converge']);
+  assert.equal(dup.code, 2, '同一接口两处实现必须 exit 2');
+  assert.match(dup.out, /V-INT-02/);
+  await rm(copy);
+  await writeFile(ctrl, src);
+  assert.equal(vima(['converge']).code, 0, '恢复后应回到零 error');
+});
+
 test('⑦approve：前置齐备 → tasksApproved 落痕（§19.10）', async () => {
   const r = vima(['approve']);
   assert.equal(r.code, 0, r.out);
   const lc = JSON.parse(await readFile(path.join(proj, 'docs/lifecycle.json'), 'utf8'));
   assert.equal(lc.checklists.PLANNING.tasksApproved, true);
   assert.ok(lc.checklists.PLANNING.tasksApprovedAt, '须记录确认时间戳');
+});
+
+test('⑦bis certify：approve 后达 spec-approved，双轴分离且不宣称更高等级（A32）', async () => {
+  const r = vima(['certify']);
+  assert.equal(r.code, 0, r.out);
+  const report = JSON.parse(await readFile(path.join(proj, '.vima/reports/certify.json'), 'utf8'));
+  assert.equal(report.deliveryLevel, 'spec-approved', '任务未开工时最高只能到第一级');
+  assert.equal(report.templateMaturity, 'stable');
+  assert.match(report.notCertified, /deployable\/stable/);
+  assert.match(r.out, /模板 stable ≠ 项目 stable/);
+});
+
+test('⑦ter change：开变更 → 改 spec → 影响面命中 → 闸门拦未传播（A31）', async () => {
+  const { writeFile } = await import('node:fs/promises');
+  assert.equal(vima(['change', 'open', '设备列表标题调整']).code, 0);
+
+  const specPath = path.join(proj, 'docs/spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  await writeFile(specPath, spec.replace('id: PAGE-01\ntitle: 设备列表', 'id: PAGE-01\ntitle: 设备列表页'));
+
+  assert.equal(vima(['change', 'impact']).code, 0);
+  const impact = JSON.parse(await readFile(path.join(proj, '.vima/changes/chg-001/impact.json'), 'utf8'));
+  assert.deepEqual(impact.spec.pages.modified, ['PAGE-01']);
+  assert.ok(impact.affectedTasks.some((t) => t.taskId === 'device-list-fe'));
+
+  const closed = vima(['change', 'close']);
+  assert.equal(closed.code, 2, '受影响任务未 done → 闸门必须拦住');
+  assert.match(closed.out, /CHANGE_UNPROPAGATED/);
+
+  // 复位：还原 spec、重渲染、重跑 approve。最后一步不可省——doctor ⑩「批准时效」按
+  // mtime 判定，spec 被动过就使批准失效（改回内容不改回 mtime）。真实动线本就是
+  // 「改过规格 → 重新评审」，这里照做而不是绕过该检查。
+  await writeFile(specPath, spec);
+  assert.equal(vima(['render-review']).code, 0);
+  assert.equal(vima(['render-prototype']).code, 0);
+  assert.equal(vima(['render-matrix']).code, 0);
+  assert.equal(vima(['approve']).code, 0, '规格变动后须重新评审，否则批准时效失效');
 });
 
 test('⑧doctor：全绿；篡改渲染产物 → exit 2 抓漂移 → 重渲染恢复', async () => {

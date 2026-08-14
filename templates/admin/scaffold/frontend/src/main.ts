@@ -37,6 +37,16 @@ if (import.meta.env.DEV) {
 }
 
 app.use(createPinia())
+
+// 演示态（A27）：接管请求层为契约 mock + 暴露业务路由清单给版面冒烟探针。
+// 只在 vite --mode demo 生效；生产构建里 VITE_DEMO 未定义，整个分支连同动态
+// import 一起被静态消除（验收判据：构建产物 grep __vima/mock == 0）。
+if (import.meta.env.VITE_DEMO === '1') {
+  const { installDemoMock } = await import('./utils/demo-mock')
+  const { default: request } = await import('./utils/request')
+  installDemoMock(request)
+}
+
 app.use(router)
 app.use(VimaUiAdmin)
 setupAuthDirective(app)

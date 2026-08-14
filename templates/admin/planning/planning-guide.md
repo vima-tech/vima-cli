@@ -46,11 +46,34 @@ admin 模板骨架自带完整系统底座，**PLANNING 终点清单只覆盖业
 - **C. 页面与交互**：页面清单、页面类型；**每个页面必须达到页面级粒度**——
   多端项目（A16 端册 >1 端）每个页面块**必须带 `app` 键**声明归属端（V-SPEC-13），
   且每个端至少一个页面（V-SPEC-14）；`nav` 只能指向同端页面，跨端交接写进 `vima:flow`。
-  布局拆分只用**归属端 kind 的枚举词表**（admin-web：`toolbar/search/table/form/cards/tabs/pagination`；
+  布局拆分只用**归属端 kind 的枚举词表**（admin-web：`toolbar/search/table/form/cards/tabs/pagination/steps/collapse/anchor`；
   mp-native：`search/list/cards/form/tabs/banner/detail/actionbar`，分栏 `regions` 仅桌面端可用）、
   组件清单（搜索框/表格/功能按钮/弹窗及其位置，弹窗带 `MODAL-xx` ID）、
   交互设计（限定三种：`nav` 跳转引用 `PAGE-xx`、`modal` 弹窗引用 `MODAL-xx`、`api` 接口标注）、
+  **弹窗字段必须与提交端点入参对齐**（A22/F1）：弹窗里 `required: true` 的字段要能提交上去，
+  端点必填入参要有地方填。实测四条功能级阻断都出在这——缺 `scaleType` 导致「量表根本创建不了」，
+  且**缺的那个字段往往正是某个业务判断的输入**（补 MODAL-64 时连带查出退款审批没有 `decision`
+  参数、一律按同意处理）。机检见 V-SPEC-15（warn，候选清单）。
+  **跨页跳转带参数时**（A22/F3）：目标页用 `params: [{ name: step, values: [...] }]` 声明取值域，
+  跳转侧写 `params: { step: screening }`。三个入口各用各的 key 约定、目标页静默落兜底分支
+  是实测过的故障，且每个页面单看都自洽、只有跨页对照才暴露。机检见 V-SPEC-16（error）。
   对应接口。细致到程序员可直接实现的精度。
+  **设计五问（A27 PDL——逐页回答，答案直接落页面块的设计键，不写散文）**：
+  ① 这一页内容有什么？→ 每个区块给 `name`（实例名）与 `intent`（一句话存在理由；
+  同词多例必带 name，V-DSN-03）。② 数据是什么形态？→ `data: { shape, of, keyFields }`
+  （shape ∈ list/record/metrics/timeline/chart/freeform；freeform 必带 intent，V-DSN-04；
+  shape:list 声明 keyFields 即信息优先级，V-DSN-08）。③ 谁在什么场景读？→
+  `design: { pattern, density }`（pattern ∈ list/detail/form/workbench/master-detail/board，
+  density ∈ compact/default/loose，V-DSN-01）。④ 最高频交互是什么、放哪？→
+  低频动作别独占一条 toolbar 带——**挂宿主块的 `actions`**（贴该块标题行）并标
+  `priority: primary/secondary/overflow`（一页一个 primary，V-DSN-05；超过 3 个行内动作
+  标 overflow 收进「更多」，V-DSN-06）。实测 17 个页面为一个按钮独占 70px 横带（首屏 7.4%）
+  ——**独立 toolbar 只在动作 ≥4 或页面级动作时使用**。⑤ 一屏必须看到什么？→
+  `design.fold: [实例名…]`（首屏承诺，V-DSN-07 校验引用存在）。
+  抽屉是弹窗的呈现变体：`modals[].presentation: drawer`（不再降级成居中弹窗）。
+  **规格零像素**：宽高坐标一概不写——「放不放得下」由框架与运行期探针判定
+  （声明 220 渲染 286 的教训）。设计声明可选、声明即承诺：没想清楚的页面宁可先不声明，
+  也不要写一半。
 - **D. 接口定义**：每个页面的数据接口（路径、方法、参数、响应结构）→ 沉淀为契约文件。
   多端项目每个 api **必须带非空 `consumers`**（⊆ 端册，V-CON-07）——患者端能不能调
   这个接口是设计期就要拍死的授权边界；**不同端需要不同数据形状 ⇒ 拆成不同端点**
@@ -80,11 +103,12 @@ admin 模板骨架自带完整系统底座，**PLANNING 终点清单只覆盖业
 |------|------|---------|
 | 规格文档 | `docs/spec.md` | 九章齐全（按 `spec.admin.md` 骨架），各章已填充；全部 `vima:*` 数据块可解析（含第五章 `vima:rules`、第九章 `vima:non-goals`）；`vima validate` 相关规则通过 |
 | 契约文件 | `docs/contracts/<module>-api.md` | 覆盖全部业务模块；每个接口五要素齐全（方法/路径/请求/响应/错误码）；文末 `vima:contract` 数据块可解析 |
-| 任务文件 | `docs/tasks/*.md` | 覆盖全部模块；frontmatter 字段齐全；每个任务含验收清单；业务任务 `contract` 指向存在的契约；前端页面任务带 `page: PAGE-xx` |
+| 任务文件 | `docs/tasks/*.md` | 覆盖全部模块；frontmatter 字段齐全；每个任务含验收清单；业务任务 `contract` 指向存在的契约；前端页面任务带 `page: PAGE-xx`；**含收尾流水线 `full-test` 与 `code-audit`（A20，`layer: pipeline`）** |
 | 依赖图 | `docs/tasks/README.md` | 从 frontmatter 生成的批次视图，与 `vima plan` 输出一致 |
 | 覆盖矩阵 | `docs/coverage-matrix.md` | 原始需求→接口→契约→任务 四列对齐，无空单元格、无 TODO 缺口 |
 | 审计视图 | `docs/review/index.html` | `vima render-review` 渲染成功且 `--check` 无漂移 |
 | 线框原型 | `docs/review/prototype.html` + `prototype.manifest.json` | `vima render-prototype` 渲染成功且 `--check` 无漂移 |
+| 设计语言 | `docs/design-language.md` | §2 八项观察量已填且注明出处（推断项已标 `pendingConfirm`）；§7 七条取向轴与色彩均已定档并注明依据的规则号；§6 自检六条已过；Stage A 走完后 §9 含本项目实际用到的每个 pattern 一条（第 8 节工序）。**非机检项、非 approve 闸门**——Claude Design 未接入时按第 8 节降级，如实标注即可 |
 
 全部就绪 + 用户确认 + `vima approve` 通过后，等待用户 `/go`。
 
@@ -118,7 +142,8 @@ admin 模板骨架自带完整系统底座，**PLANNING 终点清单只覆盖业
    并更新检查点（见第 6 节）——跨会话可从任意章断点续写；
 3. 契约文件参照 `contract.example.md` 的结构逐模块生成（markdown 正文给人读 +
    文末 `vima:contract` 数据块给渲染层读，同文件维护、永不分离）；
-4. 任务文件从 `_template-fe.md` / `_template-be.md` 复制后填充，不改动模板自身。
+4. 任务文件从 `_template-fe.md` / `_template-be.md` 复制后填充，不改动模板自身；
+   收尾流水线任务从 `_template-full-test.md` / `_template-code-audit.md` 复制（A20）。
 
 **即时机械校验**：**每份产物（spec / 契约 / 任务 / 覆盖矩阵）落盘后立即运行**：
 
@@ -160,6 +185,19 @@ vima validate --artifact <path>   # 只跑与该产物关联的规则
      `vima context` 也按它切片契约，Builder 只看自己那份。
    - **目标是均衡不是变小**：批次时长取批内最大值，一个 14 分钟的任务配四个 3 分钟的
      任务等于浪费掉一半并行槽（sustain-v3 实测空转率 52–54%）。同批任务应落在同一量级。
+   - **同契约多任务会抢同一个 API 封装文件——用 `conflictsWith` 登记，不要自己发明绕法**
+     （A24/六）：多个前端任务引用同一份契约时，它们都要写 `src/api/<module>.ts`
+     （实测最密处 8 个任务同用一份契约）。后写者用整体覆盖会**静默抹掉其他人的导出，
+     且 TypeScript 编译不报错**，要等别的页面运行时才炸。
+     在这些任务的 frontmatter 写 `conflictsWith: [其他任务 id]`，`vima plan` 就会把它们
+     排进不同批次——**这是 A8 起就有的能力**。实测中因为没用它，绕成「各页把封装塞进自己
+     视图目录」，既违反编码规范又留下人工合并债。
+   **收尾流水线任务必须一并生成（A20）**：业务任务拆完后，从
+   `docs/tasks/_template-full-test.md` 与 `_template-code-audit.md` 复制出
+   `full-test`（`layer: pipeline`，`dependsOn` 填**全部 business 任务**）与
+   `code-audit`（`layer: pipeline`，`dependsOn: [full-test]`）。它们是「全部批次开发完成
+   之后」的收口载体——缺了它们，`/go` 的「流水线全部通过」条件恒真，全量测试与代码审计
+   从不执行（`vima validate` 的 V-TASK-13 会告警，收口期 `vima converge` 的 V-INT-05 直接阻断）。
 5. **最终评审**（第 7 节）。
 
 一次只推进一个主题；用户答不上来的记 `pendingConfirm`，不阻塞当前对话。
@@ -201,11 +239,79 @@ vima validate --artifact <path>   # 只跑与该产物关联的规则
 3. **用户评审**：请用户**在浏览器打开** `docs/review/index.html` 核对完整性
    （角色权限矩阵/菜单功能点/业务流程泳道/页面 UI 详情），再**点击**
    `docs/review/prototype.html` 体验布局与交互（逐模块节拍下每页此前已看过，
-   此处是最后一次全量过目）；核对 `docs/coverage-matrix.md` 无缺口；
+   此处是最后一次全量过目）；**视觉评审在 Claude Design 稿上做**（第 8 节工序，
+   线框只审结构）；核对 `docs/coverage-matrix.md` 无缺口；
    批量确认全部 pendingConfirm 条目；最后输出任务汇总表请用户拍板；
+   **注**：版面人审在第 8 节 Stage A 的模式参考页上一次性完成（全项目一次），
+   本步的线框只审结构完整性，不审版面好不好看；
 4. 用户确认后运行 `vima approve`——由 CLI 机械置 `tasksApproved = true` 并记录时间戳，
    **不依赖你对「用户已确认」的语义判断**。approve 会机检两份评审载体与当前 spec
    逐字节无漂移（A12）：评审后又改过 spec 的，先重渲再 approve；
 5. 等待用户输入 `/go` 或说「开始开发」。
 
 任一道不通过：回到对应产物修补 → 重新校验/渲染 → 重新评审。禁止带伤进入 DEVELOPING。
+
+## 8. Claude Design 视觉稿工序（A29 视觉真源 + A30 两段化）
+
+线框守**结构**（机检、approve 载体），视觉上限由 **Claude Design 高保真稿**负责。
+工序**分两段**（A30）——先定全项目的版面语言，再逐页定内容：
+
+> **为什么分段**：整页逐页出稿时，N 个页面就是 N 次独立的版面决策，壳层/密度/卡片
+> 节奏靠出稿时的自觉保持一致，而稿不进机检，漂移无从检出。版面缺陷的正确解是
+> **一处修全站**，不是每页各修一次。
+
+**开启方式**：在 Claude Code 会话里运行 `/design consent` 授权 Claude Design 连接
+（或到 claude.ai/design/settings 打开）；首次调用设计工具时也会给出授权提示。
+
+### Stage A · 版面语言（PLANNING 末，一次性，全项目一次）
+
+1. **推取向**（是「推导」不是「挑选」）：打开 `docs/design-language.md`，按四步走——
+   1. **填观察量**（§2 八项：值守模式 / 决策时效 / 使用环境 / 受众 / 主导数据形态 /
+      交互设备 / 行业默认色相 / 色彩禁忌）。**信息源分级同本文第 3 节**：
+      spec 与 raw 里读得到的直接填并注出处；读不到的**问用户**；确实只能推断的标
+      `pendingConfirm: true` 进 approve 统一裁定。**不许因为「看着像」就填**——
+      观察量填错，后面整条推导链都是错的。
+   2. **套推导规则**（§3 八条）得出七条取向轴档位；两条规则冲突时按文中优先级裁定，
+      并把冲突与裁定记进 §7。
+   3. **定色彩**（§4 三条判据）：从行业语义取色相 → 与该行业老系统默认色相相距 ≥30°
+      → 语义色由品牌色反推同明度带。与色彩禁忌冲突时**禁忌优先**。
+   4. **写产物**：结果连同「由哪条规则推出」一并填进 §7「本项目定档」。
+   §1 **不变层**（八条与场景无关的准则）不参与推导，照抄即可；
+   §8 三份范例只是用法示范，**不得直接套用**——新场景一律自己走一遍 §2→§3→§4。
+2. **出模式参考页**：本项目实际用到的每个 `design.pattern`（list/detail/form/workbench/
+   master-detail/board）各出**一张**稿。必须用**本项目真实字段名与真实数据量**
+   （`vima mock` 档位供数）、含空态、复刻本项目壳层。出稿提示见 design-language.md 第 5 节。
+   ⚠️ 不得用 lorem 或通用示例——通用模板会退回「框架类 + 词表」的老路，那是被否掉的做法。
+3. **人审定版面**：请用户在稿上确认「整个项目长什么样」。**这是版面唯一一次人审**。
+4. **固化进仓库**（关键，不做这步等于白开一轮会）：
+   - 版面类 → `src/styles/layout.css`（`.vui-layout-*`）
+   - 间距 / 圆角 / 投影取值 → `src/styles/tokens.css`
+   - 模式库条目（何时用 / 骨架 PDL / 反例 / 参考页链接）→ 追加进 `docs/design-language.md` 第 4 节
+
+   **云端稿到此作废**——云端项目是草稿纸，仓库文件才是产物。
+
+### Stage B · 页面内容稿（逐页）
+
+5. **出稿**：每张业务页一张，输入 = Stage A 冻结的模式库条目 + 该页 PDL +
+   契约推导的 `data.shape`。只决策**内容区**：选哪个 pattern、块怎么排、取哪些字段、
+   空态怎么呈现、动作主次。**不动壳层 / 间距刻度 / 卡片形态**——那些 Stage A 已冻结。
+   确需新版面：走 `sharedChangeRequest` 回 Stage A 收编进 `layout.css` 后再用，
+   不要留在页面里自写 `display: grid`。
+6. **登记**：每页链接进 `docs/review/design-links.md`
+   （格式：`- PAGE-xx 页名 → <claude.ai/design 链接>`）。用户可在 claude.ai/design 编辑器里直接改稿。
+7. **按稿开发（DEVELOPING）**：前端任务卡的「设计稿」行带本页链接与**所属 pattern**，
+   实现 1:1 对照；`data-page`/`data-block`/`@vima` 标记与全部机检**照旧，一分不减**——
+   稿管好看，探针管不坏，两层互不替代。
+8. **校准（收口）**：版面冒烟后执行设计稿校准轮（/go 5.2.6）逐页截图对照。
+   **回修分流**：版面级不一致（间距刻度、版面骨架、卡片形态）回 Stage A 改真源，
+   一处修全站；页面级不一致（本页构图、字段取舍、空态）派回本页任务。改完复跑冒烟归零。
+
+### 降级（两级，如实声明）
+
+- **Claude Design 不可用**（无授权/离线）：Stage A 回落为「直接在 `layout.css` /
+  `tokens.css` 上按取向轴调档」+ 第 7 节线框评审；Stage B 回落第 7 节线框评审，
+  并在 `docs/review/design-links.md` 对应页标注「无稿」。
+- **只做 Stage A、不做 Stage B**：**合法**——版面已统一，页面按模式库条目实现即可；
+  完成报告如实写「无逐页视觉稿」。
+
+两级降级都**不得拿线框冒充视觉稿**，完成报告如实写「无视觉稿通道」。

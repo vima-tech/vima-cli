@@ -67,7 +67,7 @@ apis:
   - method: POST
     path: /api/device/batch-delete
     request:
-      - { name: ids, type: array, required: true }
+      - { name: ids, type: array, required: true, writeOnly: true }
     response:
       - { name: deleted, type: number }
     errors:

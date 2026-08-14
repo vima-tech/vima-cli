@@ -132,6 +132,30 @@ const handleLogin = async () => {
   --login-field-border: #d3e1ec;
   --login-field-bg: #f9fbfd;
   --login-field-border-hover: #9cbcd3;
+  /* 装饰层取值全部收编为局部令牌（A27 P21）：换品牌时只动定义区，规则区零裸值 */
+  --login-grid-line: rgba(76, 135, 184, 0.045);
+  --login-glow-a: rgba(124, 190, 223, 0.2);
+  --login-glow-b: rgba(80, 139, 188, 0.14);
+  --login-sheen: rgba(255, 255, 255, 0.7);
+  --login-vignette: rgba(45, 100, 142, 0.05);
+  --login-ring-border: rgba(77, 143, 194, 0.18);
+  --login-ring-border-soft: rgba(77, 143, 194, 0.15);
+  --login-ring-halo-1: rgba(103, 169, 211, 0.035);
+  --login-ring-halo-2: rgba(103, 169, 211, 0.025);
+  --login-ring-halo-3: rgba(103, 169, 211, 0.03);
+  --login-ring-halo-4: rgba(103, 169, 211, 0.02);
+  --login-card-border: rgba(179, 205, 225, 0.72);
+  --login-card-bg: rgba(250, 253, 255, 0.92);
+  --login-card-shadow: rgba(32, 78, 115, 0.45);
+  --login-card-shadow-soft: rgba(45, 91, 126, 0.05);
+  --login-highlight: rgba(255, 255, 255, 0.96);
+  --login-divider: rgba(184, 208, 226, 0.58);
+  --login-hero-wash: rgba(255, 255, 255, 0.92);
+  --login-hero-tint: rgba(226, 240, 250, 0.86);
+  --login-btn-shadow: rgba(42, 105, 157, 0.72);
+  --login-spot: rgba(255, 255, 255, 0.72);
+  --login-chip-bg: rgba(255, 255, 255, 0.9);
+  --login-focus-ring: rgba(67, 136, 199, 0.12);
   position: relative;
   display: grid;
   min-height: 100vh;
@@ -141,10 +165,10 @@ const handleLogin = async () => {
   color: var(--v-text-body);
   /* 登录页不走全局的页底纹：这里要更亮、带网格，与进入后台后的深色顶栏形成落差 */
   background:
-    linear-gradient(rgba(76, 135, 184, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76, 135, 184, 0.045) 1px, transparent 1px),
-    radial-gradient(circle at 12% 12%, rgba(124, 190, 223, 0.2), transparent 30%),
-    radial-gradient(circle at 88% 88%, rgba(80, 139, 188, 0.14), transparent 32%),
+    linear-gradient(var(--login-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--login-grid-line) 1px, transparent 1px),
+    radial-gradient(circle at 12% 12%, var(--login-glow-a), transparent 30%),
+    radial-gradient(circle at 88% 88%, var(--login-glow-b), transparent 32%),
     var(--login-canvas);
   background-size: 32px 32px, 32px 32px, auto, auto, auto;
   place-items: center;
@@ -155,8 +179,8 @@ const handleLogin = async () => {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.7), transparent 32%),
-    radial-gradient(circle at 50% 50%, transparent 48%, rgba(45, 100, 142, 0.05) 100%);
+    linear-gradient(115deg, var(--login-sheen), transparent 32%),
+    radial-gradient(circle at 50% 50%, transparent 48%, var(--login-vignette) 100%);
   pointer-events: none;
 }
 
@@ -173,15 +197,15 @@ const handleLogin = async () => {
 .login-glow--top {
   top: -24vw;
   right: -8vw;
-  border: 1px solid rgba(77, 143, 194, 0.18);
-  box-shadow: 0 0 0 70px rgba(103, 169, 211, 0.035), 0 0 0 140px rgba(103, 169, 211, 0.025);
+  border: 1px solid var(--login-ring-border);
+  box-shadow: 0 0 0 70px var(--login-ring-halo-1), 0 0 0 140px var(--login-ring-halo-2);
 }
 
 .login-glow--bottom {
   bottom: -28vw;
   left: -8vw;
-  border: 1px solid rgba(77, 143, 194, 0.15);
-  box-shadow: 0 0 0 70px rgba(103, 169, 211, 0.03), 0 0 0 140px rgba(103, 169, 211, 0.02);
+  border: 1px solid var(--login-ring-border-soft);
+  box-shadow: 0 0 0 70px var(--login-ring-halo-3), 0 0 0 140px var(--login-ring-halo-4);
 }
 
 .login-shell {
@@ -193,13 +217,13 @@ const handleLogin = async () => {
   height: min(720px, calc(100dvh - clamp(48px, 8vw, 104px)));
   min-height: 600px;
   overflow: hidden;
-  border: 1px solid rgba(179, 205, 225, 0.72);
+  border: 1px solid var(--login-card-border);
   border-radius: 28px;
-  background: rgba(250, 253, 255, 0.92);
+  background: var(--login-card-bg);
   box-shadow:
-    0 34px 80px -42px rgba(32, 78, 115, 0.45),
-    0 2px 8px rgba(45, 91, 126, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+    0 34px 80px -42px var(--login-card-shadow),
+    0 2px 8px var(--login-card-shadow-soft),
+    inset 0 1px 0 var(--login-highlight);
 }
 
 /* ---------- 左半区 ---------- */
@@ -210,10 +234,10 @@ const handleLogin = async () => {
   min-width: 0;
   padding: clamp(30px, 3.2vw, 48px);
   overflow: hidden;
-  border-right: 1px solid rgba(184, 208, 226, 0.58);
+  border-right: 1px solid var(--login-divider);
   background:
-    radial-gradient(circle at 53% 62%, rgba(255, 255, 255, 0.96) 0 18%, transparent 52%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(226, 240, 250, 0.86));
+    radial-gradient(circle at 53% 62%, var(--login-highlight) 0 18%, transparent 52%),
+    linear-gradient(145deg, var(--login-hero-wash), var(--login-hero-tint));
 }
 
 .login-brand {
@@ -232,7 +256,7 @@ const handleLogin = async () => {
   border-radius: 14px;
   color: var(--v-on-dark);
   background: var(--v-brand-grad);
-  box-shadow: 0 12px 24px -14px rgba(42, 105, 157, 0.72);
+  box-shadow: 0 12px 24px -14px var(--login-btn-shadow);
   place-items: center;
 }
 
@@ -334,7 +358,7 @@ const handleLogin = async () => {
   width: 72%;
   height: 72%;
   border-color: color-mix(in srgb, var(--v-cyan) 22%, transparent);
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.72), transparent 70%);
+  background: radial-gradient(circle, var(--login-spot), transparent 70%);
 }
 
 .login-orbits span:nth-child(3) {
@@ -372,7 +396,7 @@ const handleLogin = async () => {
   flex-direction: column;
   min-width: 0;
   overflow: auto;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--login-chip-bg);
 }
 
 .login-panel-inner {
@@ -459,7 +483,7 @@ const handleLogin = async () => {
 .login-form :deep(.vui-input:focus-within) {
   border-color: var(--v-primary);
   background: var(--v-surface);
-  box-shadow: 0 0 0 4px rgba(67, 136, 199, 0.12);
+  box-shadow: 0 0 0 4px var(--login-focus-ring);
   transform: translateY(-1px);
 }
 
@@ -508,7 +532,7 @@ const handleLogin = async () => {
 
   .login-visual {
     border-right: 0;
-    border-bottom: 1px solid rgba(184, 208, 226, 0.58);
+    border-bottom: 1px solid var(--login-divider);
   }
 
   .login-orbits {

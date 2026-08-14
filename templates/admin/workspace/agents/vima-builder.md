@@ -47,6 +47,15 @@ model: sonnet
   不要动手，在结果摘要的 sharedChangeRequest 中声明：需要改什么、为什么改、影响范围
 - **增量修复模式**（委派指令中说明为重试时）：先读 .vima/reports/<taskId>-verifier.json
   的上轮报告，只修改报告指出的问题，不得重写已有代码
+- **收口闸门修复模式**（A20，委派指令中说明为收敛期修复时）：改读
+  .vima/reports/convergence.json 里 `byTask["<taskId>"]` 名下的条目 + `findings` 中
+  owners 含本任务的那几条，逐条修到该规则不再命中。同样只修不重写；
+  V-INT-02（重复实现）须**保留一处删除其余**、V-INT-03（越界实现）须把实现交还
+  负责任务而不是把自己写进契约——接口归属以契约与 frontmatter `apis` 为准
+- **修复轮的 `@vima` 标注归属（硬规则）**：收口闸门与增量修复轮**没有自己的任务文件**，
+  因此**不得新造 taskId**（如 `xxx-fix`）——`vima trace` 会把它判为野生标注，
+  且追溯链条上会多一个查不到需求出处的洞。修复产出物一律**沿用被修文件既有的
+  `@vima <taskId>`**；跨多个任务的修复就分别沿用各自文件的标注
 - 前端页面任务的区块结构与组件清单必须与 spec 数据块一致
   （Verifier 会按 docs/review/prototype.manifest.json 对账）
 - **区块标记（必做，§13.3 机械对账）**：前端页面根组件模板必须含

@@ -62,6 +62,16 @@ updatedAt: 2026-01-01T00:00:00Z
 - [ ] 业务规则校验生效（含边界值与错误提示）
 - [ ] npm run build:check 通过
 
+## 设计稿（A29 视觉真源 / A30 两段式）
+
+- **所属 pattern**：`<list | detail | form | workbench | master-detail | board>`
+  ——本页归哪套版面，条目见 `docs/design-language.md` 第 4 节（Stage A 冻结）。
+  版面类、间距刻度、卡片形态**照条目实现，本任务不自行决定**；
+  确需新版面走 `sharedChangeRequest` 回收编，不在页面里自写 `display: grid`。
+- **本页高保真稿**：`<claude.ai/design 链接，取自 docs/review/design-links.md>`
+  ——有稿必 **1:1 对照实现**（构图/字段取舍/空态/动作主次）；无稿页写「无稿」，
+  不得拿线框冒充。收口期 5.2.6 校准轮按此稿逐页比对。
+
 ## 开发步骤
 
 1. 生成页面骨架（src/views/<PageName>/）——根组件模板写入 `data-page="<本任务 page 值>"`，

@@ -3606,7 +3606,7 @@
           "extractionStatus": "exact",
           "required": false,
           "default": "",
-          "description": "标签页视觉类型：留空为下划线，card 为卡片页签，segment 为胶囊分段（card/segment 作纯切换器用，内容放在 VTab 之后）"
+          "description": "标签页视觉类型：留空为下划线，card 为卡片页签，segment 为胶囊分段。⚠️ 三种类型**都**只是切换器：内容一律放在 VTab 之后，不要放进 VTabItem 的默认插槽——三者共用同一套 DOM（.vui-tabs > .vui-tab-item > .vui-tab-title），.vui-tabs 是横向 flex 标题条，而 .vui-tab-content 没有任何样式，内容放进去会把激活项撑宽并把后面的标题顶出可视区（不报错，只是标题条变成横向可滚）"
         },
         {
           "name": "allowClose",

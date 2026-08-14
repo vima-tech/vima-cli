@@ -20,6 +20,10 @@ function runCli(cwd, args) {
 async function makeTmp(t) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'vima-c2-plan-'));
   t.after(async () => rm(tmp, { recursive: true, force: true }));
+  // A24：CLI 现在锚定项目根（含 .vima/ 或 docs/lifecycle.json 的最近祖先）。
+  // plan 本就要在 init 之后才跑，无标记的目录是合成态——补上标记使夹具贴近真实项目。
+  await mkdir(path.join(tmp, 'docs'), { recursive: true });
+  await writeFile(path.join(tmp, 'docs', 'lifecycle.json'), '{"schemaVersion":"2.0","currentPhase":"PLANNING"}\n');
   return tmp;
 }
 

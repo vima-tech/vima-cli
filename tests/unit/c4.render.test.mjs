@@ -193,6 +193,55 @@ test('render-review：A13 渲染五视图⑤ 与本期不做红线区，且空�
   assert.equal(vima(root, 'render-review').status, 0);
 });
 
+// ── A33 业务闭环视图（第⑥视图 + model.tasks 切片）──────────────────────────
+
+test('A33：第⑥视图渲染四问——入口可达性 / 状态效应 / 查询出口 / 承接任务', async () => {
+  assert.equal(vima(root, 'render-review').status, 0);
+  const html = await readFile(path.join(root, reviewRel), 'utf8');
+  assert.match(html, /id="view-loop"/, '缺⑥业务闭环视图');
+  assert.match(html, /<span class="num">⑥<\/span>业务闭环/);
+  assert.match(html, /href="#view-loop">⑥ 业务闭环/, '目录含⑥');
+  assert.match(html, /⑥ 业务闭环<\/strong>——每条流程从头验四问/, '审核指引升为六步');
+  assert.match(html, /id="loop-FLOW-01"/, '逐流程一卡且锚点独立于泳道视图');
+  // 入口可达性：ROLE-01 拥有 MENU-01 → 可达
+  assert.match(html, /入口：[\s\S]{0,400}?✅ 角色拥有该菜单，可达/);
+  // 状态效应：POST /api/device 命中黄金夹具的 transition/calculation 规则或如实标无
+  assert.ok(
+    /状态效应/.test(html) && (/RULE-0\d<\/span><\/a> (transition|calculation)/.test(html) || /无已声明的状态规则/.test(html)),
+    '状态效应列须给出规则或如实标注无',
+  );
+  // 查询出口：终点页 PAGE-02 有 GET 接口
+  assert.match(html, /结果查询出口：/);
+  assert.match(html, /GET \/api\/device\/detail/);
+  // 承接任务：join 到黄金夹具任务
+  assert.match(html, /承接任务：[\s\S]{0,400}?device-list-fe/);
+  assert.match(html, /承接任务：[\s\S]{0,600}?device-api-be/);
+});
+
+test('A33：任务切片不含运行态——任务状态翻转不产生渲染漂移（D-A33-01）', async () => {
+  assert.equal(vima(root, 'render-review').status, 0);
+  const before = await readFile(path.join(root, reviewRel), 'utf8');
+  const taskPath = path.join(root, 'docs', 'tasks', 'device-list-fe.md');
+  const task = await readFile(taskPath, 'utf8');
+  await writeFile(taskPath, task.replace(/^status: .+$/m, 'status: done'));
+  assert.equal(vima(root, 'render-review', '--check').status, 0, '任务状态变化不得触发新鲜度漂移');
+  assert.equal(vima(root, 'render-review').status, 0);
+  assert.equal(await readFile(path.join(root, reviewRel), 'utf8'), before, '产物字节不变');
+  await writeFile(taskPath, task); // 复位，避免影响后续共享副本
+  assert.equal(vima(root, 'render-review').status, 0);
+});
+
+test('A33：docs/tasks 缺失时承接行如实标注，不阻塞渲染', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'vima-c4-loop-notasks-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(GOLDEN, dir, { recursive: true });
+  await rm(path.join(dir, 'docs', 'tasks'), { recursive: true, force: true });
+  const r = vima(dir, 'render-review');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  const html = await readFile(path.join(dir, reviewRel), 'utf8');
+  assert.match(html, /任务清单不可用/, '缺任务时如实标注承接对账缺席');
+});
+
 // ── A14 分栏版面（regions）──────────────────────────────────────────────────
 // 用独立副本，避免污染上方共享夹具的字节基线。
 
@@ -381,4 +430,115 @@ test('A16 单端回归：黄金夹具原型不出现手机壳/端徽标/端分�
   const review = await readFile(path.join(root, reviewRel), 'utf8');
   assert.ok(!review.includes('class="app-tag"'), '单端不出端徽标');
   assert.ok(!review.includes('class="app-group"'), '单端不出端分组标题');
+});
+
+// ── A27 PDL 投影：shape 驱动 / 附着动作 / 新词 / 抽屉 / 设计徽标 ──
+
+test('A27：PDL 三列页各自可分辨——实例名/意图/形态/主列/密度/首屏承诺全部入画', async (t) => {
+  const tmp = await mkdtemp(path.join(tmpdir(), 'vima-c4-pdl-'));
+  t.after(() => rm(tmp, { recursive: true, force: true }));
+  await cp(GOLDEN, tmp, { recursive: true });
+  const specPath = path.join(tmp, 'docs', 'spec.md');
+  let spec = await readFile(specPath, 'utf8');
+  const tri = `
+### PAGE-09 医师工作台
+
+\`\`\`yaml vima:page
+id: PAGE-09
+title: 医师工作台
+menu: MENU-01
+design:
+  pattern: workbench
+  density: default
+  fold: [待办清单]
+layout: [steps, cards, cards, cards]
+regions:
+  - { blocks: [steps] }
+  - columns:
+      - { name: 待办, width: 264px, blocks: [cards] }
+      - { name: 主工作区, width: 1fr, blocks: [cards], role: primary }
+      - { name: 实时指标, width: 224px, blocks: [cards], density: compact }
+components:
+  - block: steps
+    items:
+      - { type: text, label: 筛查 }
+      - { type: text, label: 评估 }
+  - block: cards
+    name: 待办清单
+    intent: 第一眼要处理的事
+    data: { shape: list, keyFields: [患者, 逾期天数] }
+  - block: cards
+    name: 患者卡片
+    intent: 核心指标与快捷入口
+    data: { shape: record, keyFields: [姓名, 诊断] }
+    actions:
+      - { type: button, label: 开处方, action: modal, target: MODAL-09, priority: primary }
+      - { type: button, label: 打印, action: api, api: GET /api/device/list, priority: overflow }
+  - block: cards
+    name: 实时指标
+    data: { shape: metrics, of: [热量达成, 蛋白达成] }
+modals:
+  - id: MODAL-09
+    presentation: drawer
+    title: 开处方
+    fields:
+      - { field: name, label: 处方名, type: input, required: true }
+    submit: { api: POST /api/device }
+apis: [GET /api/device/list, POST /api/device]
+\`\`\`
+`;
+  spec = spec.replace('## 4. 接口清单', `${tri}\n## 4. 接口清单`);
+  await writeFile(specPath, spec);
+  assert.equal(vima(tmp, 'render-prototype').status, 0);
+  const html = await readFile(path.join(tmp, 'docs', 'review', 'prototype.html'), 'utf8');
+  const seg = html.slice(html.indexOf('id="page-PAGE-09"'));
+  // 三列内容各自可分辨（S4 的验收：不再是三个一样的灰盒）
+  for (const marker of [
+    '<b>待办清单</b>', '<b>患者卡片</b>', '<b>实时指标</b>',                      // 实例名
+    'wf-kf">患者', 'wf-kv"><span class="wf-label">姓名', 'wf-ring',              // 三种形态三种画法
+    'wf-design">workbench', '首屏 待办清单',                                      // 设计徽标与首屏承诺
+    'wf-col-primary', 'wf-density">compact',                                     // 主列与列密度
+    'wf-btn-primary', 'wf-more" title="收纳动作：打印">⋯ 1',                     // 优先级与收纳
+    'wf-steps', 'wf-step-on">筛查',                                              // 新词 steps
+    'wf-drawer',                                                                 // 抽屉呈现
+  ]) {
+    assert.ok(seg.includes(marker), `渲染缺少 PDL 投影: ${marker}`);
+  }
+  // 附着动作进 manifest 连线（buildLinks 走 actions[]）
+  const manifest = JSON.parse(await readFile(path.join(tmp, 'docs', 'review', 'prototype.manifest.json'), 'utf8'));
+  // §6.7 A16 形态：顶层 apps map（N=1 亦然）
+  const p9 = Object.values(manifest.apps)[0].pages.find((p) => p.id === 'PAGE-09');
+  assert.ok(p9.links.some((l) => l.kind === 'modal' && l.to === 'MODAL-09'), 'actions 的 modal 连线应入 manifest');
+  // 确定性
+  assert.equal(vima(tmp, 'render-prototype', '--check').status, 0, '连渲两次须字节一致');
+});
+
+test('A27：collapse/anchor 两个新词有专属画法且过词表校验', async (t) => {
+  const tmp = await mkdtemp(path.join(tmpdir(), 'vima-c4-words-'));
+  t.after(() => rm(tmp, { recursive: true, force: true }));
+  await cp(GOLDEN, tmp, { recursive: true });
+  const specPath = path.join(tmp, 'docs', 'spec.md');
+  let spec = await readFile(specPath, 'utf8');
+  spec = spec.replace('layout: [toolbar, form]', 'layout: [anchor, toolbar, form, collapse]');
+  spec = spec.replace(
+    `  - block: toolbar
+    items:
+      - { type: button, label: 返回列表, action: nav, target: PAGE-01 }`,
+    `  - block: anchor
+    items:
+      - { type: text, label: 基本信息 }
+      - { type: text, label: 运行记录 }
+  - block: toolbar
+    items:
+      - { type: button, label: 返回列表, action: nav, target: PAGE-01 }
+  - block: collapse
+    items:
+      - { type: text, label: 高级参数 }`,
+  );
+  await writeFile(specPath, spec);
+  assert.equal(vima(tmp, 'validate').status, 0, '新词应过 V-SPEC-04（四处词表已同步）');
+  assert.equal(vima(tmp, 'render-prototype').status, 0);
+  const html = await readFile(path.join(tmp, 'docs', 'review', 'prototype.html'), 'utf8');
+  assert.ok(html.includes('wf-anchor">') && html.includes('wf-chip">基本信息'));
+  assert.ok(html.includes('wf-collapse-item') && html.includes('<summary>高级参数</summary>'));
 });

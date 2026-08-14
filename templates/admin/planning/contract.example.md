@@ -28,6 +28,22 @@
 - 响应：`ApiResponse<{ deleted: number }>`
 - 错误码：40002 批量删除超过 100 条；40003 维护中设备禁止删除
 
+## 字段可选键（A22，出自 sustain-v3 实测）
+
+| 键 | 何时用 |
+|---|---|
+| `writeOnly: true` | 只写字段（密码、批量操作入参 `ids`）。不标的话 V-CON-08 会提示「只进不出」 |
+| `readOnly: true` | 只读字段（计算列）。**豁免必须显式**——「只加了 POST 忘了 GET/PUT」长得一模一样，机器分不清 |
+| `fields: [...]` | `type: json` 聚合字段的子协议（一层）。声明后 V-SPEC-15 会把子字段名并入弹窗对账 |
+| `enforced: false` | 该聚合字段**确实没有权威结构**（如整体透传不解析）。「无强制结构」应当能被如实表达，而不是留白 |
+
+```yaml
+- { name: password, type: string, required: true, writeOnly: true }
+- { name: structure, type: json, required: true,
+    fields: [{ name: sections, type: array, required: true }] }
+- { name: fieldConfig, type: json, enforced: false }   # 打印模板整体透传，无权威结构
+```
+
 ## 共享类型定义
 
 `Device { id, name, type, status, createdAt }`

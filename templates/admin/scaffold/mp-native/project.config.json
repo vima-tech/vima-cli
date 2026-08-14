@@ -1,0 +1,19 @@
+{
+  "compileType": "miniprogram",
+  "libVersion": "3.5.5",
+  "projectname": "{{projectName}}",
+  "appid": "touristappid",
+  "miniprogramRoot": "src/",
+  "setting": {
+    "useCompilerPlugins": ["typescript"],
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "minified": false,
+    "postcss": true,
+    "ignoreDevUnusedFiles": false,
+    "ignoreUploadUnusedFiles": true,
+    "packNpmManually": false
+  },
+  "condition": {}
+}

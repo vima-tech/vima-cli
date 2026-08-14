@@ -1,0 +1,9 @@
+{
+  "name": "@vima-tech/ui-mp",
+  "version": "0.1.0",
+  "description": "移动端企业 UI 框架：112 个 .vm-* 类契约 + 75 个 --vm-* 令牌，零 JS、零依赖，微信小程序与 H5 共用同一份定义",
+  "license": "UNLICENSED",
+  "private": true,
+  "files": ["dist"],
+  "dependencies": {}
+}

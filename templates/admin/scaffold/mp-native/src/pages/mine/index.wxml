@@ -1,0 +1,37 @@
+<view class="vm-page {{aging ? 'vm-aging' : ''}}">
+
+  <view class="vm-body">
+    <view class="vm-sec">
+      <view class="vm-sec-dot"></view>
+      <text class="vm-sec-title">我的信息</text>
+    </view>
+
+    <view class="vm-card">
+      <view class="vm-kv" wx:for="{{profile}}" wx:key="label">
+        <text class="vm-kv-label">{{item.label}}</text>
+        <text class="vm-kv-value">{{item.value}}</text>
+      </view>
+    </view>
+
+    <view class="vm-sec">
+      <view class="vm-sec-dot amber"></view>
+      <text class="vm-sec-title">辅助功能</text>
+    </view>
+
+    <view class="vm-card">
+      <view class="vm-kv">
+        <view class="vm-switch-row" style="flex:1">
+          <text>适老化模式（放大字号）</text>
+          <switch checked="{{aging}}" bindchange="onToggleAging" color="#2f73c5" />
+        </view>
+      </view>
+    </view>
+
+    <view class="vm-actionbar-safe"></view>
+  </view>
+
+  <view class="vm-actionbar">
+    <view class="vm-btn vm-btn-ghost">退出登录</view>
+  </view>
+
+</view>

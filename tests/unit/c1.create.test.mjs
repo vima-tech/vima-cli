@@ -26,21 +26,24 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   assert.equal(r.status, 0, `stderr: ${r.stderr}`);
 
   const proj = path.join(box, 'my-admin');
-  // 目录结构：前后端骨架都在
-  assert.ok(await fileExists(path.join(proj, 'package.json')), '前端 package.json 应在项目根（设计 §15）');
-  assert.ok(await fileExists(path.join(proj, 'src/main.ts')), '前端 src/ 应在项目根（设计 §15）');
+  // 目录结构：端一律落 apps/<id>/（A28，改判 D-A16-03），后端在 backend/
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/package.json')), '前端 package.json 应在 apps/admin/（A28）');
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/src/main.ts')), '前端 src/ 应在 apps/admin/（A28）');
+  assert.ok(!(await fileExists(path.join(proj, 'src'))), '项目根不应再有 src/（A28）');
   assert.ok(await fileExists(path.join(proj, 'backend/pom.xml')), 'backend/pom.xml 应存在');
   // vendor 组件库随骨架落地（含预构建 dist）
   assert.ok(
-    await fileExists(path.join(proj, 'vendor/vima-ui-admin/package.json')),
+    await fileExists(path.join(proj, 'apps/admin/vendor/vima-ui-admin/package.json')),
     'vendor/vima-ui-admin/package.json 应存在',
   );
-  assert.ok(await fileExists(path.join(proj, 'vendor/vima-ui-admin/dist')), 'vendor dist 应存在');
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/vendor/vima-ui-admin/dist')), 'vendor dist 应存在');
   // 完整管理后台前端：核心 view / util / 布局组件
   for (const f of [
-    'src/views/system/user/index.vue',
-    'src/utils/request.ts',
-    'src/components/layout/MainLayout.vue',
+    'apps/admin/src/views/system/user/index.vue',
+    'apps/admin/src/utils/request.ts',
+    'apps/admin/src/components/layout/MainLayout.vue',
+    'apps/admin/scripts/layout-probe.mjs',
+    'apps/admin/scripts/layout-smoke.mjs',
   ]) {
     assert.ok(await fileExists(path.join(proj, f)), `${f} 应存在`);
   }
@@ -59,7 +62,7 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
     path.dirname(BIN),
     '../templates/admin/scaffold/frontend/src/assets/hero.png',
   );
-  const hero = await readFile(path.join(proj, 'src/assets/hero.png'));
+  const hero = await readFile(path.join(proj, 'apps/admin/src/assets/hero.png'));
   assert.deepEqual(
     [...hero.subarray(0, 8)],
     [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
@@ -82,17 +85,23 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
     assert.ok(!content.includes('{{project'), `${rel} 残留 {{project 模板变量`);
   }
 
-  // _gitignore 落地改名 .gitignore（npm 发包会剥离 .gitignore，模板源用下划线名规避）
-  assert.ok(await fileExists(path.join(proj, '.gitignore')), '.gitignore 应存在（由 _gitignore 改名落地）');
+  // _gitignore 落地改名 .gitignore（npm 发包会剥离 .gitignore，模板源用下划线名规避）；
+  // A28 根卫生资产：项目根与端目录各一份（根管项目级规则，端管端内构建产物）
+  assert.ok(await fileExists(path.join(proj, '.gitignore')), '项目根 .gitignore 应存在（A28 根卫生资产）');
+  assert.ok(await fileExists(path.join(proj, 'apps/admin/.gitignore')), '端内 .gitignore 应存在');
+  const rootIgnore = await readFile(path.join(proj, '.gitignore'), 'utf8');
+  assert.ok(rootIgnore.includes('backend/target/'), '项目级忽略规则（backend/target/）应在根 .gitignore');
   assert.ok(!(await fileExists(path.join(proj, '_gitignore'))), '不应残留 _gitignore 原名文件');
+  assert.ok(!(await fileExists(path.join(proj, 'apps/admin/_gitignore'))), '端内不应残留 _gitignore 原名文件');
 
-  // README.md 落到生成项目根，且无 {{ 残留、项目名已替换
+  // README.md 属项目不属端（A28 迁根）：落项目根，且无 {{ 残留、项目名已替换
   const readme = await readFile(path.join(proj, 'README.md'), 'utf8');
   assert.ok(!readme.includes('{{'), 'README.md 不应残留 {{ 模板变量');
   assert.ok(readme.includes('my-admin'), 'README.md 应替换出项目名 my-admin');
+  assert.ok(!(await fileExists(path.join(proj, 'apps/admin/README.md'))), 'README 已迁根，端内不应再有');
 
   // Sidebar.vue：抬头是图标不是项目缩写（{{projectAbbr}} 变量已删除，英文缩写对使用者无语义）
-  const sidebar = await readFile(path.join(proj, 'src/components/layout/Sidebar.vue'), 'utf8');
+  const sidebar = await readFile(path.join(proj, 'apps/admin/src/components/layout/Sidebar.vue'), 'utf8');
   assert.ok(!sidebar.includes('{{project'), 'Sidebar.vue 不应残留 {{project 模板变量');
   assert.ok(/v-side-heading-mark[^>]*><VIcon /.test(sidebar), 'Sidebar.vue 抬头标记应为 VIcon 图标');
 
@@ -103,9 +112,9 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   assert.ok(typeof manifest.createdAt === 'string' && manifest.createdAt.length > 0);
   assert.ok(typeof manifest.vimaVersion === 'string');
   assert.deepEqual(manifest.files.managed, []);
-  // A16 端册：缺省 = default 端（admin），单端落项目根 dir "."
+  // A16 端册：缺省 = default 端（admin）；A28：布局一律 apps/<id>/（含单端）
   assert.deepEqual(manifest.apps, [{
-    id: 'admin', name: '管理后台', kind: 'admin-web', dir: '.', codeDir: 'src',
+    id: 'admin', name: '管理后台', kind: 'admin-web', dir: 'apps/admin', codeDir: 'src',
     sharedDirs: ['src/components', 'src/utils', 'vendor'],
   }]);
   // backend sharedDirs 的 {{projectPkg}} 已渲染为具体路径（契约 §6.4）
@@ -115,7 +124,7 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   });
 });
 
-test('create --apps 双端（A16）：admin 骨架落 apps/admin/、preview kind 入册跳骨架、端册入 manifest', async (t) => {
+test('create --apps 双端（A16/A23）：两端骨架各落 apps/<id>/、端册入 manifest、mp 端共享层含 src/vendor', async (t) => {
   const box = await sandbox(t);
   const r = vima(box, 'create', 'nutri', '-t', 'admin',
     '--apps', 'admin:admin-web,patient:mp-native', '--no-git', '--no-install');
@@ -126,9 +135,12 @@ test('create --apps 双端（A16）：admin 骨架落 apps/admin/、preview kind
   assert.ok(await fileExists(path.join(proj, 'apps/admin/package.json')));
   assert.ok(await fileExists(path.join(proj, 'backend/pom.xml')));
   assert.ok(!(await fileExists(path.join(proj, 'src'))), '多端布局项目根不应再有 src/');
-  // preview kind：入册但跳过骨架 + 显式警告
-  assert.ok(!(await fileExists(path.join(proj, 'apps/patient'))), 'mp-native 为 preview 不应生成骨架');
-  assert.match(r.stdout, /patient（kind mp-native）为 preview/);
+  // A23：mp-native 转 stable，患者端骨架与自研 UI 框架一并落盘
+  assert.ok(await fileExists(path.join(proj, 'apps/patient/src/app.json')), 'mp 端骨架应落 apps/patient/');
+  assert.ok(await fileExists(path.join(proj, 'apps/patient/src/utils/request.ts')), '请求门面是 V-CODE-01 的前提');
+  assert.ok(await fileExists(path.join(proj, 'apps/patient/src/vendor/vima-ui-mp/dist/ui.wxss')), 'vima-ui-mp 应随骨架落盘');
+  const wxml = await readFile(path.join(proj, 'apps/patient/src/pages/home/index.wxml'), 'utf8');
+  assert.match(wxml, /class="vm-page/, '骨架页应用框架类');
   const manifest = JSON.parse(await readFile(path.join(proj, '.vima/manifest.json'), 'utf8'));
   assert.equal(manifest.schemaVersion, '2');
   assert.equal(manifest.apps.length, 2);
@@ -136,6 +148,9 @@ test('create --apps 双端（A16）：admin 骨架落 apps/admin/、preview kind
     ['admin', 'admin-web', 'apps/admin'],
     ['patient', 'mp-native', 'apps/patient'],
   ]);
+  // A23：mp 端 vendor 在 src/ 下（miniprogramRoot 之内），必须进共享层保护面
+  assert.deepEqual(manifest.apps.find((a) => a.id === 'patient').sharedDirs,
+    ['src/components', 'src/utils', 'src/vendor']);
 });
 
 test('create --apps 校验：非法 id / 未知 kind / 重复 id → exit 3；旧形态模板不支持 --apps', async (t) => {
@@ -262,7 +277,7 @@ test('create：manifest 记录骨架基线 files.scaffold（落盘内容哈希�
   assert.ok(baseline.some((e) => path.basename(e.path) === '.gitignore'));
   assert.ok(!baseline.some((e) => path.basename(e.path) === '_gitignore'));
   // 基线校验和须等于磁盘实际内容（否则三方比较起点就是错的）
-  const sample = baseline.find((e) => e.path === 'package.json') ?? baseline[0];
+  const sample = baseline.find((e) => e.path === 'apps/admin/package.json') ?? baseline[0];
   const { sha256File } = await import('../../lib/util/fs.mjs');
   assert.equal(`sha256:${await sha256File(path.join(proj, sample.path))}`, sample.checksum);
   // 路径一律 '/' 分隔（跨平台稳定）

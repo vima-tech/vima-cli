@@ -132,8 +132,29 @@ const router = createRouter({
   ],
 })
 
+// 演示态（A27）：画廊路由只在 demo 注册——生产构建静态消除，正常模式 404
+if (import.meta.env.VITE_DEMO === '1') {
+  router.addRoute({
+    path: '/__gallery',
+    name: 'Gallery',
+    component: () => import('@/views/demo/Gallery.vue'),
+    meta: { public: true },
+  })
+}
+
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
+
+  // 演示态（A27）：免登录 + 注入演示用户（perms ['*']，否则 v-auth 会让按钮批量消失）。
+  // 只旁路守卫，不触碰真实登录逻辑——demo 用户态不落 storage，刷新即重建。
+  if (import.meta.env.VITE_DEMO === '1') {
+    if (!userStore.userInfo) {
+      const { demoUser } = await import('@/utils/demo-mock')
+      userStore.enterDemo(demoUser())
+    }
+    next()
+    return
+  }
 
   if (to.meta.public) {
     next()

@@ -235,7 +235,8 @@ vima create mobile-app --template h5
     "checklist": "planning/validate.checklist.md",
     "contractExample": "planning/contract.example.md",
     "coverageExample": "planning/coverage-matrix.example.md",
-    "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md"],
+    "taskTemplates": ["planning/_template-fe.md", "planning/_template-be.md",
+                      "planning/_template-full-test.md", "planning/_template-code-audit.md"],
     "renderers": { "review": "planning/audit-view.mjs", "prototype": "planning/prototype.mjs" },
     "prototype": true,
     "goPrerequisites": ["docs/spec.md", "docs/contracts", "docs/tasks/README.md",
@@ -348,7 +349,9 @@ templates/admin/
     ├── prototype.mjs          # 线框原型渲染器（无样式、只展示功能与布局，见 13.3）
     ├── prototype.template.html  # 原型的 HTML 骨架（语义占位组件样式）
     ├── _template-fe.md        # 前端任务模板
-    └── _template-be.md        # 后端任务模板
+    ├── _template-be.md        # 后端任务模板
+    ├── _template-full-test.md # 收尾流水线：全量测试（A20）
+    └── _template-code-audit.md # 收尾流水线：代码审计（A20）
 ```
 
 #### 运行时机制
@@ -388,7 +391,7 @@ templates/admin/
 | `docs/review/` | 人机对齐产物输出目录（审计视图 + 线框原型 + manifest，由 vima render-review/render-prototype 生成，见 13.2/13.3） | CLI 生成 |
 | `docs/raw/` | 存放用户提供的原始杂乱文档 | 用户所有 |
 | `docs/ui-framework/` | 组件文档，自动扫描生成 | vima 管理 |
-| `docs/tasks/_template*.md` | 任务文件模板（由模板配置决定，admin 为前后端两种） | vima 管理 |
+| `docs/tasks/_template*.md` | 任务文件模板（由模板配置决定，admin 为前端/后端/全量测试/代码审计四种，后两种为 A20 收尾流水线） | vima 管理 |
 | `docs/tasks/README.md` | 任务清单与依赖关系图 | Agent 维护 |
 | `docs/contracts/` | API 契约目录（admin 专属，前后端任务的共享输入） | Agent 维护 |
 | `.claude/commands/` | 斜杠命令（go.md、check.md） | vima 管理 |
@@ -844,9 +847,29 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
    - 从第一个 pending 批次继续；failed 任务询问用户：重试 / 跳过 / 人工介入
    - 状态与报告不一致时，先运行对账（见 14.2 写入约定第 4 条）再继续
 
-5. **完成处理**
-   - 所有任务 done 且流水线通过 → 更新 lifecycle.json → MAINTAINING
-   - 存在 failed/blocked → 保持 DEVELOPING，输出待处理清单
+5. **收口闸门（A20：全部批次开发完成后的收敛期，整段不是停点）**
+   a. **跨任务集成对账**——运行 `vima converge`（确定性，零 token）：漏实现（V-INT-01）、
+      重复实现（V-INT-02）、越界实现（V-INT-03）、授权端无调用（V-INT-04，warn）、
+      缺 pipeline 收尾任务（V-INT-05）；同时收口 Verifier 未过点位、运行时错误、
+      done 无标注三类既有红信号。报告 `.vima/reports/convergence.json`
+   b. **修复轮次**——按报告 `byTask` 归组（谁的问题派回谁改），同一任务的全部 finding
+      合成一个增量修复委派，照走 Builder → 独立 Verifier；V-INT-02/03 类**串行**修复
+      （多任务争用同一处实现，并行修就是边修边冲突）；修完重跑 converge，最多 3 轮，
+      仍有 error → 停轮交用户裁定（合法停点，stopReason=gate）
+   c. **收尾流水线**——converge 零 error 后派发 layer=pipeline 批次
+      （full-test → code-audit，串行，失败阻断），缺陷同样派回负责的业务任务
+   d. **切换阶段**——converge 零 error 且 pipeline 全部 done → MAINTAINING；
+      存在 failed/blocked 或 3 轮未收敛 → 保持 DEVELOPING，输出待处理清单
+
+6. **经验反哺询问（A21，只在切 MAINTAINING 那一刻问一次）**
+   - 读 `.vima/retro-state.json`，`asked=true` → 跳过（拒绝过不再骚扰）
+   - 运行 `vima retro`（离线只读、默认脱敏）采集一手证据 → 观察项与关键计数呈给用户
+   - 询问是否反哺，并追问两个 CLI 采不到的问题：① **有没有想表达但框架表达不了的东西**
+     （历次增补项 A14/A16 的来源）② 哪一步最费时间／最反复
+   - 同意 → 逐字补进 `docs/retro/vima-feedback.md` 人工补充段 →
+     `gh issue create --repo vima-tech/vima-cli --body-file …`；gh 不在场则打印命令不静默失败
+   - 两种结果都写 `.vima/retro-state.json`。**不代为提 PR**（跨仓 push 不由项目侧 Agent 持有）
+   - 该停顿属合法停点白名单第 ② 项（全部任务达终态），stopReason=terminal
 ```
 
 ### 7.6 check.md 完整定义
@@ -868,6 +891,8 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
    的真实完成度（v2.0.2，契约 §6.9）
 6. **运行时错误信号（A7，契约 §6.10）**：读取 .vima/reports/runtime-errors.jsonl（存在时）
    ——条数、按 page 分组分布与最近条目摘要；不存在或为空记「无运行时错误上报」
+7. **跨任务集成对账（A20，契约 §6.13）**：`vima converge` 的 V-INT error/warn 数与
+   未过点位数——单任务视角看不见的漏实现/重复实现/越界实现，零 error 才代表各批产出合得起来
 
 ## 深度检查（可选，仅当用户要求"深度检查"时）
 
@@ -890,6 +915,7 @@ Agent：好的，已添加日志管理模块（已更新 spec.md 模块清单与
 🔎 追溯对账：标注 15 │ 野生 0 │ 虚报嫌疑 1（详见 .vima/reports/trace.json）
 🎯 任务点：143/150 通过（按钮·字段·连线级，来自 verifier 逐点报告）
 🛑 运行时错误：3 条（/system/order 2 │ /system/device 1）
+🔗 集成对账：error 1 │ warn 2 │ 未过点位 5（详见 .vima/reports/convergence.json）
 
 建议：处理订单详情页失败项后，输入 /go 继续
 ```
@@ -1234,7 +1260,10 @@ updatedAt: 2026-08-12T10:00:00Z
   ↓
 轮次 5+：重复轮次 3-4，直到所有批次完成
   ↓
-收尾：派发 pipeline 批次（全量测试 → 代码审计，串行）
+收口闸门（A20）：vima converge 跨任务集成对账
+        → 有 error 按 byTask 归组派增量修复（V-INT-02/03 串行）→ 重跑，最多 3 轮
+  ↓
+收尾：converge 零 error 后派发 pipeline 批次（全量测试 → 代码审计，串行）
   ↓
 全部通过 → lifecycle.json 切换 MAINTAINING → 输出完成报告
 ```
@@ -1687,13 +1716,14 @@ PLANNING 产物（spec / contracts / tasks）是后续全部开发的事实来�
 
 **数据来源**：spec.md 是唯一事实来源。角色、菜单、流程章节与页面级粒度均附**结构化数据块**（YAML 围栏块，骨架预置格式），渲染器提取这些块生成视图；markdown 与 HTML 永不分别维护，漂移由 `vima validate` 与 `render-review --check` 检出。
 
-**admin 模板的四个视图**（对应人类审核的四个维度，均为骨架强制内容）：
+**admin 模板的六个视图**（对应人类审核的六个维度，均为骨架强制内容）：
 
 1. **角色权限视图**：精准拆分角色——共几种角色、每种角色有几种菜单权限；角色 × 菜单矩阵，无任何角色覆盖的菜单醒目提示（权限盲区）
 2. **菜单功能点视图**：每个菜单页面实现哪些业务流程上的功能点；菜单 × 功能点表，每个功能点链接到接口与契约
 3. **业务流程串联视图**：通过业务流程和角色串联页面操作流程——每条核心流程一条泳道：哪个角色从哪个页面进入 → 点哪个按钮 → 触发哪个接口 → 跳转哪个页面
 4. **页面 UI 详情视图**：每页一张卡——布局结构（区块拆分：顶部搜索区/表格区/操作区）、组件清单（搜索框/表格/功能按钮/弹窗及位置布局）、交互设计（触发条件/反馈/状态流转）、对应接口与字段映射
 5. **业务规则视图**（A13）：按实体分组的全部 `vima:rules`——规则 ID / 类型徽标 / 说明（含边界值与错误码）/ 适用接口徽标。审核要点：只写在散文里、没进数据块的规则不会被任何人执行（它同时是 Builder 上下文包与 Verifier 逐条核对的输入）
+6. **业务闭环视图**（A33）：逐条 `vima:flow` 的端到端旅程——入口行（首步角色 × 入口页面菜单的**可达性徽标**，判据与 V-SPEC-18 同源）、步骤表（角色/页面/动作/接口 + **状态效应**：接口命中的 transition/calculation 规则）、出口行（终点页 GET 接口 = **结果查询出口**）、承接行（页面 / 接口负责集 join 到任务，model.tasks 切片、刻意不含任务状态）。审核要点：页面齐全不必然意味着业务链路闭环——「用户够得着吗 / 状态真的变吗 / 结果查得到吗 / 谁承接实现」四问逐流程拍板；标「无」的格子是 spec 真实的缺口，不是渲染缺失
 
 此外渲染 **「本期不做」范围红线区**（A13）：逐条列出 `vima:non-goals`，说明实现触碰即由 Verifier 判越界 fail；**空清单不省略整段**——「已显式声明为空」与「根本没声明」必须在人审时可区分。
 
@@ -1747,17 +1777,22 @@ PLANNING 产物（spec / contracts / tasks）是后续全部开发的事实来�
 **边界**：
 
 - **保真度边界**：只表达功能与布局语义，不表达视觉层级与间距美学；视觉设计留给开发期 @vima-tech/ui-admin，也防止审核者被样式分心
-- **交互边界**：仅三种交互，多步表单与复杂状态机不仿真，避免 YAML 填写成本陡增
+- **交互边界**：仅三种交互，多步表单与复杂状态机不仿真，避免 YAML 填写成本陡增。
+  A22 为 `action: nav` 增可选 `params`、为页面增可选 `params` 取值域声明——不是第四种交互，
+  是给既有 nav 补上「携带什么参数、目标页认哪些值」的唯一声明处（V-SPEC-16）
 - **模板边界**：admin/h5 适用；无页面概念的模板（cli/script/lib）声明 `prototype: false`，渲染器跳过
 
 ### 13.4 维护期对齐同步闭环
 
 对齐体系不能止步于 /go。MAINTAINING 阶段每天都在产生变更，若改完代码后 spec、原型、manifest 不同步，对齐就退化为 PLANNING 阶段的一次性快照，Verifier 的对账基线即刻过期——这与 1.2 的核心主张直接矛盾，因此维护期同步是闭环的必需一环。
 
-**同步规则（变更传播顺序）**：MAINTAINING 阶段凡涉及页面结构、组件、接口、权限的变更，一律按以下顺序执行：
+**同步规则（变更传播顺序，A31 起由 `vima change` 事务承载）**：MAINTAINING 阶段凡涉及
+页面结构、组件、接口、权限的变更，一律按以下顺序执行：
 
 ```
 用户自然语言需求
+  ↓
+0. vima change open "<描述>"——快照 spec/契约基线（A31，机器管理的变更对象自此存在）
   ↓
 1. 主 Agent 先修改 spec.md 对应页面的 YAML 数据块（涉及接口时先改契约，遵守 9.5 契约纪律）
   ↓
@@ -1765,10 +1800,20 @@ PLANNING 产物（spec / contracts / tasks）是后续全部开发的事实来�
   ↓
 3. 重大变更时请用户在刷新后的原型上确认变更意图（小变更可事后告知）
   ↓
-4. 再改代码；Verifier 按最新 manifest 对账
+4. vima change apply——影响面确定性推导（impact.json），受影响的 done 任务重开为 pending
+  ↓
+5. 按重开任务改代码；Verifier 按最新 manifest 对账
+  ↓
+6. vima change close——传播闸门：受影响任务全 done + validate 零 error
+   （+ 有任务/接口影响时 converge 通过）才允许关闭；闸门不过 = 变更还没传播完
 ```
 
-**简化路径**：纯视觉调整（配色/间距）、文案修改、不改页面结构的内部重构，直接改代码，无需传播——判定标准是**页面级粒度四要素的 YAML 块是否需要改动**。
+此前这套顺序是纯散文协议，五个问题（影响了谁 / 重开哪些 done / 重跑什么 / 传播完没有 /
+差异与批准记录在哪）无一可机器回答——A31 把它落成确定性闭环（命令语义见 §19.18，
+格式契约 §6.18）。
+
+**简化路径**：纯视觉调整（配色/间距）、文案修改、不改页面结构的内部重构，直接改代码、
+不开变更包——判定标准是**页面级粒度四要素的 YAML 块是否需要改动**。
 
 **漂移检测**：`vima doctor` 含对齐产物漂移检查（等价于 render-review/render-prototype 的 `--check`），发现 HTML/manifest 与 spec 不一致时提示重渲染。
 
@@ -1905,8 +1950,9 @@ pending ──(批次派发)──▶ running ──(Verifier 通过)──▶ d
 |---------|------|
 | spec.md + contracts/ + tasks/*.md 全部生成并确认 | PLANNING → 等待 /go |
 | 用户输入 /go（或自然语言"开始开发"） | 切换 DEVELOPING，启动批次调度 |
-| 所有任务 done 且流水线通过 | DEVELOPING → MAINTAINING |
-| 存在 failed/blocked 任务 | 保持 DEVELOPING，等待用户处理 |
+| 全部 shared/business 任务 done | 进入**收口闸门**（A20，仍属 DEVELOPING）：vima converge → 按 byTask 归组增量修复 → 重跑（最多 3 轮） |
+| 收口闸门零 error 且 pipeline 任务全部通过 | DEVELOPING → MAINTAINING，随即执行**经验反哺询问**（A21，`vima retro` + 一次性询问，见 §7.5 步骤 6） |
+| 存在 failed/blocked 任务，或收口闸门 3 轮未收敛 | 保持 DEVELOPING，等待用户处理 |
 
 阶段切换由主 Agent 自动更新 lifecycle.json；用户也可用自然语言手动要求切换（兜底），Agent 会先确认前置产物再执行。
 
@@ -2389,9 +2435,167 @@ Examples:
   vima upgrade --yes
 ```
 
+### 19.14 vima converge
+
+> 增补项 A20 新增：全部批次开发完成后的跨任务集成对账（收口闸门的确定性内核）。
+
+```bash
+vima converge [options]
+
+跨任务集成对账（V-INT 规则族，契约 §8.1；报告 §6.13）：
+  把并行批次的产出当成一个整体校验——V-CODE-01/02 是单向对账（单个文件不得出现契约
+  之外的接口），本命令是跨任务的合并视角（某接口在整个代码库里被实现了几次、被谁实现）。
+  - V-INT-01 接口零实现（error，仅当负责任务全部 done 时判，开发中途跑不假红）
+  - V-INT-02 接口在 ≥2 个后端文件重复实现（error，运行期路由冲突）
+  - V-INT-03 实现越出 A18 apis 责任田（error，仅当该契约下有任务声明 apis 时启用）
+  - V-INT-04 契约授权端无任何调用（warn，联调断点或契约冗余）
+  - V-INT-05 存在 business 任务却无 pipeline 收尾任务（error）
+  同时收口既有红信号：Verifier 未过点位（豁免不计，NG 越界项不可豁免）、
+  运行时错误条数（只报告不计退出码）、done 却无 @vima 标注的任务。
+  报告落盘 .vima/reports/convergence.json，其中 byTask 是修复调度的确定性输入。
+  带 @vima 标注的后端文件为 0 时 V-INT-01/02/03 整族跳过（纯前端/未开工项目不假红）。
+  只读命令（报告文件除外），不改任何产物与状态。
+
+Options:
+  --json           报告同时输出到 stdout
+  --strict         warn 也非零退出
+
+Exit:
+  0  无 error 且无未过点位
+  2  存在 error 或未过点位（--strict 时 warn 亦然）
+
+Examples:
+  vima converge
+  vima converge --json
+  vima converge --strict
+```
+
+### 19.15 vima retro
+
+> 增补项 A21 新增：项目复盘的确定性采集，把跑完的项目经验整理成可反哺 vima-cli 的 issue 正文。
+
+```bash
+vima retro [options]
+
+项目复盘采集（契约 §6.14）：
+  从项目产物确定性采集一手证据——任务重试分布 / failed·blocked / apis 声明率 /
+  批次形态（数量·maxParallel·各批任务数·层数）/ 集成对账 V-INT 各规则命中 /
+  Verifier 轮次与任务点（未过·豁免·NG 越界）/ 共享层变更请求 /
+  validate 规则命中分布 / 运行时错误 / 规格规模计数。
+  按静态阈值表输出观察项（OBS-xx），每条附**指向框架资产的建议落点**。
+  产物：docs/retro/vima-feedback.md（issue 正文）+ .vima/reports/retro.json（机读），
+  两者同源渲染，同一输入字节一致（阶段时长取 phaseHistory 落盘时间戳，不读系统时钟）。
+
+  默认脱敏：只含计数与分布，不含任务/接口/页面标识——vima-cli 是公开仓库，
+  而使用它的常是客户项目；泄露必须是显式动作（--with-ids）。
+
+  离线、只读、不提交：不联网（vima upgrade 是全仓唯一联网命令）、不改任何产物。
+  交互询问与 gh issue create 在工作区层执行（go.md 步骤 6）。
+
+Options:
+  --json           报告同时输出到 stdout
+  --with-ids       携带任务标识（关闭默认脱敏，仅自用仓库）
+
+Exit:
+  0  采集成功
+  4  NO_TASKS：缺 docs/tasks/（非 vima 项目），不写任何文件
+
+Examples:
+  vima retro
+  vima retro --json
+  vima retro --with-ids
+```
+
 > 各命令均支持 `vima <command> --help` 与 `vima help <command>` 在终端查看本节用法（契约 §3 顶层路由）。
 
 ---
+
+### 19.16 vima app
+
+> 增补项 A16 Wave 3 新增：端册生命周期。一后端 × 多前端的真实节奏是**先有后台、后要患者端**，
+> 端册只能由 create 一次写死的话，存量项目加第二个前端就只能手改 `.vima/manifest.json`。
+
+```bash
+vima app list                          # 列端册：id / kind / dir / 骨架在位状态
+vima app add <id> --kind <kind>        # 后补一个前端端
+vima app add ph5 --kind h5-mobile --name 患者端H5
+```
+
+行为（契约 §14）：
+- 新端一律落 `apps/<id>/`；既有端原地零迁移——**A28 后 create 的端本就一律在
+  `apps/<id>/`，后补端只是追加**；改判前创建的存量根布局项目（`dir "."`）后补端时
+  仍会出现「根 + apps/」的混合布局，永久合法——`dir` 是端册里的数据，全部消费方
+  （validate/trace/guard/context/渲染器）经 `resolveApps` 读声明，对布局无感。
+- 同步落账：端册条目 + A19 骨架基线（新端一并享有 `update --scaffold-diff`）
+  + 该端组件文档装到 `docs/ui-framework/<id>/` 并进 manifest 受管清单。
+  既有单端项目的平铺 `docs/ui-framework/**` **不动**（context 两种形态都认）。
+- id 已存在（或 `apps/<id>/` 目录已存在）→ `APP_EXISTS` exit 4；
+  id 词法非法 / kind 未声明 / 缺 `--kind` → usage exit 3；
+  kind `status: preview` → 入册但跳过骨架并显式警告（同 create 口径）。
+- 加端后 stdout 直接给出**下一步清单**：spec 页面/菜单补 `app` 键、契约 api 补
+  `consumers`（多端必填）、再走 validate → render-prototype → approve。
+  这三件事缺了会被 validate 拦住，提前说比事后报错省一轮。
+
+### 19.17 vima mock
+
+> 增补项 A27 新增：契约驱动的确定性 mock 生成——demo 态实时预览与版面冒烟的数据地基。
+
+```bash
+vima mock
+
+从 docs/contracts/*.md 机读块生成 .vima/mock/contract-mock.json（契约 §6.16）：
+  8 种字段类型 8 条固定规则（零随机零时间戳，两跑同字节）；
+  四档数据量：default 3 行 / empty 0 行 / many 20 行 / long 超长文本——
+  空列表与超长文本恰是暴露版面缺陷最有效的两档；
+  分页判定只看契约声明（request 含 pageNum/pageSize），不做路径启发。
+退出码：0；无契约目录或零接口 → NO_CONTRACTS（exit 4），不写空文件。
+```
+
+纪律：**mock 必须由契约生成不得手写**——手写 mock = 第二份契约 = 必然漂移。
+这也是本机制相对外部原型工具的决定性优势：假数据字段名与真实接口一字不差。
+消费方：admin 骨架 demo 态（`npm run dev:demo`，vite `/__vima/mock` 中间件 +
+request 适配器，页面 `?__mock=empty|many|long` 切档）、`/__gallery` 页面画廊、
+默认用 Kimi WebBridge 跑版面冒烟七探针，`npm run smoke` 是 Playwright 回退（契约 §6.17）。
+
+### 19.18 vima change
+
+> 增补项 A31 新增：维护期变更事务——散文协议升级为机器闭环（§13.4 承载工序，契约 §6.18）。
+
+```bash
+vima change open "<变更描述>"    # 开事务：spec/契约逐字节基线快照 + change.json
+vima change list                # 全部变更包与状态
+vima change impact [<id>]       # 结构化 diff → 受影响页面/接口/规则/任务（impact.json，无时间戳）
+vima change apply [<id>]        # 受影响的 done 任务重开为 pending（调用即授权，appliedAt 留痕）
+vima change close [<id>]        # 传播闸门：受影响任务全 done + validate 零 error
+                                #（+ 有任务/接口影响时进程内 converge 通过）才允许关闭
+
+退出码：0 成功；close 闸门未过 → CHANGE_UNPROPAGATED（exit 2）；
+再 open 已有在途变更 → CHANGE_ACTIVE（exit 4）；无在途可默认 → NO_CHANGE（exit 4）。
+```
+
+单变更在途（多变更并存未立项）；基线目录保留作差异与批准的审计证据；
+影响面推导全部是确定性 join（页面归属 / A18 负责集 / A13 规则接口交集），
+详见契约 §6.13 同款口径的 §6.18。同时兑现 ai-scaffold-benchmarks T2-8。
+
+### 19.19 vima certify
+
+> 增补项 A32 新增：交付等级认证——证据驱动的诚实分级，显式不宣称采集不到的等级。
+
+```bash
+vima certify          # 四级阶梯逐级列证据与缺口 + 模板/项目双轴分离展示
+vima certify --json   # 机读全量（.vima/reports/certify.json，无时间戳同输入同字节）
+
+阶梯：spec-approved（approve 已过）→ implemented（shared+business 全 done +
+      business done 任务的 Verifier 报告全 pass）→ converged（convergence.json
+      零 error 零未过点位，证据附 sha256）→ pipeline-green（收尾流水线全 done）。
+deliveryLevel = 自底向上连续满足的最高级；缺口输出为「下一级缺什么」的可执行清单。
+退出码：恒 0（评估不是闸门）；缺 docs/tasks/ → NO_TASKS（exit 4）。
+```
+
+灵魂是**显式非宣称**：deployable/stable 需要部署环境与运行期证据，vima 不采集、
+也不认证——报告固定输出该说明，永远不许用 pipeline-green 或「进入 MAINTAINING」
+冒充可部署/稳定（PACT 八级模型「声明八级、落地零采集」的教训对症吸收）。
+模板 `status: stable`（A5）与项目 deliveryLevel 在同一报告分离展示，词面混淆用产物澄清。
 
 ## 二十、故障排除
 
@@ -2462,6 +2666,60 @@ cat .vima/shared-write-token 2>/dev/null || echo "无令牌（共享层写保护
 ---
 
 ## 二十一、版本历史
+
+### 未发布 (2026-08-14) 维护变更事务 + 交付等级认证 + 业务闭环视图（增补项 A31/A32/A33 落地）
+
+- 来源：PACT 代际评估（`docs/design/pact-vs-vima-generational-assessment.md`）P0 三项，
+  经深评收敛后的共识落地；A34–A37 提案本轮不立（A34 须先回应 A20 否决边界、
+  A35 反查不到需求授权、A36 依赖 A31 先跑实、A37 自评非当前优先级）
+- **`vima change` 维护期变更事务**（新命令，§13.4/§19.18；契约 §6.18）：基线快照 →
+  确定性影响面（impact.json 无时间戳）→ done 任务重开 → 传播闸门（validate/converge
+  进程内复跑）。散文协议升级为机器闭环，同时兑现 ai-scaffold-benchmarks T2-8
+- **`vima certify` 交付等级认证**（新命令，§19.19；契约 §6.19）：四级证据阶梯 +
+  显式不宣称 deployable/stable + 模板成熟度 / 项目交付等级双轴分离——不搬 PACT 八级
+  （其自身「声明八级、落地零采集」）
+- **业务闭环视图与 flow 机检**（§13.2 第 6 视图；契约 §8 V-SPEC-17/18、§11 model.tasks）：
+  flows 此前是 spec 数据块中唯一零引用校验的块；新增步骤引用闭环（error）与角色可达性
+  （warn），审计视图逐流程回答「够得着 / 状态变 / 查得到 / 谁承接」四问
+
+### 未发布 (2026-08-14) 收敛期 + 反哺回路 + 字段级机检 + 工具可信度（增补项 A20/A21/A22/A24 落地）
+
+- **`vima converge` 跨任务集成对账**（新命令，§19.14；V-INT 规则族见契约 §8.1）：
+  此前全部校验的作用域都是「单任务对自己」，并行批次产出的**漏实现 / 重复实现 /
+  越界实现**三类冲突全部漏网。V-CODE-01/02 是单向对账（单个文件不得出现契约之外的
+  接口），V-INT 是跨任务的合并视角（某接口在整个代码库里被实现了几次、被谁实现）
+- **`/go` 收口闸门**（§7.5 步骤 5、§10.2 时序、§14.4 阶段切换）：全部业务任务 done 后
+  不再直接进 MAINTAINING，而是 converge → 按报告 `byTask` 归组增量修复（V-INT-02/03
+  类串行）→ 重跑，最多 3 轮 → pipeline 批次 → MAINTAINING。收敛循环不是停点
+- **补上收尾流水线的任务模板**：`_template-full-test.md` / `_template-code-audit.md`
+  进 `planning.taskTemplates`，planning-guide 第 5 步强制生成。此前 plan 与 go 都消费
+  `layer=pipeline` 任务，却没有任何资产生成它——「流水线全部通过」的条件恒真，
+  §10.3「场景二 顺序流水线开发」整节在实现上是悬空的
+- **V-TASK-13**（warn，设计期早提示）与 **V-INT-05**（error，收口期强制）：同一判据
+  分两处，需要它的那一刻才阻断
+- **CLI 不再按当前目录静默工作**（A24/F8）：项目内命令向上定位项目根，找不到 →
+  `NOT_IN_PROJECT` 且不写任何文件。实测原行为在 `backend/` 下给出「2 错误」的**假结论**
+  并把 `pass: false` 落盘——漏检可以补，误报成事实并持久化会传播
+- **规则时机与项目定制**（A24）：V-TASK-11 跳过已 done 任务（永不消失的 warn 会连累
+  A22 那批同为 warn 的字段级规则）；`docs/coding-standards.local.md` 项目追加区随
+  `vima context` 分发但不受管；`vima retro` 增正面信号采集
+- **字段级机检下探一层**（A22，出自 `docs/design/sustain-v3-field-feedback.md` 实测）：
+  此前全部规则都停在**引用级**（页面 apis ⊆ 契约、菜单功能点 ∈ 契约、代码路径 ∈ 契约），
+  没有一条查到字段级——于是在 `doctor` 全绿、`validate` 0 错误的前提下仍藏着功能级阻断
+  （弹窗必填字段契约里没有 ⇒ 提交必被 40001 拒绝，量表根本创建不了）。新增
+  **V-SPEC-15**（弹窗字段↔提交入参双向对账，warn + 三条实测排除项）、
+  **V-SPEC-16**（跨页导航参数取值域，error 但由声明主动开启）、
+  **V-CON-08**（字段三桶对账查「只进不出」，`writeOnly`/`readOnly` 显式豁免）、
+  **V-CON-09**（聚合 json 子协议 `fields` / `enforced: false`）
+- **`vima context` 补两条检索线**（A22）：**系统底座接口索引**（无 `@vima` 标注代码提供的
+  能力）与 **spec 指名的 `docs/raw/` 真源片段**。实测最大的系统性返工源是 Builder 把契约
+  当唯一事实来源，「契约里没写」=「系统里没有」⇒ 降级实现，连 spec 正文指名的真源都不去看，
+  因为上下文包里没有它
+- **`vima retro` 经验反哺回路**（A21，§19.15、§7.5 步骤 6）：项目跑完那一刻磁盘上躺着最
+  完整的一手证据，过后即散——A18 的空转率数据与 A20 的缺口都是事后人工重建才拿到的。
+  retro 把采集做成确定性动作（**默认脱敏**，观察项为阈值驱动的静态表且每条指向框架资产），
+  `/go` 收尾时问一次是否反哺；交互与 `gh issue create` 都在工作区层，
+  CLI 不联网、不提交、不代为提 PR（守既有两条纪律）
 
 ### v3.0.2 (2026-08-13) 批次调度效率 + 存量项目升级可达性（增补项 A18/A19 落地）
 
@@ -2732,7 +2990,10 @@ mvn compile 1.34s），工作量也不是（总生成量 120 分钟是硬成本�
 | **生命周期** | BOOTSTRAP → PLANNING → DEVELOPING → MAINTAINING |
 | **执行报告** | .vima/reports/ 下的 Builder/Verifier 结构化结果，落盘留痕 |
 | **对账** | vima sync 以任务 frontmatter 为准重建 taskStats 与 README 的确定性操作 |
-| **批次检查点** | 每批验收通过后的 git commit，批粒度回滚点 |
+| **批次检查点** | 每批验收通过后的 git commit，批粒度回滚点（A18 起须 `/go --commit` 显式授权） |
+| **收口闸门** | A20：全部业务任务 done 后、切 MAINTAINING 前的收敛期——集成对账 → 按 byTask 归组增量修复 → 重跑（最多 3 轮）→ pipeline 收尾 |
+| **集成对账** | vima converge，跨任务合并视角的确定性校验（漏实现/重复实现/越界实现），与单文件视角的代码↔契约对账互补 |
+| **经验反哺** | A21：项目跑完时用 vima retro 确定性采集一手证据，经用户确认后以 issue 形式回流 vima-cli——把「真实项目 → 评估 → 立项」的改进回路做成固定环节 |
 | **骨架先行** | spec 等产物由模板骨架复制生成，Agent 逐章填充而非自由创作 |
 | **机械校验** | 按 validate.checklist.md 对产物结构/必填要素/引用完整性的确定性检查，零 token |
 | **覆盖矩阵** | coverage-matrix.md，原始需求→接口→契约→任务的三列对齐追踪表 |

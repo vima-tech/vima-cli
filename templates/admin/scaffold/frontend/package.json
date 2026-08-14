@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:check": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "build:check": "npm run check:ui && vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "check:ui": "node scripts/check-ui-contract.mjs",
+    "dev:demo": "vite --mode demo",
+    "smoke": "node scripts/layout-smoke.mjs"
   },
   "dependencies": {
     "@vima-tech/ui-admin": "file:./vendor/vima-ui-admin",

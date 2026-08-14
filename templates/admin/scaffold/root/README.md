@@ -1,7 +1,9 @@
 # {{projectName}}
 
-基于 vima admin 模板生成的管理后台项目：Vue 3 + TypeScript + Vite（前端，项目根）
+基于 vima admin 模板生成的管理后台项目：Vue 3 + TypeScript + Vite（前端，`apps/admin/`）
 / Java 21 + Spring Boot（后端，`backend/`）。开箱即含完整系统底座，你只需要专注业务需求。
+各端目录以 `.vima/manifest.json` 端册为准（`vima app list` 可随时查看；
+小程序 / H5 端各自目录内有专属 README）。
 
 ## 启动
 
@@ -17,7 +19,8 @@ cd backend && docker compose up -d
 #    无需预装 Maven：mvnw 首次运行会把 Maven 下到 ~/.m2/wrapper 再执行
 ./mvnw spring-boot:run
 
-# 3. 前端（另开终端，项目根；端口 5173，/api 已代理到 8080）
+# 3. 前端（另开终端；端口 5173，/api 已代理到 8080）
+cd apps/admin
 npm install   # vima create 时若未跳过则已装好
 npm run dev
 ```
@@ -75,21 +78,22 @@ npm run dev
 ## 目录导览
 
 ```
-├── src/                  # 前端源码
-│   ├── api/              # 接口封装（按模块一文件）
-│   ├── assets/           # 静态资源
-│   ├── components/       # 布局与通用组件 —— 共享层，业务任务只读
-│   ├── router/           # 路由（含动态菜单路由）
-│   ├── store/            # Pinia 状态
-│   ├── styles/           # 视觉层：tokens(令牌) / base(重置·高度链) / shell(外壳皮肤)
-│   ├── utils/            # 请求封装、数据校验(validate.ts)等工具 —— 共享层，业务任务只读
-│   └── views/            # 页面（业务页面加在这里）
-├── vendor/vima-ui-admin/ # vendored 组件库（离线可用）—— 共享层，业务任务只读
-├── backend/              # Spring Boot 后端
+├── apps/admin/               # 管理端（admin-web；其余端各占 apps/<id>/，见端册）
+│   ├── src/
+│   │   ├── api/              # 接口封装（按模块一文件）
+│   │   ├── assets/           # 静态资源
+│   │   ├── components/       # 布局与通用组件 —— 共享层，业务任务只读
+│   │   ├── router/           # 路由（含动态菜单路由）
+│   │   ├── store/            # Pinia 状态
+│   │   ├── styles/           # 视觉层：tokens(令牌) / base(重置·高度链) / shell(外壳皮肤)
+│   │   ├── utils/            # 请求封装、数据校验(validate.ts)等工具 —— 共享层，业务任务只读
+│   │   └── views/            # 页面（业务页面加在这里）
+│   └── vendor/vima-ui-admin/ # vendored 组件库（离线可用）—— 共享层，业务任务只读
+├── backend/                  # Spring Boot 后端
 │   └── src/main/java/com/{{projectPkg}}/
 │       ├── controller/ service/ repository/ entity/ dto/   # 业务代码加在这里
 │       └── common/ config/ security/                        # 共享层，业务任务只读
-└── docs/                 # vima init 后生成：spec/契约/任务/评审视图
+└── docs/                     # vima init 后生成：spec/契约/任务/评审视图
 ```
 
 ## 视觉规范
@@ -97,8 +101,9 @@ npm run dev
 配色是企业蓝 v3，与组件库 `@vima-tech/ui-admin` 同源。三条纪律：
 
 - **取色只走令牌**：页面里写 `var(--v-primary)` 之类，不写死 `#2f73c5`。全部令牌在
-  `src/styles/tokens.css`，换品牌改这一个文件（它同时接管组件库的 `--vui-*`，见 `src/style.css`）。
-- **外壳样式集中**：顶栏 / 侧栏 / 工作区标签条的样式在 `src/styles/shell.css`，
+  `apps/admin/src/styles/tokens.css`，换品牌改这一个文件（它同时接管组件库的
+  `--vui-*`，见 `apps/admin/src/style.css`）。
+- **外壳样式集中**：顶栏 / 侧栏 / 工作区标签条的样式在 `apps/admin/src/styles/shell.css`，
   对应的四个布局组件不写 `<style>`；业务页面各自用 `<style scoped>`。
 - **页面根用 `.vui-page`**：内边距、高度链、滚动都由它给。不写这个类，页面内的表格拿不到
   确定高度，滚动会落到整页上，搜索栏和分页跟着划走。列表页的查询表单写

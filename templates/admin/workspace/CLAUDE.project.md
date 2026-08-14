@@ -25,9 +25,9 @@
 - 收到开发需求时，先定位 docs/tasks/ 下相关任务文件，再执行修改
 - 使用组件前，必须先读取 docs/ui-framework/CAPABILITY.md，再读对应组件文档
 - 新建/修改业务代码文件时，文件头部必须带 `@vima <taskId>` 注释标注（代码级追溯）
-- 维护期涉及页面结构/组件/接口/权限的变更：先改 docs/spec.md 的 YAML 块（涉及接口先改契约）
-  → `vima validate` → `vima render-review` / `vima render-prototype` → 重大变更请用户在
-  原型上确认 → 再改代码；四要素 YAML 块无需改动的（纯视觉/文案/内部重构）直接改代码（§13.4）
+- 维护期涉及页面结构/组件/接口/权限的变更走**变更事务**（A31）：`vima change open "<描述>"` → 改 spec YAML 块（接口先改契约）
+  → validate → 重渲染 → 重大变更请用户在原型上确认 → `vima change apply` 重开受影响任务 → 改代码 →
+  `vima change close`（受影响任务全 done 且 validate/converge 绿才关得上，不过=未传播完）；四要素 YAML 块无需改动的（纯视觉/文案/内部重构）直接改代码、不开变更包（§13.4）
 - 维护期修改共享层：先写入 .vima/shared-write-token（ISO 过期时刻），改完立即删除并对调用方跑自检（§10.7）
 - 维护期修 bug：先把症状固化为一条能**跑红**的命令（后端优先写失败测试；前端用
   npm run build:check 或按 .vima/reports/runtime-errors.jsonl 的上报复现），确认跑红后
@@ -38,6 +38,9 @@
   拒绝时跳过并注明，不中断调度。**不带 `--commit` 完全不碰 git**，报告也不提回滚点。
   除 go.md 合法停点白名单（预算耗尽 / 全部终态 / 需用户裁定 / 用户中断）外，
   批次之间不停轮等待（A17）；每次结束回合前把停因写入 `.vima/go-state.json`（A18）
+- 业务任务全 done **不等于**完成：先过**收口闸门**（A20，go.md 步骤 5）——`vima converge`
+  查漏实现/重复实现/越界实现（并行批次典型产出，单任务视角看不见）→ 按 `byTask` 派回
+  负责任务增量修复（V-INT-02/03 串行）→ 重跑，零 error 才跑 pipeline 收尾、才切 MAINTAINING
 
 # 详细规范
 - 编码规范：docs/coding-standards.md
