@@ -2,7 +2,7 @@
 
 > 本文是全部模块的**唯一接口权威**。与设计文档冲突时：文件格式/接口签名以本文为准，
 > 业务语义以 `docs/design/vima-cli-design-v2.md`（下称 §N）为准。
-> 增补项记为 A1–A34（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
+> 增补项记为 A1–A35（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
 > 更新日期：2026-08-14（对应设计文档 v2.0.8；本文随设计文档修订演进，不单独编号）。
 
 ## 目录
@@ -10,7 +10,7 @@
 §1 阅读顺序 · §2 仓库结构与文件所有权 · §3 全局约定（3.1 错误码登记表）· §4 lib/util API ·
 §5 lib/model API · §6 文件格式 Schema（6.1–6.20）· §7 spec 结构化数据块 ·
 §8 validate 规则表（8.1 V-INT 规则族 / converge）· §9 plan 批次算法 · §10 trace 规则 ·
-§11 render 约定 · §12 增补项 A1–A34 · §13 测试与 fixtures · §14 命令行为裁定补遗
+§11 render 约定 · §12 增补项 A1–A35 · §13 测试与 fixtures · §14 命令行为裁定补遗
 
 ## 1. 阅读顺序
 
@@ -79,8 +79,9 @@ tests/e2e.test.mjs tests/helpers.mjs README.md [集成阶段统一编写，agent
   例外：create/init/approve/sync/change/design 记录真实时间戳的字段（createdAt、openedAt、
   approvedAt、designApprovalInvalidatedAt、tasksApprovedInvalidatedAt 等）允许
   `new Date().toISOString()`（change 仅限 change.json 状态文件；impact.json 属推导产物，无时间戳）。
-- 路径统一 `node:path`；项目根定位：含 `docs/lifecycle.json` 或 `.vima/manifest.json` 的当前目录
-  （不向上递归查找，v2.0 简化）。
+- 路径统一 `node:path`；项目根定位：由 `findProjectRoot`（§4）从当前目录**逐级向上**查找含
+  `.vima/` 或 `docs/lifecycle.json` 的最近祖先（**A24 起**，取代 v2.0「只认当前目录、不向上查找」
+  的简化口径）；未命中 → `NOT_IN_PROJECT`（§3.1）且不写任何文件。
 
 ### 3.1 错误码登记表（VimaError code 全集）
 
@@ -1158,7 +1159,7 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 |---|---|---|
 | V-SPEC-01 | error | docs/spec.md 九章齐全，标题前缀：`## 1. 系统概述` `## 2. 数据模型` `## 3. 页面清单` `## 4. 接口清单` `## 5. 业务规则` `## 6. 权限设计` `## 7. 技术栈` `## 8. 关键决策记录` `## 9. 本期不做`（第八章为 A4 吸收项，第九章为 A13） |
 | V-SPEC-02 | error | vima:entities 存在；每个 entity 有非空 fields |
-| V-SPEC-03 | error | 每个 vima:page 四要素齐全：layout 非空、components 非空、apis 非空、每个交互 action∈{nav,modal,api} 且 target/api 字段匹配。**A27**：交互条目 = components[].items[] 带 action + components[].actions[] + rowActions[]（三处同校验同计点）；`modals[].presentation` 若声明须 ∈ {dialog,drawer} |
+| V-SPEC-03 | error | 每个 vima:page 有非空 `id`（缺 id 的块被 loadSpec 丢弃、此后所有页面规则都看不见它，故按原文块逐块报，附开栏行号）；四要素齐全：layout 非空、components 非空、apis 非空、每个交互 action∈{nav,modal,api} 且 target/api 字段匹配。**A27**：交互条目 = components[].items[] 带 action + components[].actions[] + rowActions[]（三处同校验同计点）；`modals[].presentation` 若声明须 ∈ {dialog,drawer} |
 | V-SPEC-04 | error | layout 与 components[].block 词汇 ⊆ 页面归属端 kind 的 `layoutVocab`（A16 端化：词表取自 template `planning.kinds`，与渲染器同源；缺省 = admin-web 10 词 {toolbar,search,table,form,cards,tabs,pagination,steps,collapse,anchor}（A27 +3）；mp-native 8 词 {search,list,cards,form,tabs,banner,detail,actionbar}） |
 | V-SPEC-05 | error | nav target 指向存在的 PAGE-xx；modal target 在本页 modals 中定义；PAGE/MODAL/ROLE/MENU/FLOW/RULE/NG ID 全文档唯一（后两类 A13） |
 | V-SPEC-06 | error | 每个 role.menus 非空且指向存在的 MENU；无角色覆盖且未标 `uncovered: true` 的菜单 → error |
@@ -1357,7 +1358,7 @@ converge 不重复报同一件事。
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效；**A35 出自「能否增加 agent 那样的轨迹记录」用户提问**（docs/design/process-journal-proposal.md）——过程轨迹 journal.jsonl：给 A21 反哺回路补上时间维，内核出口 + post-write hook 双采集口，消费方只有 retro）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。

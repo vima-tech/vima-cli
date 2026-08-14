@@ -2670,8 +2670,9 @@ cat .vima/shared-write-token 2>/dev/null || echo "无令牌（共享层写保护
 ### 未发布 (2026-08-14) 维护变更事务 + 交付等级认证 + 业务闭环视图（增补项 A31/A32/A33 落地）
 
 - 来源：PACT 代际评估（`docs/design/pact-vs-vima-generational-assessment.md`）P0 三项，
-  经深评收敛后的共识落地；A34–A37 提案本轮不立（A34 须先回应 A20 否决边界、
-  A35 反查不到需求授权、A36 依赖 A31 先跑实、A37 自评非当前优先级）
+  经深评收敛后的共识落地；G1–G4 提案本轮不立（G1 须先回应 A20 否决边界、
+  G2 反查不到需求授权、G3 依赖 A31 先跑实、G4 自评非当前优先级）
+  ——该四项原编 A34–A37，与登记册 A# 撞车，2026-08-14 消歧改编为 G1–G4
 - **`vima change` 维护期变更事务**（新命令，§13.4/§19.18；契约 §6.18）：基线快照 →
   确定性影响面（impact.json 无时间戳）→ done 任务重开 → 传播闸门（validate/converge
   进程内复跑）。散文协议升级为机器闭环，同时兑现 ai-scaffold-benchmarks T2-8
