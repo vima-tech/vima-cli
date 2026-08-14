@@ -1,6 +1,6 @@
 {
   "name": "@vima-tech/cli",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "vima-cli — AI 开发脚手架：vima create 多模板起盘 + vima init 部署 Claude Code 工作环境 + 确定性校验/渲染/调度命令",
   "type": "module",
   "license": "MIT",

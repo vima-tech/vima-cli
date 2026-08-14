@@ -687,7 +687,7 @@ docs/ui-framework）一律「标注跳过」不报错——存在性问题归 va
 ```json
 { "schemaVersion": "1",
   "anonymized": true,
-  "fingerprint": { "templateId": "admin", "vimaVersion": "3.0.2", "apps": 2,
+  "fingerprint": { "templateId": "admin", "vimaVersion": "3.0.3", "apps": 2,
                    "phases": [{ "phase": "PLANNING", "days": 3 }] },
   "tasks": { "total": 42, "byLayer": {"shared":1,"business":39,"pipeline":2},
              "bySide": {"backend":12,"frontend":27,"fullstack":3},
