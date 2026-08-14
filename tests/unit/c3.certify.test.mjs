@@ -190,3 +190,63 @@ test('守卫：非 vima 项目 → NOT_IN_PROJECT，不写任何文件', async (
   }
   assert.equal(created, false);
 });
+
+// ── A34 D-A34-31：implemented 级消费视觉与体验证据 ──
+// 不接线的话，certify 会把「视觉一次没跑」的项目评为 pipeline-green——
+// 正是 A34 要治的「全绿但不能用」假成功，只是换到了认证报告里。
+
+test('A34：D1/D2 页缺视觉报告 → implemented 级不通过并列出缺口', async (t) => {
+  const root = await cloneGolden(t);
+  await approve(root);
+  await markDone(root, ['device-api-be', 'device-list-fe', 'shared-base', 'full-test']);
+  for (const id of ['device-api-be', 'device-list-fe']) await verifierPass(root, id);
+  // 把 PAGE-01 提到 D1（需要 design 报告），但不产出任何视觉报告
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text
+    .replace('  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12')
+    .replace('  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置'));
+
+  const r = vima(root, 'certify');
+  assert.equal(r.code, 0, '评估不是闸门，exit 恒 0');
+  const report = await readReport(root);
+  const impl = levelOf(report, 'implemented');
+  assert.equal(impl.satisfied, false, '视觉证据缺失时 implemented 不得通过');
+  assert.ok(
+    impl.missing.some((m) => /视觉与体验验收未齐全/.test(m)),
+    `应列出视觉缺口：${JSON.stringify(impl.missing)}`,
+  );
+});
+
+test('A34：全页 D0 的项目 → 视觉验收不适用，如实标注而非冒充已验收', async (t) => {
+  const root = await cloneGolden(t);
+  await approve(root);
+  await markDone(root, ['device-api-be', 'device-list-fe', 'shared-base', 'full-test']);
+  for (const id of ['device-api-be', 'device-list-fe']) await verifierPass(root, id);
+  const r = vima(root, 'certify');
+  assert.equal(r.code, 0);
+  const impl = levelOf(await readReport(root), 'implemented');
+  assert.equal(impl.satisfied, true, '纯 D0 项目不为视觉验收付成本');
+  assert.ok(
+    impl.evidence.some((e) => /不适用/.test(e)),
+    `须如实标注不适用而不是宣称已验收：${JSON.stringify(impl.evidence)}`,
+  );
+});
+
+test('A34：certify 不得信任陈旧或伪造的 design-verify.json', async (t) => {
+  const root = await cloneGolden(t);
+  await approve(root);
+  await markDone(root, ['device-api-be', 'device-list-fe', 'shared-base', 'full-test']);
+  for (const id of ['device-api-be', 'device-list-fe']) await verifierPass(root, id);
+  const p = path.join(root, 'docs/spec.md');
+  await writeFile(p, (await readFile(p, 'utf8'))
+    .replace('  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12')
+    .replace('  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置'));
+  await mkdir(path.join(root, '.vima/reports'), { recursive: true });
+  await writeFile(path.join(root, '.vima/reports/design-verify.json'), `${JSON.stringify({
+    schemaVersion: '1', pages: [{ id: 'PAGE-01', required: ['design'] }], uncovered: [], stale: [], pass: true,
+  }, null, 2)}\n`);
+  const r = vima(root, 'certify');
+  assert.equal(r.code, 0);
+  assert.equal(levelOf(await readReport(root), 'implemented').satisfied, false);
+});

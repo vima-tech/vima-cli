@@ -99,6 +99,7 @@
     "guide": "planning/planning-guide.md",
     "spec": "planning/spec.admin.md",
     "designLanguage": "planning/design-language.md",
+    "interactionLanguage": "planning/interaction-language.md",
     "codingStandards": "planning/coding-standards.md",
     "checklist": "planning/validate.checklist.md",
     "contractExample": "planning/contract.example.md",

@@ -3,8 +3,9 @@
 > 创建日期：2026-08-14　更新日期：2026-08-14（v5：**撤销分期**，改为一次完整落地；收敛 codex 第六轮三项内部矛盾 + 两处接线）
 > 出处：`docs/design/sustain-vima-visual-regression-analysis.md`（codex 评估报告，六轮）
 > + 本仓独立取证复核（Sustain 旧版 `d6f4382^` ↔ 重建版 `HEAD`）
-> 性质：**立项方案**，待裁定后升为增补项 A34（A33 为当前最大号，A26 被在途草案预占）
-> 范围：本文只定方案与落点，不含实现；`lib/` 与模板资产零改动
+> 性质：**已立项并实施**——正式规格见 `v2.1-amendments.md` 的 **A34**，契约见 `internal-contracts.md` §6.2 / §6.20 / §7 / §8。
+> **本文自此降为过程留痕**（六轮评审的改判轨迹与被否方案），**不再是执行依据**；与 A34 正文冲突时以 A34 为准。
+> 实施结果：新增 6 个文件 + 修改 23 个文件，`npm test` 449 例全绿（起始 415，+34 例含全部否定用例）。
 >
 > **版本演进**（详见 §11 改判记录，仅作防重犯留痕，**不构成执行依据**）：
 > v1 追加式修订造出两套真源 → v2 全文重写收敛；
@@ -141,8 +142,8 @@ M6 项目化沉淀      interaction-language + retro 反哺 + Sustain 四页样�
 | D-A34-18 | **存量迁移语义**：存量项目**不自动倒退阶段**；pre-A34 项目标记 `designCapability: legacy`（A5 诚实分级，并据此豁免 V-DSN-12）；新增 D1/D2 页按 **`vima change`（A31）的 scope 局部启用** DESIGNING，不要求整项目回炉；`vima change` 须触发相关设计批准失效（接 D-A34-12） | 治 A19（存量项目升级可达性）在本项上的空白。不标注 legacy 就是宣称存量项目具备它没有的能力 | 存量项目一律回退 DESIGNING | 已交付项目被强制回炉，A19 可达性直接崩 |
 | D-A34-19 | **受控回写环 = 新增 `vima design reconcile`**，**复用 A31 已导出的 `computeImpact(root, change)`**（`lib/commands/change.mjs:165` 实测已是 `export`），但**用 DESIGNING 口径的关闭闸门**：只检查 **spec/契约引用闭环**（validate 的 V-SPEC/V-CON 族）与设计批准新鲜度，**不要求受影响任务 done、不跑 converge**；关闭后**重建任务拆解**。<br>**最终任务拆解与 `tasksApproved` 必须发生在设计冻结之后**；设计变更后旧批准与旧拆解一并失效（接 A12/D-A34-12） | **这是「设计能改变产品」与「设计只是装修」的分界**——不许回写，则 A0 发散声称的「信息架构真正不同」无处落地，发散退化为换肤。<br>**但不能直接复用 `vima change close`**：实测 `cmdClose` 要求「受影响任务全部 done」+ validate 零 error（必要时 converge），而 DESIGNING 期任务**尚未拆解**，已有临时任务也多为 pending → **必然死锁**。算法可复用、闸门必须分离 | ① v2「PLANNING 完成后进 DESIGNING，设计不得回写」；② v3「直接走 `vima change` 事务」；③ 给 `change` 加 `mode: design-reconciliation` 枚举 | ① 与 D-A34-14 立项目的直接矛盾；② **实测死锁**（见左）；③ `change` 的语义是「维护期变更事务」，塞进一个规划期分支会让它同时服务两个阶段两套闸门；而 `computeImpact` 已导出，独立入口零重复代价 |
 
-| D-A34-28 | **阶段推进事件表**（明确「谁推进哪一段」，治当前 `/go` 只认 PLANNING→DEVELOPING）：<br>· `PLANNING → DESIGNING`：`vima approve --planning`（使用 D-A34-29 的 planning-brief profile，V-DSN-12 分级完备）<br>· `DESIGNING` 内部：按端执行 `vima design approve direction <appId>`（方向裁定，人工）→ `vima design reconcile`（若方向改动了能力/交互/信息架构）→ `vima design approve pages`（逐页稿裁定，人工）<br>· `DESIGNING → DEVELOPING`：`vima approve`（现有语义，置 `tasksApproved`）——**但前置增加 `vima design check` 六项派生全绿**（`directionApproved` / `signaturePagesApproved` / `fidelityClassified` / `designArtifactsComplete` / `designApprovalFresh` / `designSystemFrozen`）<br>`/go` 步骤 1 相应改为按 `currentPhase` 分派三条路径，**不再假定 PLANNING 的下一站是 DEVELOPING** | 不写事件表，则 `/go`、`vima approve`、`vima design approve` 三者谁推进阶段仍然含糊，实现时必然各写一套。实测 `go.md` 现为「若 currentPhase = PLANNING，依次通过三道闸门」后直进 DEVELOPING，**完全不认 DESIGNING** | 让 `/go` 自行判断该进哪个阶段 | 阶段推进是状态机语义，属确定性内核职责；交给 Agent 判断即 A6 所禁的「规范无唯一执行者」 |
-| D-A34-29 | **校验 profile 与 reconcile 顺序定死**：<br>· `vima approve --planning` 使用独立 **`planning-brief` profile**——执行 V-SPEC / V-DEC / V-CON / V-PEND / V-SRC、V-DSN-01…08 与 V-DSN-10/11/12；**不执行 V-TASK-\*、V-COV-01、V-CODE-\***。设计冻结、reconcile 完成、任务重建之后再跑**完整 validate** 与最终 `vima approve`<br>· `vima design reconcile` 六步固定顺序：① 前置要求**所选端的方向批准有效** → ② 回写 spec/契约 → ③ 重算影响面 → ④ **旧页面批准与旧任务批准失效** → ⑤ 方向批准继续以 D-A34-12 的 A0 输入摘要判定，不把 reconcile 后 spec 纳入其摘要，故不会自我失效 → ⑥ Stage B 完成后再批准页面 | ① 实测 `validate` 有 **13 条 V-TASK + V-COV-01**，而 `V-COV-01` 要求 `coverage-matrix.md` 无空格无 TODO（由任务生成）——**任务未拆解时跑完整 validate 必然报错**，PLANNING→DESIGNING 走不通。<br>② 第 ⑤ 步是关键：方向批准证明用户选择了哪套 A0 方向，页面批准才证明该方向已与最终 spec/契约对齐；混用同一 digest 会形成自我失效死循环 | ① `--planning` 跑完整 validate；② 方向与页面批准共用 specDigest | ① 见左，必然阻断；② reconcile 修改 spec 后方向批准自我失效，流程无法收敛 |
+| D-A34-28 | **阶段推进事件表**（明确「谁推进哪一段」，治当前 `/go` 只认 PLANNING→DEVELOPING）：<br>· `PLANNING → DESIGNING`：`vima approve --planning`（使用 D-A34-29 的 planning-brief profile，V-DSN-12 分级完备）<br>· `DESIGNING` 内部：按端执行 `vima design approve direction --app <appId>`（方向裁定，人工）→ `vima design reconcile`（若方向改动了能力/交互/信息架构）→ `vima design approve pages`（逐页稿裁定，人工）<br>· `DESIGNING → DEVELOPING`：`vima approve`（现有语义，置 `tasksApproved`）——**但前置增加 `vima design check` 六项派生全绿**（`directionApproved` / `signaturePagesApproved` / `fidelityClassified` / `designArtifactsComplete` / `designApprovalFresh` / `designSystemFrozen`）<br>`/go` 步骤 1 相应改为按 `currentPhase` 分派三条路径，**不再假定 PLANNING 的下一站是 DEVELOPING** | 不写事件表，则 `/go`、`vima approve`、`vima design approve` 三者谁推进阶段仍然含糊，实现时必然各写一套。实测 `go.md` 现为「若 currentPhase = PLANNING，依次通过三道闸门」后直进 DEVELOPING，**完全不认 DESIGNING** | 让 `/go` 自行判断该进哪个阶段 | 阶段推进是状态机语义，属确定性内核职责；交给 Agent 判断即 A6 所禁的「规范无唯一执行者」 |
+| D-A34-29 | **校验 profile 与 reconcile 顺序定死**：<br>· `vima approve --planning` 使用独立 **`planning-brief` profile**——执行 V-SPEC / V-DEC / V-CON 的契约自身规则 / V-PEND / V-SRC、V-DSN-01…08 与 V-DSN-10/11/12；**不加载任务，不执行依赖任务的 V-CON-03，也不执行 V-TASK-\*、V-COV-01、V-CODE-\***。设计冻结、reconcile 完成、任务重建之后再跑**完整 validate** 与最终 `vima approve`<br>· `vima design reconcile` 六步固定顺序：① 前置要求**所选端的方向批准有效** → ② 回写 spec/契约 → ③ 重算影响面 → ④ **旧页面批准与旧任务批准失效** → ⑤ 方向批准继续以 D-A34-12 的 A0 输入摘要判定，不把 reconcile 后 spec 纳入其摘要，故不会自我失效 → ⑥ Stage B 完成后再批准页面 | ① 实测 `validate` 有 **13 条 V-TASK + V-COV-01**，而 `V-COV-01` 要求 `coverage-matrix.md` 无空格无 TODO（由任务生成）——**任务未拆解时跑完整 validate 必然报错**，PLANNING→DESIGNING 走不通。<br>② 第 ⑤ 步是关键：方向批准证明用户选择了哪套 A0 方向，页面批准才证明该方向已与最终 spec/契约对齐；混用同一 digest 会形成自我失效死循环 | ① `--planning` 跑完整 validate；② 方向与页面批准共用 specDigest | ① 见左，必然阻断；② reconcile 修改 spec 后方向批准自我失效，流程无法收敛 |
 | D-A34-30 | **新增阶段的连带面（实测清单，不得漏改）**：<br>· `currentPhase` 共 **5 个消费方**——`lib/model/lifecycle.mjs`、`lib/commands/init.mjs`、**`lib/commands/doctor.mjs`（状态一致性体检）**、`templates/.../commands/go.md`、**`templates/.../hooks/guard-shared.mjs`**<br>· **`guard-shared.mjs` 的契约保护相位显式裁定**：该 hook 现只在 **DEVELOPING** 追加保护 `docs/contracts/**`；**DESIGNING 必须维持「不保护」**，否则 D-A34-19 的契约回写被 hook 直接锁死。此为**明示决定**，防实现时「顺手把 DESIGNING 也加进保护集」<br>· **golden 夹具基线**：`tests/fixtures/golden/docs/lifecycle.json` 会因新增阶段与 checklist 键而改变，须同步更新<br>· **V-DSN-02 为空号**（已退役），新规则用 09/10/11/12，非编号错误 | 阶段是横切概念，漏改一个消费方就产生「状态机分叉」：doctor 报状态不一致、hook 按旧相位判定。`guard-shared` 那条尤其隐蔽——**它的默认行为恰好正确，正因如此才容易被「好心」改错** | 只在 lifecycle 与 go.md 改阶段 | doctor 会把 DESIGNING 判为未知阶段；hook 相位判定错则回写环或被锁死、或在 DEVELOPING 期漏保护契约 |
 
 ### M5 三类验收
@@ -154,6 +155,12 @@ M6 项目化沉淀      interaction-language + retro 反哺 + Sustain 四页样�
 | D-A34-22 | **`vima context` 增第三条检索线**：注入本页设计目录 + shell 基线 + `design-language` + **`interaction-language`（D1/D2）** + `primaryTask` + `mustPreserve` + **相邻页面截图** + 正常/空态 mock 档位 | 「相邻页面截图」治跨页同质化与漂移——当前每个 Builder 只见自己那一页。`interaction-language` 若不进入 Builder 上下文，就算被批准和冻结也无法约束实现。A22 已有 context 两条检索线，本条是第三条 | 只注入本页稿 | 跨页节奏无从感知，各页仍在各自格子里装修；交互语言退化为无人读取的附加文档 |
 | D-A34-23 | **`/go` 收口硬门**（挂 **A20 已有收口闸门**，5.2.6 之后）：运行并消费 **`vima design verify`** 的汇总结果，D1/D2 截图对照 + D2 primaryTask 场景全过才进收尾流水线。触发条件从「有登记稿的页面」改为「**全部 D1/D2 页**」 | 治 G4：条件性空转的根源是触发条件挂在可绕过的「有没有登记」上，改挂在已被 V-DSN-12 强制的 `fidelity` 上。**兑现 A7「运行时证据：从『长得对』到『跑得通』」**——把 A7 从接口层扩到交互层 | ① 维持现状；② 新增 `CALIBRATING` 阶段 | ① 零登记 → 整轮 no-op；② **撞 A20**（收敛期已定义于 DEVELOPING→MAINTAINING），且波及 A19/A31/A32 |
 | D-A34-31 | **`vima certify`（A32）的 `implemented` 级证据扩面**：从「任务全 done + Semantic Verifier 通过报告」扩为「**+ `design-verify.json` 新鲜且按报告矩阵无 uncovered/stale**」（D0=Semantic / D1=+Design / D2=+Experience）。`certify` 复用 `vima design verify` 的汇总/新鲜度助手，**不自行重写第二套聚合逻辑**。不新增等级，`spec-approved → implemented → converged → pipeline-green` 四级模型不动 | A34 的立项前提就是 **A5 诚实分级**。certify 现只采集 `convergence.json`，落地后仍可能把「视觉与体验一次没跑」的项目评为 `pipeline-green`——**这正是 A34 要治的「全绿但不能用」假成功，只是换到了认证报告里**。扩面即可闭合，无需新等级；复用汇总助手保证 `/go` 与 certify 不会对同一批报告给出不同判决 | ① 不接线，视觉验收只由 `/go` 硬门把关；② 在 converged 与 pipeline-green 之间新增 `design-verified` 级；③ certify 自行扫描原始报告 | ① certify 报告与实际交付质量之间留一个已知缺口；② 改动 A32 的等级模型且「视觉」本就是 implemented 的一部分；③ 两套聚合逻辑会漂移 |
+
+> **D-A34-21 执行补全**：正式汇总前先运行 `vima design verify --prepare`，生成
+> `.vima/reports/design-verify-inputs.json` 与逐页 implementation-deps；报告作者从该文件抄写三个
+> digest。准备模式不要求报告已存在、缺报告仍 exit 0，且不覆盖最终 `design-verify.json`。
+> 这解开了“报告必须带 digest、digest 却要等报告完成后才生成”的循环依赖；无 `--prepare` 的
+> `vima design verify` 仍是 D-A34-21/D-A34-23 所述正式收口硬门。
 
 ### M6 项目化沉淀
 
@@ -171,10 +178,10 @@ M6 项目化沉淀      interaction-language + retro 反哺 + Sustain 四页样�
 | 类型 | 路径 / 内容 |
 |---|---|
 | **契约**（先改，落地前置） | `docs/internal-contracts.md` §7 PDL 增 `design.fidelity` / `primaryTask` / `mustPreserve`（typed，**无 `designRef`——路径由 pageId 推导**），`pattern` 枚举增 `custom`；校验规则增 **V-DSN-09/10/11/12**（**逐条标注触发阶段**：09 → DESIGNING 出口，10/11/12 → PLANNING）；§14 生命周期增 **DESIGNING** 阶段、**checklist 存储/派生边界**（**2 键写入 + 6 键派生**）、`designApproval.directions.<appId>` / `.pages.<pageId>` 摘要结构与各自 digest 输入、`designCapability` 标记、**阶段推进事件表**（D-A34-28）；§8/§11 增 `planning-brief` 校验 profile 与设计批准失效口径；**新增报告契约节**：`.vima/reports/{design,experience}/<PAGE>.json`、`.vima/reports/implementation-deps/<PAGE>.json` 字段表、**三个 digest 的计算范围**、`evidence[]` 结构、**报告矩阵**（D0/D1/D2）与 stale 判定；§12 A34 条目 |
-| **内核** `lib/`（**只做确定性文件操作，零网络零浏览器**） | `lib/model/apps.mjs` PDL 三键 + `pattern: custom`；`lib/commands/validate.mjs` 四条新规则（**按阶段分派触发**）+ `planning-brief` profile；`lib/model/lifecycle.mjs` DESIGNING 阶段 + checklist 存储边界 + `designApproval` + `designCapability` + 存量迁移；`lib/commands/init.mjs` 落点增 `docs/review/design/`；**`lib/commands/doctor.mjs` 阶段一致性体检认 DESIGNING**；新增 `lib/commands/design.mjs`（`status`/`check`/**`verify`**/`approve`/`invalidate`/**`reconcile`**——`reconcile` import `change.mjs` 已导出的 `computeImpact`，用 DESIGNING 口径闸门；含 INDEX 生成、批准摘要、三 digest、静态 import 可达图与报告汇总）；`render-review.mjs` 新鲜度助手扩设计摘要；`lib/commands/approve.mjs` 增 `--planning` 与 design check 前置；**`lib/commands/certify.mjs` 的 `implemented` 级复用 design verify 汇总助手（D-A34-31）** |
-| **工作流资产**（**MCP 与浏览器只在此层**） | 新增 `agents/vima-designer.md`（调 Claude Design MCP 出三方向与逐页稿、render_preview 截图、冻结落盘、产出差异矩阵）+ `commands/design.md`；`agents/vima-builder.md` 三层授权（D-A34-07）+ features 只读消费与提取请求；**拆分** `agents/vima-verifier.md` → `vima-verifier.md`(Semantic) + `vima-design-reviewer.md` + `vima-experience-verifier.md`（三者均按 D-A34-21 写报告）；`commands/go.md` 收口硬门；`commands/retro.md` 增交互条目反哺询问 |
+| **内核** `lib/`（**只做确定性文件操作，零网络零浏览器**） | `lib/model/apps.mjs` PDL 三键 + `pattern: custom`；`lib/commands/validate.mjs` 四条新规则（**按阶段分派触发**）+ `planning-brief` profile；`lib/model/lifecycle.mjs` DESIGNING 阶段 + checklist 存储边界 + `designApproval` + `designCapability` + 存量迁移；`lib/commands/init.mjs` 落点增 `docs/review/design/`；**`lib/commands/doctor.mjs` 阶段一致性体检认 DESIGNING**；新增 `lib/commands/design.mjs`（`status`/`check`/**`verify --prepare`/`verify`**/`approve`/`invalidate`/**`reconcile`**——`reconcile` import `change.mjs` 已导出的 `computeImpact`，用 DESIGNING 口径闸门；含 INDEX 生成、批准摘要、三 digest、静态 import 可达图与报告汇总）；`lib/commands/approve.mjs` 增 `--planning` 与 design check 前置；**`lib/commands/certify.mjs` 的 `implemented` 级复用 design verify 汇总助手（D-A34-31）** |
+| **工作流资产**（**MCP 与浏览器只在此层**） | 新增 `agents/vima-designer.md`（调 Claude Design MCP 出三方向与逐页稿、render_preview 截图、冻结落盘、产出差异矩阵）+ `commands/design.md`；`agents/vima-builder.md` 三层授权（D-A34-07）+ features 只读消费与提取请求；**拆分** `agents/vima-verifier.md` → `vima-verifier.md`(Semantic) + `vima-design-reviewer.md` + `vima-experience-verifier.md`（三者均按 D-A34-21 写报告）；`commands/go.md` 增 digest 准备、收口硬门与交互条目反哺询问 |
 | **规划资产** | 新增 `planning/interaction-language.md`；`planning-guide.md` 新增 DESIGNING 章（Brief → A0 发散 → 方向批准 → 受控回写 → 反向提炼 → Stage B → 冻结），**删除无条件降级祝福**；`_template-fe.md` 设计稿节增 fidelity / primaryTask / mustPreserve 三行（**不含 designRef**），**删「无稿页写『无稿』」**；**废止 `design-links.md` 全部引用** |
-| **骨架 / 配置** | `scaffold/frontend/src/features/.gitkeep`；`template.json` 登记 features 层——**且确认其不在 `apps[].sharedDirs` 内**（`guard-shared.mjs` 的保护面源）；`templates/admin/workspace/hooks/guard-shared.mjs` **契约保护相位维持只认 DEVELOPING**（D-A34-30） |
+| **骨架 / 配置** | `scaffold/frontend/src/features/README.md`；`template.json` 登记 features 层——**且确认其不在 `apps[].sharedDirs` 内**（`guard-shared.mjs` 的保护面源）；`templates/admin/workspace/hooks/guard-shared.mjs` **契约保护相位维持只认 DEVELOPING**（D-A34-30） |
 | **测试** | V-DSN-09/10/11/12 用例，**每条必须含否定用例**（**推导出的设计目录**不存在必报错、custom 缺 intent 必报错、mustPreserve 缺 `kind` 必报错、**新项目缺 fidelity 必报错**——否则规则永远绿）；V-DSN-09 **不在 PLANNING 触发**的阶段用例；lifecycle DESIGNING + D0-only 跳过 + 存量迁移用例；`designApproval` 摘要失效用例；报告 stale 判定用例；`d2.workspace.test.mjs` 防漂移断言（三 verifier 资产存在、planning-guide 不含旧措辞、`lib/` 不出现 MCP 工具名与浏览器依赖、**`guard-shared.mjs` 契约保护相位仍只认 DEVELOPING**）；**`tests/fixtures/golden/docs/lifecycle.json` 基线随新增阶段与 checklist 键同步更新** |
 | **文档** | `CLAUDE.md` A34 条目；`CHANGELOG.md`；`docs/design/v2.1-amendments.md` A34 正文 |
 
@@ -229,8 +236,17 @@ node bin/vima.mjs design status            # 重生成 INDEX.json
 node bin/vima.mjs design status --check    # 漂移体检，同 render-* 口径
 
 # certify 的 implemented 级已消费视觉证据（D-A34-31）
-node bin/vima.mjs certify --json | jq '.levels[] | select(.id=="implemented") | .evidence'
+node bin/vima.mjs certify --json | jq '.levels[] | select(.level=="implemented") | .evidence'
 #   应含 design/experience 报告矩阵项；D1/D2 缺报告时该级不得判过
+
+# Sustain 四页发布硬门（先启动已装载 sustain-dense-clinical-v1 的目标实例）
+VIMA_PLAYWRIGHT_PATH=/absolute/path/to/playwright \
+node tests/acceptance/sustain-a34.mjs \
+  --project-root /absolute/path/to/Sustain \
+  --base-url http://127.0.0.1:5173 \
+  --storage-state /absolute/path/to/admin-storage-state.json
+#   固定 commit/Claude Design 原型哈希/路由/viewport/mock/scenario；四页任一 CRUD 化、
+#   未达批准稿、缺证据或 primaryTask 未完成均 exit 2
 ```
 
 **试点判据**：Sustain 四页黄金样本（D-A34-25）通过前，**只能宣称「具备承载与保护创新设计的机制」，
@@ -291,7 +307,7 @@ node bin/vima.mjs certify --json | jq '.levels[] | select(.id=="implemented") | 
 ## 10. DESIGNING 前后的校验分工（治阶段死锁）
 
 ```text
-PLANNING ── vima validate ─────────────────────────────────┐
+PLANNING ── vima approve --planning（planning-brief profile）┐
   功能规格 / 契约 / 权限 / 规则                             │ 触发：V-DSN-01…08、V-DSN-10/11/12
   + fidelity（必须显式声明，V-DSN-12）                      │ 【不触发 V-DSN-09，不检查设计文件】
   + primaryTask / mustPreserve                              │
@@ -334,7 +350,7 @@ MAINTAINING
 4. **`design check` 与 `design verify` 是两个命令，不是一个命令的两次调用**：
    前者在 DESIGNING 出口只看设计面（页面尚未实现），后者在 DEVELOPING 收口才看实现面。
    合并会让同一命令在两个阶段用两套未声明的通过条件——那正是 V-DSN-09 那次死锁的同型。
-5. `vima approve --planning` 用**独立校验 profile**（不含 V-TASK/V-COV），
+5. `vima approve --planning` 用**独立校验 profile**（不加载任务，不含依赖任务的 V-CON-03、V-TASK/V-COV/V-CODE），
    完整 validate 推迟到设计冻结、reconcile、任务重建之后（D-A34-29）。
 
 ---

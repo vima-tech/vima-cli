@@ -1383,6 +1383,87 @@ test('V-DSN-12：显式写 D0 即通过——D0 是裁定，不是缺省', async
   assert.equal(report.errors.filter((e) => e.rule === 'V-DSN-12').length, 0, `stderr: ${r.stderr}`);
 });
 
+// ── V-DSN-10（A34 D-A34-06）：pattern: custom 的诚实标注三件套 ──
+
+test('V-DSN-10 否定用例：custom 缺 intent / 非 D2 → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'pattern: list', 'pattern: custom');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const msgs = report.errors.filter((e) => e.rule === 'V-DSN-10').map((e) => e.message);
+  assert.equal(msgs.length, 2, `应同时报缺 intent 与非 D2，实得：${msgs.join(' / ')}`);
+  assert.ok(msgs.some((m) => /缺 design\.intent/.test(m)), '独特版面必须声明意图');
+  assert.ok(msgs.some((m) => /必须是 D2/.test(m)), 'custom 页必须是 D2');
+});
+
+test('V-DSN-10：custom + intent + D2 三件套齐全 → 放行（逃生口是开着的，不是堵死的）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'pattern: list', 'pattern: custom');
+  await mutate(root, 'docs/spec.md', '  fidelity: D0                # A34 V-DSN-12', '  fidelity: D2                # A34 V-DSN-12');
+  await mutate(
+    root,
+    'docs/spec.md',
+    '  fold: [设备表格]',
+    '  fold: [设备表格]\n  intent: 设备台账与实时状态在同一视野内比对\n'
+      + '  primaryTask: 定位一台异常设备并完成处置\n'
+      + '  mustPreserve:\n'
+      + '    - { id: status-live, kind: runtime, statement: 设备状态实时刷新不整页重载, verifier: experience }',
+  );
+  vima(root, 'validate');
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => ['V-DSN-10', 'V-DSN-11'].includes(e.rule));
+  assert.deepEqual(hits, [], '三件套齐全不得报错');
+});
+
+// ── V-DSN-11（A34 D-A34-04/05）：保真级带来的必填声明；mustPreserve 类型即执行者路由 ──
+
+test('V-DSN-11 否定用例：D1 缺 primaryTask → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-11');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].message, /缺 design\.primaryTask/);
+});
+
+test('V-DSN-11 否定用例：D2 的 mustPreserve 缺 kind / kind↔verifier 不相容 → error', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '  fidelity: D0                # A34 V-DSN-12', '  fidelity: D2                # A34 V-DSN-12');
+  await mutate(
+    root,
+    'docs/spec.md',
+    '  fold: [设备表格]',
+    '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置\n'
+      + '  mustPreserve:\n'
+      + '    - { id: no-kind, statement: 缺 kind 的条目, verifier: design }\n'
+      + '    - { id: mismatch, kind: runtime, statement: 切换设备时壳层不重挂载, verifier: design }',
+  );
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const msgs = report.errors.filter((e) => e.rule === 'V-DSN-11').map((e) => e.message);
+  assert.ok(msgs.some((m) => /\.kind ""? ?非法|kind "" 非法/.test(m) || /kind/.test(m)), `应报 kind 非法：${msgs.join(' / ')}`);
+  assert.ok(
+    msgs.some((m) => /不相容/.test(m) && /runtime/.test(m)),
+    `runtime 类只能由 experience 执行：${msgs.join(' / ')}`,
+  );
+});
+
+test('V-DSN-11 否定用例：D2 完全没有 mustPreserve → error（D2 必须登记不可降级的交互事实）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', '  fidelity: D0                # A34 V-DSN-12', '  fidelity: D2                # A34 V-DSN-12');
+  await mutate(root, 'docs/spec.md', '  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  const hits = report.errors.filter((e) => e.rule === 'V-DSN-11');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].message, /缺 design\.mustPreserve/);
+});
+
 test('V-DSN-01 放松：只带 A34 键的 design 块合法（不连带把 pattern/density 变成全页强制）', async (t) => {
   const root = await cloneGolden(t);
   vima(root, 'validate');

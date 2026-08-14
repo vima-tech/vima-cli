@@ -6,6 +6,59 @@
 
 ### 新增
 
+- **视觉真源的兑现机制（增补项 A34）**：Sustain 用 vima 重建后「页面变死板」的取证结论是——
+  管线里的视觉轨道**有承诺、无兑现、降级零成本、且即便看见稿也无权实现**。三条实测病根：
+  ① `design-links.md` 被 3 份程序资产引用而 `lib/` 命中数为 0（无模板、无 init 落点、无机检消费方）；
+  ② planning-guide 明写「只做 Stage A、不做 Stage B：**合法**」，`_template-fe.md` 允许写「无稿」；
+  ③ `_template-fe.md` 禁止页面自写 `display: grid` + builder「实现即判越界 fail」，
+  使「页面级独特构图」无验收加分、有越界风险，Agent 选保守实现是**理性最优解**。
+  本项按 vima 自己的 A6（每条规范有唯一执行者）/ A5（诚实分级）/ A2（单一真源）补齐三件套：
+
+  - **保真分级**：PDL 增 `design.fidelity` ∈ {D0,D1,D2}，**V-DSN-12 强制显式声明**
+    （`designCapability: legacy` 存量项目整体豁免）——D0 是一次明确裁定，「缺失」不等价于 D0。
+    另增 `primaryTask`（D1/D2 必填）与**带类型的** `mustPreserve`
+    （`{id,kind,statement,verifier}`，kind↔verifier 强制相容，V-DSN-11）——
+    「配置与预览同步」「切换患者不重挂载」无法靠截图裁定，**类型即执行者路由**。
+    `pattern` 增 `custom`（V-DSN-10：必带 intent + D2），承认某些页面就是独特的，
+    好过继续扩枚举（10 词词表仍装不下三栏设计器）。
+  - **Builder 三层授权**：锁定层（字段/API/权限/规则/能力/范围，擅改即 fail）+
+    遵循层（D1/D2 照稿含 mustPreserve）+ **自由层**（页面级 grid、图表化、微交互、
+    page-local CSS）。关键措辞：**不得把稿里的图表/消息流/画布/时间线/实时预览降级为
+    表格或 textarea**。新增领域组件层 `src/features/<domain>/components/`（页面任务只读消费，
+    只能提 `componentExtractionRequest`；**不进 `sharedDirs`**）。
+  - **DESIGNING 阶段**：PLANNING →（`vima approve --planning`，**独立校验 profile**，
+    不要求 V-TASK/V-COV——任务拆解发生在设计冻结之后）→ DESIGNING → (`vima approve`) → DEVELOPING。
+    checklist **只有 2 个持久键**，其余 6 项一律派生不落盘（落盘即与 `designApproval` 双真源）。
+    全页 D0 的项目确定性跳过发散轮。**存量项目不倒退阶段**（A19 可达性）。
+  - **新命令 `vima design`**：status（只读派生索引 INDEX.json，`--check` 验漂移）/
+    check（DESIGNING 出口，V-DSN-09 + 六项派生，**不看任何实现期报告**）/
+    verify --prepare（先生成报告作者所需 digest，解开报告与摘要的循环依赖）/
+    verify（DEVELOPING 收口，报告矩阵 + 三个 digest 的 stale 判定）/
+    approve / invalidate / **reconcile**（受控回写环：复用 A31 已导出的 `computeImpact`，
+    但用 DESIGNING 口径闸门——直接复用 `change close` 会因「要求任务全 done」而死锁）。
+    **零网络零浏览器**：Claude Design MCP、无头浏览器、截图冻结全部落 workspace 资产
+    （`vima-designer` 子代理 + `/design` 命令），`lib/` 保持平台中立与零运行时依赖。
+  - **三类验收**：Semantic（既有）+ Design Reviewer（专抓**表达降级**）+
+    Experience Verifier（D2 真跑 `primaryTask`，**做不完即判失败**，兑现 A7 从「长得对」到「跑得通」）。
+    报告契约落 `.vima/reports/{design,experience}/<PAGE>.json`，**三个 digest 的计算范围入契约**
+    （不定范围则实现者必在「hash 整库 ⇒ 全部 stale」与「只 hash 页面目录 ⇒ 共享组件变化不失效」
+    之间二选一）。`/go` 5.2.6 升级为收口硬门，**只消费 `vima design verify` 的汇总结果**。
+  - **批准摘要驱动失效**：`lifecycle.designApproval` 按端存 directions、按页存 pages，
+    连同 spec 与设计目录摘要——改稿或改 spec 即自动失效，复用 A12 既有新鲜度机制的同一模式。
+  - **`vima certify` 扩面**：`implemented` 级增采报告矩阵（不新增等级）——
+    否则 certify 会把「视觉一次没跑」的项目评为 pipeline-green，正是 A34 要治的假成功换了个地方。
+  - **Stage A0 三方向发散**：治「确定性推导产不出惊喜」——A30 的风格推导是确定性函数，
+    同一输入恒得同一输出，用在产品气质上必然得中位解。三方向**按端各一张**标志性页面，
+    交付物含差异矩阵（只交三张静态图，「方向」很可能只是三套配色），**Agent 不得自选胜者**。
+    设计系统从**获胜实例反向提炼**（先有优秀实例、再抽象规则，顺序不能反）。
+  - **新增 userOwned 资产** `docs/interaction-language.md`：Stage A 的第二个产出，
+    条目**不得凭空写**（只许来自获胜实例反推或 `vima retro` 反哺），每条带执行者。
+
+  **宣称边界（A5）**：本项建立的是创新**发生与存活**的机制，不保证每次设计都优秀。
+  Sustain 四页黄金样本通过前，只宣称「具备承载与保护创新设计的机制」，
+  不得宣称「vima 已具备稳定产生优秀设计的能力」。
+  取证与六轮评审收敛全过程见 `docs/design/sustain-vima-visual-regression-{analysis,solution}.md`。
+
 - **维护期变更事务（增补项 A31，`vima change`）**：维护期变更纪律此前是纯散文协议
   （CLAUDE.project.md 工作协议 + 设计 §13.4），「影响了谁 / 重开哪些 done / 重跑什么 /
   传播完没有 / 差异与批准记录在哪」五问无一可机器回答。新命令五个子命令：

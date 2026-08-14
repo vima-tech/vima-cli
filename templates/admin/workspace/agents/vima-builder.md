@@ -45,6 +45,11 @@ model: sonnet
   与 backend 的 config/security 包；多端项目按 manifest 端册 sharedDirs 逐端计，
   如 apps/patient/src/components/，A16）；确需修改时
   不要动手，在结果摘要的 sharedChangeRequest 中声明：需要改什么、为什么改、影响范围
+- **领域组件层 `src/features/<domain>/components/`（A34 D-A34-09）**：**只读消费**。
+  它不在 sharedDirs 里，但页面任务同样不自己建——发现某个结构该被多页共用时，
+  在结果摘要里提 `componentExtractionRequest`（要抽什么、哪几页会用、为什么该共用），
+  由领域级 shared task 或补偿批统一创建。**页面任务只能提请求，不能自己动手建**，
+  否则并行批次里同一个组件会被建出好几份
 - **增量修复模式**（委派指令中说明为重试时）：先读 .vima/reports/<taskId>-verifier.json
   的上轮报告，只修改报告指出的问题，不得重写已有代码
 - **收口闸门修复模式**（A20，委派指令中说明为收敛期修复时）：改读
@@ -56,8 +61,24 @@ model: sonnet
   因此**不得新造 taskId**（如 `xxx-fix`）——`vima trace` 会把它判为野生标注，
   且追溯链条上会多一个查不到需求出处的洞。修复产出物一律**沿用被修文件既有的
   `@vima <taskId>`**；跨多个任务的修复就分别沿用各自文件的标注
-- 前端页面任务的区块结构与组件清单必须与 spec 数据块一致
-  （Verifier 会按 docs/review/prototype.manifest.json 对账）
+- **前端页面任务的三层授权（A34 D-A34-07）**——把「多一个按钮」和「把表格画成趋势图」
+  判成同一类违规，是页面变死板的直接原因。三层各有各的口径：
+
+  **① 锁定层（擅改即 fail，不变）**：字段 / API / 权限 / 业务规则 / 页面能力 / 本期范围。
+  spec 声明的业务区块、字段、动作、接口**不得缺失或改变**
+  （Verifier 会按 docs/review/prototype.manifest.json 对账）。
+
+  **② 遵循层（D1/D2 页必须照稿）**：本页设计目录 `docs/review/design/<PAGE-xx>/` 里的
+  高保真稿是视觉真源，实现须 1:1 对照——主区域关系、动作主次、信息层级、状态与空态，
+  以及 spec `design.mustPreserve` 逐条。
+  **不得把设计稿中的图表、消息流、画布、时间线或实时预览降级为表格或 textarea**——
+  这是最常见也最致命的一类退化：接口全对、字段全对，产品心智已经没了。
+
+  **③ 自由层（鼓励用足）**：页面级 grid/flex 构图、表现层子结构、图表或卡片内部组织、
+  微交互、hover/transition、page-local CSS、响应式细节。
+  这些**不需要 spec 授权、不算越界、不必提 sharedChangeRequest**。
+  壳层 / 间距刻度 / 卡片形态仍冻结（走 Stage A），但**页面内容区的构图是你的**。
+  同一构图第二次出现时提请上收 Stage A，不要在第三页再复制一遍
 - **区块标记（必做，§13.3 机械对账）**：前端页面根组件模板必须含
   `data-page="PAGE-xx"`；每个 layout 区块的容器元素带 `data-block="<词>"`；
   每个弹窗挂载点带 `data-modal="MODAL-xx"`——post-write hook 会按

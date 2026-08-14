@@ -136,6 +136,7 @@ test('⑥bis converge：黄金态零 error；复制一份 Controller 造重复�
 });
 
 test('⑦approve：前置齐备 → tasksApproved 落痕（§19.10）', async () => {
+  assert.equal(vima(['approve', '--planning']).code, 0, 'A34 项目先进入 DESIGNING');
   const r = vima(['approve']);
   assert.equal(r.code, 0, r.out);
   const lc = JSON.parse(await readFile(path.join(proj, 'docs/lifecycle.json'), 'utf8'));

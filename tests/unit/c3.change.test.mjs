@@ -154,6 +154,34 @@ test('apply：受影响的 done 任务重开为 pending，留痕 reopened；clos
   assert.match(closed.stderr, /CHANGE_UNPROPAGATED/);
 });
 
+test('apply：legacy 项目页面变更只将受影响页拉回局部 DESIGNING，并作废旧批准', async (t) => {
+  const root = await cloneGolden(t);
+  const lifecyclePath = path.join(root, 'docs/lifecycle.json');
+  const lifecycle = await readJson(root, 'docs/lifecycle.json');
+  lifecycle.designCapability = 'legacy';
+  lifecycle.designScope = { pages: [] };
+  lifecycle.currentPhase = 'MAINTAINING';
+  lifecycle.checklists.PLANNING.tasksApproved = true;
+  lifecycle.designApproval = {
+    directions: {},
+    pages: { 'PAGE-01': { approvedAt: '2026-01-01T00:00:00.000Z', fidelity: 'D0' } },
+  };
+  lifecycle.phaseHistory.push({ phase: 'MAINTAINING', enteredAt: '2026-01-01T00:00:00.000Z', completedAt: null });
+  await writeFile(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`);
+
+  assert.equal(vima(root, 'change', 'open', '调整设备列表体验').code, 0);
+  await mutate(root, 'docs/spec.md', 'id: PAGE-01\ntitle: 设备列表', 'id: PAGE-01\ntitle: 设备列表工作台');
+  const applied = vima(root, 'change', 'apply');
+  assert.equal(applied.code, 0, applied.stderr);
+
+  const after = await readJson(root, 'docs/lifecycle.json');
+  assert.equal(after.currentPhase, 'DESIGNING');
+  assert.deepEqual(after.designScope.pages, ['PAGE-01']);
+  assert.equal(after.designApproval.pages['PAGE-01'], undefined);
+  assert.equal(after.checklists.PLANNING.tasksApproved, false);
+  assert.match(after.checklists.PLANNING.tasksApprovedInvalidatedReason, /PAGE-01/);
+});
+
 test('close：受影响任务全 done + validate/converge 全绿 → 关闭留痕；closed 后不可再 apply', async (t) => {
   const root = await cloneGolden(t);
   await annotateController(root);

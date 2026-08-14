@@ -16,7 +16,18 @@ async function cloneGolden(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-c3-approve-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(GOLDEN, root, { recursive: true });
+  const p = path.join(root, 'docs/lifecycle.json');
+  const lc = JSON.parse(await readFile(p, 'utf8'));
+  lc.designCapability = 'legacy';
+  await writeFile(p, `${JSON.stringify(lc, null, 2)}\n`);
   return root;
+}
+
+async function markA34(root) {
+  const p = path.join(root, 'docs/lifecycle.json');
+  const lc = JSON.parse(await readFile(p, 'utf8'));
+  lc.designCapability = 'a34';
+  await writeFile(p, `${JSON.stringify(lc, null, 2)}\n`);
 }
 
 function vima(cwd, ...args) {
@@ -105,6 +116,99 @@ test('前置全过：打印任务汇总表 → 写 tasksApproved/tasksApprovedAt
   assert.match(r.stdout, /\/go/);
   const lifecycle = JSON.parse(await readFile(path.join(root, 'docs/lifecycle.json'), 'utf8'));
   assert.equal(lifecycle.checklists.PLANNING.tasksApproved, true);
+  assert.equal(lifecycle.currentPhase, 'DEVELOPING', 'legacy 项目的最终 approve 也须由内核确定性推进阶段');
   // tasksApprovedAt 为真实 ISO 时间戳（approve 属允许时间戳的例外命令）
   assert.match(lifecycle.checklists.PLANNING.tasksApprovedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+});
+
+// ── A34：阶段推进事件表（D-A34-28）与 PLANNING 独立校验 profile（D-A34-29）──
+
+test('approve --planning：用独立 profile（不要求 V-TASK/V-COV）→ 进 DESIGNING 并建基线快照', async (t) => {
+  const root = await cloneGolden(t);
+  // 故意制造 V-COV-01 缺口：任务未拆解时覆盖矩阵必然不完整，完整 validate 会红
+  await writeFile(path.join(root, 'docs/coverage-matrix.md'), '| 端 | 页面 | 接口 |\n|---|---|---|\n| admin | PAGE-01 | TODO |\n');
+  const r = vima(root, 'approve', '--planning');
+  assert.equal(r.code, 0, `PLANNING profile 不该被 V-COV-01 挡住\nstderr: ${r.stderr}\nstdout: ${r.stdout}`);
+  const lc = JSON.parse(await readFile(path.join(root, 'docs/lifecycle.json'), 'utf8'));
+  assert.equal(lc.currentPhase, 'DESIGNING', 'PLANNING 的下一站是 DESIGNING，不是 DEVELOPING');
+  assert.ok(lc.phaseHistory.some((h) => h.phase === 'DESIGNING'), '阶段历史须留痕');
+  assert.match(r.stdout, /基线快照/, '受控回写环需要 PLANNING 出口的基线');
+});
+
+test('approve --planning 否定用例：spec 层错误仍然拦（放宽的只有任务与覆盖矩阵）', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  // 制造 V-DSN-12 缺口：删掉两页的 fidelity 声明
+  await writeFile(p, text.replace(/^ {2}fidelity: D0.*$/gm, ''));
+  const r = vima(root, 'approve', '--planning');
+  assert.equal(r.code, 4, r.stdout);
+  assert.match(r.stderr, /V-DSN-12/, '设计声明缺失属 PLANNING profile 范围内，必须拦');
+});
+
+test('approve --planning：planning-brief profile 不执行 V-CODE-*', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  await cp(path.join(root, 'apps/admin/src'), path.join(root, 'src'), { recursive: true });
+  await rm(path.join(root, 'apps'), { recursive: true, force: true });
+  const p = path.join(root, 'src/api/device.ts');
+  await writeFile(p, `${await readFile(p, 'utf8')}\nexport const rogue = () => request.post('/device/rogue')\n`);
+  assert.equal(vima(root, 'validate').code, 2, '完整 validate 应命中 V-CODE-01');
+  const r = vima(root, 'approve', '--planning');
+  assert.equal(r.code, 0, `planning-brief 不该执行 V-CODE-*：${r.stderr}`);
+});
+
+test('approve --planning：planning-brief 不加载尚未形成或已损坏的任务', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  const p = path.join(root, 'docs/tasks/device-api-be.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text.replace('layer: business', 'layer: nonsense'));
+  assert.equal(vima(root, 'validate').code, 2, '完整 validate 应拒绝非法任务 frontmatter');
+  const r = vima(root, 'approve', '--planning');
+  assert.equal(r.code, 0, `planning-brief 不应读取任务：${r.stderr}`);
+});
+
+test('A34 阶段状态机：最终 approve 必须 DESIGNING → DEVELOPING，且非法重复迁移被拒绝', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  assert.equal(vima(root, 'approve', '--planning').code, 0);
+  const repeated = vima(root, 'approve', '--planning');
+  assert.equal(repeated.code, 4, 'DESIGNING 期不得再次覆盖 PLANNING 基线');
+  assert.match(repeated.stderr, /PHASE_TRANSITION/);
+  renderReal(root);
+  const r = vima(root, 'approve');
+  assert.equal(r.code, 0, r.stderr);
+  const lc = JSON.parse(await readFile(path.join(root, 'docs/lifecycle.json'), 'utf8'));
+  assert.equal(lc.currentPhase, 'DEVELOPING');
+  assert.equal(lc.phaseHistory.find((h) => h.phase === 'DESIGNING')?.completedAt === null, false);
+  assert.ok(lc.phaseHistory.some((h) => h.phase === 'DEVELOPING' && h.completedAt === null));
+});
+
+test('approve 前置 4（A34）：D1 页缺设计产物 → 设计闸门拦住，不得进 DEVELOPING', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  assert.equal(vima(root, 'approve', '--planning').code, 0);
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text
+    .replace('  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12')
+    .replace('  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置'));
+  renderReal(root);
+  const r = vima(root, 'approve');
+  assert.equal(r.code, 4, `stdout: ${r.stdout}`);
+  assert.match(r.stderr, /设计闸门未全绿/);
+  assert.match(r.stderr, /designArtifactsComplete = false/);
+});
+
+test('approve 前置 4：legacy 存量项目整体豁免设计闸门（A19 存量可达性）', async (t) => {
+  const root = await cloneGolden(t);
+  const lp = path.join(root, 'docs/lifecycle.json');
+  const lc = JSON.parse(await readFile(lp, 'utf8'));
+  lc.designCapability = 'legacy';
+  await writeFile(lp, `${JSON.stringify(lc, null, 2)}\n`);
+  renderReal(root);
+  const r = vima(root, 'approve');
+  assert.equal(r.code, 0, `存量项目不该被新增闸门挡住\nstderr: ${r.stderr}`);
 });

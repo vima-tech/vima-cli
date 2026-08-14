@@ -21,7 +21,7 @@
 - 禁止写死颜色/圆角/间距（取 src/styles/tokens.css 的 `--v-*` 令牌）；页面根必须是 `.vui-page`
 
 # 工作协议
-- 每次对话开始，先读取 docs/lifecycle.json，按当前阶段（PLANNING/DEVELOPING/MAINTAINING）模式工作
+- 每次对话开始，先读取 docs/lifecycle.json，按当前阶段（PLANNING/DESIGNING/DEVELOPING/MAINTAINING）模式工作
 - 收到开发需求时，先定位 docs/tasks/ 下相关任务文件，再执行修改
 - 使用组件前，必须先读取 docs/ui-framework/CAPABILITY.md，再读对应组件文档
 - 新建/修改业务代码文件时，文件头部必须带 `@vima <taskId>` 注释标注（代码级追溯）

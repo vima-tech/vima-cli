@@ -62,15 +62,27 @@ updatedAt: 2026-01-01T00:00:00Z
 - [ ] 业务规则校验生效（含边界值与错误提示）
 - [ ] npm run build:check 通过
 
-## 设计稿（A29 视觉真源 / A30 两段式）
+## 设计稿（A29 视觉真源 / A30 两段式 / A34 保真分级）
 
-- **所属 pattern**：`<list | detail | form | workbench | master-detail | board>`
+- **保真级**：`<D0 | D1 | D2>`——取自 spec 本页 `design.fidelity`（**必填**，V-DSN-12）。
+  D0 = 标准 CRUD，按 Stage A 模式库实现即可；D1 = 领域信息页，有逐页高保真稿；
+  D2 = 标志性交互页，另有交互原型与体验验收。**D0 是一次明确裁定，不是「没写」。**
+- **所属 pattern**：`<list | detail | form | workbench | master-detail | board | custom>`
   ——本页归哪套版面，条目见 `docs/design-language.md` 第 4 节（Stage A 冻结）。
-  版面类、间距刻度、卡片形态**照条目实现，本任务不自行决定**；
-  确需新版面走 `sharedChangeRequest` 回收编，不在页面里自写 `display: grid`。
-- **本页高保真稿**：`<claude.ai/design 链接，取自 docs/review/design-links.md>`
-  ——有稿必 **1:1 对照实现**（构图/字段取舍/空态/动作主次）；无稿页写「无稿」，
-  不得拿线框冒充。收口期 5.2.6 校准轮按此稿逐页比对。
+  壳层、间距刻度、卡片形态**照条目实现，本任务不自行决定**（确需新版面走
+  `sharedChangeRequest` 回收编）；但**页面内容区的构图是本任务的自由层**，
+  可以自写 `display: grid`——同一构图第二次出现时再提请上收 Stage A。
+  `custom` 表示本页版面六种模式都解释不了，它必须是 D2 且带 `intent`。
+- **本页设计目录**：`docs/review/design/<本任务 page 值>/`
+  ——路径**由 pageId 推导**，spec 里没有也不该有路径字段。
+  D1 含 `default.png` + `empty.png`；D2 另有 `prototype.html` + `scenarios.md`。
+  **有稿必 1:1 对照实现**（构图 / 字段取舍 / 空态 / 动作主次），
+  且**不得把稿里的图表、消息流、画布、时间线或实时预览降级为表格或 textarea**。
+- **primaryTask**（D1/D2 必填）：`<一句话：本页用户最重要的任务>`
+  ——D2 页收口时 Experience Verifier 会真跑一遍，**做不完即判失败**。
+- **mustPreserve**（D2 必填）：spec 本页 `design.mustPreserve` 逐条登记了
+  「不得被降级掉」的交互事实，每条带 `kind`（visual/interaction/runtime）与
+  `verifier`（design/experience）。实现时逐条兑现；收口时逐条对账，漏一条即判未覆盖。
 
 ## 开发步骤
 

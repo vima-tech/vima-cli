@@ -12,13 +12,29 @@
 ### 1. 状态检查与三道校验闸门（产物质量不靠 Agent 自觉）
 
 - 读取 docs/lifecycle.json（缺失则提示先执行 `vima init`，终止）。
-- 若 currentPhase = PLANNING，依次通过三道闸门：
+
+**阶段分派（A34 D-A34-28）**——`currentPhase` 决定走哪条路，
+**不再假定 PLANNING 的下一站是 DEVELOPING**：
+
+| currentPhase | 该做什么 |
+|---|---|
+| `PLANNING` | 走下方三道闸门；通过后跑 `vima approve --planning` 进 **DESIGNING**（**不是** DEVELOPING）。它用独立校验 profile——不要求 V-TASK-\*/V-COV-01，因为任务拆解发生在设计冻结之后 |
+| `DESIGNING` | 交给 `/design`：A0 三方向发散 → 用户选型 → 受控回写 → 反向提炼 Stage A → Stage B 逐页稿冻结 → `vima design check` 六项全绿 → `vima approve` 进 DEVELOPING |
+| `DEVELOPING` | 走下方批次开发流程 |
+| `MAINTAINING` | 走维护期流程（`vima change`） |
+
+> **全页 D0 的项目**：`vima design check` 会确定性判定跳过发散轮
+> （`vima approve --planning` 后无需 A0/Stage B；完成 A30 Stage A、任务与评审载体重建后再
+> `vima approve`），设计语言仍由 A30 推导产出 Stage A。
+> `designCapability: legacy` 的存量项目整体豁免设计闸门（A19 存量可达性）。
+
+- 若 currentPhase = PLANNING，依次完成以下三步；这里评审的是**设计前的结构 Brief**，
+  不得提前要求任务拆解或 `tasksApproved`：
 
   **第一道：机械校验（确定性，零 token）**
-  运行 `vima validate`。它按 docs/planning-validation/validate.checklist.md 检查：
-  产物结构完整（spec 九章齐全、契约接口五要素齐全）；引用闭环（spec 页面接口 ⊆ 契约、
-  无孤儿契约、契约必有前后端任务成对引用、dependsOn 引用的 taskId 都存在）；
-  taskStats 与 frontmatter 对账。exit 非 0 → 输出缺失清单，终止 /go，交用户处置。
+  最终由 `vima approve --planning` 内置的 `planning-brief` profile 检查：spec / 契约 / 权限 /
+  pendingConfirm / 来源与 V-DSN-01…08、10/11/12。它**不执行** V-TASK-*、V-COV-01、
+  V-CODE-*；这些规则在设计冻结、任务重建后由最终 `vima approve` 的完整 validate 执行。
 
   **第二道：语义抽查（Verifier 子代理，只读）**
   派发 vima-verifier 子代理抽样核对产物与 docs/raw/ 原文的一致性（契约字段、spec 章节
@@ -36,14 +52,11 @@
   `vima validate` 后再过本闸门；属可推断项 → 在对应 YAML 条目标
   `pendingConfirm: true`（approve 时统一裁定）。
 
-  **第三道：用户评审已落痕**
-  检查 lifecycle 的 checklists.PLANNING.tasksApproved 是否为 true（该位只能由
-  `vima approve` 机械置位，approve 内部会阻断未确认的 pendingConfirm）。
-  未置位 → 提示用户在浏览器核对 docs/review/index.html（审计视图）、
-  线框原型（单端 docs/review/prototype.html；多端项目为逐端 docs/review/prototype.<端id>.html，A16）
-  与 docs/coverage-matrix.md 后运行 `vima approve`，终止 /go。
-
-  三道全部通过 → currentPhase 切换为 DEVELOPING 并记录时间（phaseHistory 追加）。
+  **第三道：用户确认结构 Brief，进入设计期**
+  提示用户核对当前 spec、契约、审计视图与线框原型；确认后运行 `vima approve --planning`。
+  该命令在检查通过后将 `PLANNING → DESIGNING` 并建立受控回写基线。
+  **此处不置 `tasksApproved`，也不进入 DEVELOPING**。设计冻结后重建任务与覆盖矩阵，
+  再由无参 `vima approve` 完整校验、置 `tasksApproved` 并推进 `DESIGNING → DEVELOPING`。
 
 - 若 currentPhase = DEVELOPING：进入断点续跑模式（见步骤 4）。
 
@@ -192,9 +205,13 @@ Kimi WebBridge 按 skill 的启动/重试步骤后仍不可用，才执行 `npm 
 回退；回退也不可用或 dev server 起不来 → 在完成报告如实写「无版面冒烟通道」。
 **不许把「没测」说成「零问题」**；本步不是停点。
 
-**5.2.6 设计稿校准轮（A29——冒烟归零后、收尾流水线前）**
+**5.2.6 设计稿校准轮 + 视觉体验收口硬门（A29/A34——冒烟归零后、收尾流水线前）**
 
-`docs/review/design-links.md` 有登记稿的页面，逐页做**样式一致性校准**：
+> **A34 改判触发条件**：从「有登记稿的页面」改为「**全部 D1/D2 页**」。
+> 原条件挂在「有没有登记」这个可被绕过的事实上——零登记则整轮 no-op 且无人会发现；
+> 现在挂在 `design.fidelity` 上，而它已被 V-DSN-12 强制声明。
+
+**① 逐页校准**：`docs/review/design/<PAGE-xx>/` 有冻结稿的页面，逐页做**样式一致性校准**：
 沿用 5.2.5 的 dev:demo 与 Kimi WebBridge session 逐页截图，与该页 Claude Design 稿对照，校准不一致处
 （间距取值、面板主轴方向、控件形态、空态呈现——试点实测最常漂移的四类）。
 
@@ -205,8 +222,41 @@ Kimi WebBridge 按 skill 的启动/重试步骤后仍不可用，才执行 `npm 
   多页同时偏同一个方向的，一律按版面级处理。
 - **页面级**（本页构图、字段取舍、空态呈现、动作主次）→ 并入 5.2 回修通道**派回本页任务**。
 
-两级改完都**复跑 5.2.5 冒烟归零**（校准不得引入新的结构缺陷）。没有登记稿的页面跳过
-并在完成报告如实写「无视觉稿通道」；本步不是停点。
+**② 三类验收报告（A34 D-A34-20）**——按报告矩阵派子代理，各写各的结构化报告：
+
+先运行一次 `vima design verify --prepare`，生成
+`.vima/reports/design-verify-inputs.json` 与逐页 implementation-deps。报告作者从这里逐页抄
+`specDigest/designDigest/implementationDigest`；**不允许各自重算**，也不必靠一次预期失败的
+正式 verify 才拿到输入。
+
+| 保真级 | 需要的报告 | 谁写 | 落点 |
+|---|---|---|---|
+| D0 | Semantic | `vima-verifier` | `.vima/reports/<taskId>-verifier.json` |
+| D1 | + Design | `vima-design-reviewer` | `.vima/reports/design/<PAGE-xx>.json` |
+| D2 | + Experience | `vima-experience-verifier` | `.vima/reports/experience/<PAGE-xx>.json` |
+
+Design Reviewer 专抓**表达降级**（稿里的图表/消息流/画布/时间线/实时预览，实现里变成了
+表格或只读 textarea）；Experience Verifier 跑一遍 `design.primaryTask`，
+**主任务一口气做不完就判失败**，哪怕所有接口都通——那正是要拦的那种「成功」。
+
+**③ 收口硬门（确定性，只消费汇总结果）**：
+
+```bash
+vima design verify      # 汇总报告矩阵 + 三个 digest 的 stale 判定
+```
+
+`uncovered` 或 `stale` 非空 → **不得进收尾流水线**，回 5.2 回修通道。
+`/go` 只看这条命令的结论，不自行判断视觉好坏。
+
+> 三个 digest 的范围是固定的：`specDigest` = 本页数据块 + 其 apis 的契约切片；
+> `designDigest` = manifest 及其声明的全部文件 + 本端 Stage A 核心资产 + D1/D2 的
+> interaction-language；`implementationDigest` = 本页 `@vima` 标注文件 + 静态可达的
+> features / styles 资产（动态 import 无法静态解析时保守纳入本端全部 features）。
+> 任一漂移 → 旧报告判 stale，必须重跑——**改了共享领域组件却不使相关页面失效，
+> 正是本轮要防的那类漂移**。
+
+两级改完都**复跑 5.2.5 冒烟归零**（校准不得引入新的结构缺陷）。D1/D2 缺稿或缺报告
+就是硬失败，不得写「无视觉稿通道」后跳过；只有 D0 按报告矩阵不要求逐页视觉稿。
 稿是视觉真源，探针是结构真源——两边都过才算收口。
 
 **5.3 收尾流水线**
@@ -243,9 +293,13 @@ pipeline 任务发现的缺陷同样**派回负责的业务任务**做增量修�
   > ① 本次有没有**想表达但框架表达不了**的东西（页面形态、交互、规格结构上被迫降级
   >   或绕过的地方）？历次增补项（A14 分栏版面、A16 多端应用模型）都出自这一问。
   > ② 哪一步最费时间／最反复？
+  > ③ 这次有没有经实测证明、值得保留到后续维护的交互决策？若有，请给出适用条件、
+  >   做法、反例和唯一执行者（design 或 experience）。
 
 - **用户同意** → 把用户的回答**逐字**补进 `docs/retro/vima-feedback.md` 的「人工补充」段
-  （不要替用户润色成套话），然后执行：
+  （不要替用户润色成套话）。第 ③ 问确认出的条目同时追加到
+  `docs/interaction-language.md`，标注 `来源: retro` 并保留四段式判据；没有用户确认就不得凭空追加。
+  然后执行：
 
   ```bash
   gh issue create --repo vima-tech/vima-cli --title "<一句话标题>" --body-file docs/retro/vima-feedback.md

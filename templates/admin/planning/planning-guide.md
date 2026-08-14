@@ -263,55 +263,71 @@ vima validate --artifact <path>   # 只跑与该产物关联的规则
 **开启方式**：在 Claude Code 会话里运行 `/design consent` 授权 Claude Design 连接
 （或到 claude.ai/design/settings 打开）；首次调用设计工具时也会给出授权提示。
 
-### Stage A · 版面语言（PLANNING 末，一次性，全项目一次）
+### Stage A · 先发散实例，再反向提炼语言（DESIGNING）
 
-1. **推取向**（是「推导」不是「挑选」）：打开 `docs/design-language.md`，按四步走——
-   1. **填观察量**（§2 八项：值守模式 / 决策时效 / 使用环境 / 受众 / 主导数据形态 /
-      交互设备 / 行业默认色相 / 色彩禁忌）。**信息源分级同本文第 3 节**：
-      spec 与 raw 里读得到的直接填并注出处；读不到的**问用户**；确实只能推断的标
-      `pendingConfirm: true` 进 approve 统一裁定。**不许因为「看着像」就填**——
-      观察量填错，后面整条推导链都是错的。
-   2. **套推导规则**（§3 八条）得出七条取向轴档位；两条规则冲突时按文中优先级裁定，
-      并把冲突与裁定记进 §7。
-   3. **定色彩**（§4 三条判据）：从行业语义取色相 → 与该行业老系统默认色相相距 ≥30°
-      → 语义色由品牌色反推同明度带。与色彩禁忌冲突时**禁忌优先**。
-   4. **写产物**：结果连同「由哪条规则推出」一并填进 §7「本项目定档」。
-   §1 **不变层**（八条与场景无关的准则）不参与推导，照抄即可；
-   §8 三份范例只是用法示范，**不得直接套用**——新场景一律自己走一遍 §2→§3→§4。
-2. **出模式参考页**：本项目实际用到的每个 `design.pattern`（list/detail/form/workbench/
-   master-detail/board）各出**一张**稿。必须用**本项目真实字段名与真实数据量**
-   （`vima mock` 档位供数）、含空态、复刻本项目壳层。出稿提示见 design-language.md 第 5 节。
-   ⚠️ 不得用 lorem 或通用示例——通用模板会退回「框架类 + 词表」的老路，那是被否掉的做法。
-3. **人审定版面**：请用户在稿上确认「整个项目长什么样」。**这是版面唯一一次人审**。
-4. **固化进仓库**（关键，不做这步等于白开一轮会）：
-   - 版面类 → `src/styles/layout.css`（`.vui-layout-*`）
-   - 间距 / 圆角 / 投影取值 → `src/styles/tokens.css`
-   - 模式库条目（何时用 / 骨架 PDL / 反例 / 参考页链接）→ 追加进 `docs/design-language.md` 第 4 节
+1. **Design Brief**：读取 `docs/design-language.md` 的八项观察量；spec/raw 有出处的直接记录，
+   读不到就问用户。既有推导规则只负责给发散设边界与审查「有没有跑偏」，**不负责生成唯一答案**。
+2. **按端三方向发散**：每个 app kind 选一张标志性页面，做 A/B/C 三个在信息架构、交互重心、
+   视觉重心上真正不同的方向，同时写核心任务流、关键状态转换与差异矩阵。不能只换配色。
+3. **用户选型**：Agent 可以推荐但不得代选。每端固定冻结包为
+   `docs/review/design/_shell/<appId>/{brief.md,direction-a.png,direction-b.png,direction-c.png,comparison.md,selection.md,manifest.json}`；
+   `manifest.json` 声明前六个文件。完整后运行 `vima design approve direction --app <id>`。
+4. **必要时受控回写**：获胜方向改变页面能力、交互模型或信息架构时，回写 spec/契约并运行
+   `vima design reconcile`；不要用要求任务 done 的 `vima change close`。
+5. **从获胜实例反向提炼**：先有优秀实例，再把 shell、tokens、密度、卡片形态、状态表达、
+   动作层级、图表/空态/交互语言固化。各端的 Stage A 样式真源不同：
 
-   **云端稿到此作废**——云端项目是草稿纸，仓库文件才是产物。
+   | app kind | 样式真源 |
+   |---|---|
+   | `admin-web` | `<app>/src/styles/layout.css` + `tokens.css` |
+   | `mp-native` | `<app>/src/vendor/vima-ui-mp/dist/ui.wxss` + `tokens.wxss` |
+   | `h5-mobile` | `<app>/vendor/vima-ui-h5/dist/ui.css` + `tokens.css` |
+
+   跨端共同沉淀 `docs/design-language.md`；项目含 D1/D2 时再沉淀
+   `docs/interaction-language.md`。云端项目是草稿纸，仓库文件才是产物。
 
 ### Stage B · 页面内容稿（逐页）
 
-5. **出稿**：每张业务页一张，输入 = Stage A 冻结的模式库条目 + 该页 PDL +
+6. **出稿**：每张 D1/D2 业务页一张，输入 = Stage A 冻结的模式库条目 + 该页 PDL +
    契约推导的 `data.shape`。只决策**内容区**：选哪个 pattern、块怎么排、取哪些字段、
    空态怎么呈现、动作主次。**不动壳层 / 间距刻度 / 卡片形态**——那些 Stage A 已冻结。
-   确需新版面：走 `sharedChangeRequest` 回 Stage A 收编进 `layout.css` 后再用，
-   不要留在页面里自写 `display: grid`。
-6. **登记**：每页链接进 `docs/review/design-links.md`
-   （格式：`- PAGE-xx 页名 → <claude.ai/design 链接>`）。用户可在 claude.ai/design 编辑器里直接改稿。
-7. **按稿开发（DEVELOPING）**：前端任务卡的「设计稿」行带本页链接与**所属 pattern**，
+   确需**新版面骨架**：走 `sharedChangeRequest` 回 Stage A 收编进 `layout.css` 后再用。
+   **但页面内容区的构图是页面任务的自由层**（A34 D-A34-08）——可以自写 `display: grid`，
+   同一构图第二次出现时再提请上收 Stage A。壳层、间距刻度、卡片形态仍冻结。
+7. **冻结（A34 D-A34-11）**：每页产物**冻结进仓库** `docs/review/design/<PAGE-xx>/`
+   （路径由 pageId 推导，spec 里不写路径字段）。D1 存 `default.png` + `empty.png` +
+   `manifest.json`；D2 另存 `prototype.html` + `scenarios.md`，且 **`prototype.html`
+   必须自包含**（字体/图片/脚本内联或同目录冻结并登记进 manifest，零外部网络请求）——
+   外链数月后失效，校准轮就拿不到基线，等同没冻。
+   云端项目是草稿纸，仓库文件才是产物；用户仍可在 claude.ai/design 编辑器里改稿后重新冻结。
+8. **任务重建与批准**：design reconcile 与逐页冻结完成后，按最终 spec/契约重建任务、覆盖矩阵、
+   审计视图与线框原型，运行完整 validate；`vima design check` 六项全绿后，最终 `vima approve`
+   才置 `tasksApproved` 并推进到 DEVELOPING。
+9. **按稿开发（DEVELOPING）**：前端任务卡的「设计稿」行带本页链接与**所属 pattern**，
    实现 1:1 对照；`data-page`/`data-block`/`@vima` 标记与全部机检**照旧，一分不减**——
    稿管好看，探针管不坏，两层互不替代。
-8. **校准（收口）**：版面冒烟后执行设计稿校准轮（/go 5.2.6）逐页截图对照。
+10. **校准（收口）**：版面冒烟后执行设计稿校准轮（/go 5.2.6）逐页截图对照。
    **回修分流**：版面级不一致（间距刻度、版面骨架、卡片形态）回 Stage A 改真源，
    一处修全站；页面级不一致（本页构图、字段取舍、空态）派回本页任务。改完复跑冒烟归零。
 
-### 降级（两级，如实声明）
+### 降级（A34 改判：按保真级分档，不再一律合法）
 
-- **Claude Design 不可用**（无授权/离线）：Stage A 回落为「直接在 `layout.css` /
-  `tokens.css` 上按取向轴调档」+ 第 7 节线框评审；Stage B 回落第 7 节线框评审，
-  并在 `docs/review/design-links.md` 对应页标注「无稿」。
-- **只做 Stage A、不做 Stage B**：**合法**——版面已统一，页面按模式库条目实现即可；
-  完成报告如实写「无逐页视觉稿」。
+**先定级再谈降级。**每页必须显式声明 `design.fidelity`（V-DSN-12，`D0` 也要写出来
+——「缺失」不等价于 D0）。定级建议可由 spec 自动推导（`pattern: custom` 或
+`shape: freeform` → D2；`shape ∈ metrics/timeline/chart` 或 `regions` ≥2 列 → D1；其余 → D0），
+**首次裁定时人可选任意级别**；**批准之后的降级**才需用户显式豁免并记录理由。
 
-两级降级都**不得拿线框冒充视觉稿**，完成报告如实写「无视觉稿通道」。
+| 保真级 | 降级是否合法 | 口径 |
+|---|---|---|
+| **D0** | **合法** | 标准 CRUD 页，按 Stage A 模式库条目实现即可，不必逐页出稿 |
+| **D1** | **不合法** | 需逐页高保真稿（正常态 + 空态）。除非用户显式豁免并记入完成报告 |
+| **D2** | **不合法** | 需交互原型 + 场景脚本 + 体验验收。除非用户显式豁免并记入完成报告 |
+
+- **Claude Design 不可用**（无授权/离线）：D0 页不受影响；
+  **D1/D2 页停在 DESIGNING，不允许静默回退**——`vima design check` 会因
+  `designArtifactsComplete: false` 挡住阶段推进。完成报告如实写「Claude Design 未接入」。
+- **全页 D0 的项目**：`vima design check` 确定性判定跳过发散轮，
+  设计语言仍由本文第 6 节的推导产出 Stage A——**D0-only 不是「没有设计语言」，只是不走发散**。
+
+任何情况下都**不得拿线框冒充视觉稿**。灰盒线框守的是结构下限，
+它按定义「只表达功能与布局，不表达视觉美学」，拿它当视觉评审载体正是 A34 要治的病根。

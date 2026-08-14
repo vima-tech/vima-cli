@@ -26,13 +26,68 @@ test('A29 视觉稿工序：planning-guide 开启说明 + go.md 校准轮 + fe �
   const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
   assert.ok(guide.includes('/design consent'), 'planning-guide 须含 Claude Design 开启命令说明');
   assert.ok(guide.includes('claude.ai/design'), 'planning-guide 须含 claude.ai/design 指引');
-  assert.ok(guide.includes('design-links.md'), 'planning-guide 须登记设计稿台账文件名');
+  // A34 D-A34-27：design-links.md 已废止（它被 3 份资产引用却无模板、无 init 落点、
+  // 无机检消费方——正是「宣称与实现两张皮」）。台账改为仓库内冻结目录。
+  assert.ok(guide.includes('docs/review/design/'), 'planning-guide 须登记仓库内设计冻结目录');
   assert.ok(guide.includes('不得拿线框冒充视觉稿'), 'planning-guide 须写明未接入降级口径');
   const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
   assert.ok(goMd.includes('5.2.6'), 'go.md 须含 5.2.6 校准轮步骤');
   assert.ok(goMd.includes('设计稿校准轮'), 'go.md 须含设计稿校准轮触发词');
   const feTpl = await readFile(path.join(ADMIN, 'planning/_template-fe.md'), 'utf8');
   assert.ok(feTpl.includes('设计稿'), '_template-fe 须含设计稿登记行');
+});
+
+test('A34 幽灵文件已废止：design-links.md 在内核与模板中零残留', async () => {
+  // G1 的病根是「3 份程序资产引用一个从不被创建、从不被机检的文件」。
+  // 本断言盯死它不再回来——新增引用会立刻变红。
+  const r = spawnSync('grep', ['-rl', 'design-links', path.join(CLI_ROOT, 'lib'), ADMIN], { encoding: 'utf8' });
+  assert.equal(r.stdout.trim(), '', `design-links 仍被引用：\n${r.stdout}`);
+});
+
+test('A34 Builder 三层授权：锁定/遵循/自由分面，且禁降级为表格（防漂移）', async () => {
+  const b = await readFile(path.join(ADMIN, 'workspace/agents/vima-builder.md'), 'utf8');
+  assert.ok(b.includes('三层授权'), 'builder 须给出三层授权口径');
+  assert.ok(b.includes('自由层'), 'builder 须明确表现层自由层——否则 Agent 选保守实现是理性最优解');
+  assert.ok(/降级为表格或\s*textarea/.test(b), 'builder 须禁止把图表/消息流/画布/实时预览降级为表格');
+  assert.ok(!b.includes('不在页面里自写'), 'builder 不得再禁止页面内容区自写 grid（G3）');
+  const fe = await readFile(path.join(ADMIN, 'planning/_template-fe.md'), 'utf8');
+  assert.ok(!fe.includes('不在页面里自写'), '_template-fe 同上（G3 的另一处落点）');
+  assert.ok(!fe.includes('无稿'), '_template-fe 不得再提供「写无稿」的零成本降级出口（G2）');
+});
+
+test('A34 三类验收角色资产齐备，且各自写结构化报告（防漂移）', async () => {
+  for (const [name, mustHave] of [
+    ['vima-verifier', '验收'],
+    ['vima-design-reviewer', '表达降级'],
+    ['vima-experience-verifier', 'primaryTask'],
+  ]) {
+    const t = await readFile(path.join(ADMIN, `workspace/agents/${name}.md`), 'utf8');
+    assert.ok(t.includes(mustHave), `${name} 须含关键判据「${mustHave}」`);
+  }
+  const dr = await readFile(path.join(ADMIN, 'workspace/agents/vima-design-reviewer.md'), 'utf8');
+  assert.ok(dr.includes('.vima/reports/design/'), 'Design Reviewer 须写结构化报告（否则内核无消费方 = 重演 G1）');
+  const ev = await readFile(path.join(ADMIN, 'workspace/agents/vima-experience-verifier.md'), 'utf8');
+  assert.ok(ev.includes('.vima/reports/experience/'), 'Experience Verifier 同上');
+  assert.ok(ev.includes('mustPreserveResults'), '须按 mustPreserve.id 逐条对账');
+});
+
+test('A34 designer 资产：MCP 与浏览器只在 workspace 层，且 serve_url 不落盘（防漂移）', async () => {
+  const d = await readFile(path.join(ADMIN, 'workspace/agents/vima-designer.md'), 'utf8');
+  assert.ok(d.includes('三方向'), 'designer 须承载 Stage A0 发散');
+  assert.ok(d.includes('差异矩阵'), '只交三张静态图，「方向」很可能只是三套配色');
+  assert.ok(d.includes('不得自行选定胜者') || d.includes('你不得自行选定胜者'), '口味裁定必须留给用户');
+  assert.ok(d.includes('serve_url'), 'designer 须写明 serve_url 不许落盘');
+  const cmd = await readFile(path.join(ADMIN, 'workspace/commands/design.md'), 'utf8');
+  assert.ok(cmd.includes('vima design check'), '/design 须收口到确定性闸门');
+});
+
+test('A34 内核分层边界：lib/ 零 MCP 工具名与浏览器依赖（硬约束回归）', async () => {
+  const r = spawnSync(
+    'grep',
+    ['-rliE', 'playwright|puppeteer|claude_design|render_preview|create_project', path.join(CLI_ROOT, 'lib')],
+    { encoding: 'utf8' },
+  );
+  assert.equal(r.stdout.trim(), '', `lib/ 出现了 Claude Code 专属语义或浏览器依赖：\n${r.stdout}`);
 });
 
 test('A27 版面冒烟：默认 Kimi WebBridge、Playwright 仅回退且共用探针（防漂移）', async () => {
@@ -104,10 +159,11 @@ test('A30 设计工序两段化：design-language 资产 + guide 两段式 + go.
   const guide = await readFile(path.join(ADMIN, 'planning/planning-guide.md'), 'utf8');
   assert.ok(guide.includes('Stage A'), 'planning-guide 须含 Stage A 版面语言段');
   assert.ok(guide.includes('Stage B'), 'planning-guide 须含 Stage B 页面内容稿段');
-  assert.ok(guide.includes('是「推导」不是「挑选」'), 'Stage A 第 1 步须是推导而非挑主题（D-A30-06）');
+  assert.ok(guide.includes('先发散实例，再反向提炼语言'), 'A34 改判后 Stage A 须先有优秀实例再抽象规则');
+  assert.ok(guide.includes('不负责生成唯一答案'), 'A30 推导规则须重定位为发散边界，不能替用户选唯一主题');
   assert.ok(guide.includes('观察量'), 'planning-guide 须要求先填观察量再推档位');
   assert.ok(guide.includes('design-language.md'), 'planning-guide 须指向设计语言真源文件');
-  assert.ok(guide.includes('云端稿到此作废'), 'planning-guide 须写明 Stage A 产出固化纪律（D-A30-02）');
+  assert.ok(guide.includes('云端项目是草稿纸'), 'planning-guide 须写明 Stage A 产出固化纪律（D-A30-02）');
   assert.ok(guide.includes('不动壳层'), 'planning-guide 须写明 Stage B 的不越界口径（D-A30-04）');
 
   // ── go.md 5.2.6 回修分流（版面级 vs 页面级）──
@@ -269,6 +325,14 @@ test('A21 经验反哺：go.md 步骤 6 询问环节落位（v2.1-amendments A21
     /不.{0,6}代劳|不代为提 PR/.test(goMd),
     'PR 不由项目侧 Agent 代劳（仓库纪律：不执行真实 git push）',
   );
+});
+
+test('A34 经验反哺：实测交互决策只经用户确认写回 interaction-language', async () => {
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.match(goMd, /值得保留到后续维护的交互决策/);
+  assert.match(goMd, /docs\/interaction-language\.md/);
+  assert.match(goMd, /来源: retro/);
+  assert.match(goMd, /没有用户确认就不得凭空追加/);
 });
 
 test('A22 字段级机检：规则镜像与规划引导落位（v2.1-amendments A22 验收判据镜像）', async () => {

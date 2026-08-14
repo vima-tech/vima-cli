@@ -9,9 +9,9 @@
 ## 目录
 
 §1 阅读顺序 · §2 仓库结构与文件所有权 · §3 全局约定（3.1 错误码登记表）· §4 lib/util API ·
-§5 lib/model API · §6 文件格式 Schema（6.1–6.19）· §7 spec 结构化数据块 ·
+§5 lib/model API · §6 文件格式 Schema（6.1–6.20）· §7 spec 结构化数据块 ·
 §8 validate 规则表（8.1 V-INT 规则族 / converge）· §9 plan 批次算法 · §10 trace 规则 ·
-§11 render 约定 · §12 增补项 A1–A33 · §13 测试与 fixtures · §14 命令行为裁定补遗
+§11 render 约定 · §12 增补项 A1–A34 · §13 测试与 fixtures · §14 命令行为裁定补遗
 
 ## 1. 阅读顺序
 
@@ -248,11 +248,52 @@ updatedAt: 2026-08-12T10:00:00Z
 ### 6.2 docs/lifecycle.json（§14.2 原样）
 
 `schemaVersion:"2.0"`、`vimaVersion`、`templateId`、`currentPhase`
-（BOOTSTRAP|PLANNING|DEVELOPING|MAINTAINING）、`phaseHistory[]`、
+（BOOTSTRAP|PLANNING|**DESIGNING**|DEVELOPING|MAINTAINING，A34）、`phaseHistory[]`、
 `checklists.PLANNING`（rawDocsCollected, modulesConfirmed, specGenerated, contractsGenerated,
 tasksDecomposed, artifactsValidated, reviewRendered, prototypeRendered, tasksApproved —— 全 boolean，
 approve 额外写 `tasksApprovedAt`）、`checklists.DEVELOPING`（sharedLayerDone, businessTasksDone,
 pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked,updatedAt}`。
+
+**A34 加性四组状态**（存量 lifecycle 缺能力标记时按 legacy 处理，D-A34-18 不倒退阶段）：
+
+- `designCapability`：`'a34' | 'legacy'`。新建项目为 `a34`；pre-A34 项目缺此键 ⇒ 按 `legacy`，
+  V-DSN-12 与 approve 的设计闸门整体豁免（A19 存量可达性）。
+- `checklists.DESIGNING` —— **只有两个持久键**：`briefReady`、`directionsExplored`
+  （人工里程碑，无从推导）。其余**六项一律不落盘**，由 `vima design status/check`
+  每次从 spec、设计目录 manifest、`designApproval` 摘要确定性派生：
+  `directionApproved`、`signaturePagesApproved`、`fidelityClassified`（V-DSN-12）、
+  `designArtifactsComplete`（V-DSN-09）、`designApprovalFresh`（digest）、`designSystemFrozen`。
+  **落盘就会与 `designApproval` 表达同一事实，退回 A2 的双真源问题**——这是 A34 自己要治的病。
+- `designApproval`：`{ directions: { <appId>: {approvedAt, digest} },
+  pages: { <pageId>: {approvedAt, fidelity, specDigest, designDigest, downgradeWaiver?} } }`
+  ——**唯一持久化批准状态**。批准后的保真降级必须由用户显式给出 `--allow-downgrade`
+  与非空 `--reason`，理由随页面批准留痕。
+  按端存 `directions`（A0 已改按端发散，多端各选方向时单数键表达不了）。
+  作废时另写 `designApprovalInvalidatedAt` / `designApprovalInvalidatedReason`（留痕，不许悄悄清空）。
+- `designScope.pages[]`：仅 legacy 项目使用的局部 A34 页面集合。`vima change apply` 遇到新增/修改
+  页面时将受影响页并入 scope、作废相关页批准与 `tasksApproved`、转入 DESIGNING；删除页从 scope 移除。
+  新建 A34 项目由 `designCapability: a34` 覆盖全页，不复制一份全量 scope。
+
+**方向冻结包**：每端固定落 `docs/review/design/_shell/<appId>/`，必须包含
+`brief.md`、`direction-a.png`、`direction-b.png`、`direction-c.png`、`comparison.md`、
+`selection.md` 与 `manifest.json`；manifest 的 `appId` 必须匹配端册 id，`files` 必须声明前六项。
+`vima design approve direction` 在包不完整、路径不安全或文件缺失时 exit 4，不得记录 `digest:null`。
+
+**阶段推进事件表（D-A34-28）**——谁推进哪一段，是状态机语义、属确定性内核职责：
+
+| 迁移 | 由谁推进 | 闸门 |
+|---|---|---|
+| PLANNING → DESIGNING | `vima approve --planning` | 独立校验 profile：spec/契约/权限/pendingConfirm + V-DSN-10/11/12，**不要求 V-TASK-\*/V-COV-01**（任务拆解发生在设计冻结之后）；同时建立 `.vima/changes/designing-baseline/` 快照 |
+| DESIGNING 内部 | `vima design approve direction` → `vima design reconcile`（仅当方向改了产品）→ `vima design approve pages` | 人工裁定 + 受控回写 |
+| DESIGNING → DEVELOPING | `vima approve` | 原三道前置 + **设计闸门六项派生全绿** |
+
+`currentPhase` 的消费方必须整体同步（漏一个即状态机分叉）：
+`lib/model/lifecycle.mjs`（`PHASES` 单一真源）、`lib/commands/{init,doctor,approve,design,change}.mjs`、
+`templates/*/workspace/commands/{go,design}.md`、`templates/*/workspace/hooks/guard-shared.mjs`。
+
+> **`guard-shared.mjs` 的契约保护相位是明示决定**：该 hook 只在 **DEVELOPING** 追加保护
+> `docs/contracts/**`；**DESIGNING 必须维持「不保护」**，否则 `vima design reconcile`
+> 的契约回写被 hook 直接锁死。它的默认行为恰好正确——正因如此才容易被「好心」改错。
 
 ### 6.3 template.json（§3.4 精化）
 
@@ -820,6 +861,75 @@ impact.json            # 影响面推导产物（无时间戳，同基线 + 同�
 templateMaturity 与 deliveryLevel 的语义区别（「模板 stable ≠ 项目 stable」）与
 notCertified 行。**不写 lifecycle**（等级由证据推导，不落第二状态真源）。
 
+### 6.20 设计与体验验收报告（A34 D-A34-21）
+
+不定报告契约就是在验收层重演「流程资产承诺验收、内核无消费方」——A29 正是那样失效的。
+
+**落点**：`.vima/reports/design/<PAGE-id>.json`、`.vima/reports/experience/<PAGE-id>.json`
+（与既有 `.vima/reports/<taskId>-verifier.json` 同层同惯例）。
+
+**字段**：
+
+```jsonc
+{
+  "pageId": "PAGE-20",
+  "specDigest": "sha256:…",           // 三个 digest 由 vima design verify --prepare 计算，报告作者抄写不自算
+  "designDigest": "sha256:…",
+  "implementationDigest": "sha256:…",
+  "mustPreserveResults": [            // 按 design.mustPreserve 的 id **逐条**对账，漏一条即 uncovered
+    { "id": "live-preview-sync", "verdict": "pass", "evidence": "…" }
+  ],
+  "primaryTaskResult": {              // 仅 experience 报告；completed:false ⇒ verdict 必须 fail
+    "statement": "…", "completed": true, "steps": 6, "interruptions": []
+  },
+  "evidence": [                       // 结构化对象，不是字符串
+    { "kind": "screenshot", "path": "…", "viewport": "1600x900", "scenarioId": null, "mustPreserveId": null }
+  ],
+  "verdict": "pass"                   // pass | fail；拿不准判 fail 并写清拿不准什么
+}
+```
+
+**三个 digest 的计算范围**（不定范围则实现者必在两种错误间二选一：hash 整库 ⇒ 无关改动令全部
+报告 stale；只 hash 页面目录 ⇒ 共享领域组件与 Stage A 变化不使页面失效，正是要防的漂移）：
+
+| digest | 范围 |
+|---|---|
+| `specDigest` | 本页 `vima:page` 数据块 + 本页 `apis` 引用到的契约切片 |
+| `designDigest` | 本页 `manifest.json` **及其声明的全部文件内容** + 本页所属端的 Stage A 样式真源 + `docs/design-language.md` + D1/D2 的 `docs/interaction-language.md`。逐文件哈希，非目录哈希——Stage A 或交互语言变化必须让旧页批准/报告 stale |
+| `implementationDigest` | 本页任务 `@vima <taskId>` 标注的文件（A1 既有归属）+ **静态 import 可达图**收敛到 `src/features/**` 与 `src/styles/**` 的文件。可达图按本 app 的 vite alias（`@/`）与相对路径解析；遇到非字面量动态 import 时保守纳入该 app 全部 `src/features/**`，并标记 `fallback:true`，**确定性计算，不交给 Agent 判断** |
+
+实现依赖集另写只读派生报告 `.vima/reports/implementation-deps/<PAGE-id>.json`，字段为
+`{schemaVersion,pageId,entries:[{file,sha}],fallback,digest}`；它不得写回设计 manifest，
+否则首次实现就会污染设计真源并让批准自我失效。
+
+报告作者的确定性准备入口是 `vima design verify --prepare`：生成
+`.vima/reports/design-verify-inputs.json`，字段为
+`{schemaVersion,pages:[{id,fidelity,required,specDigest,designDigest,implementationDigest}]}`，并同步刷新
+逐页 implementation-deps。准备模式**不要求报告已存在、缺报告仍 exit 0，且不覆盖最终
+`design-verify.json`**；否则报告要求携带 digest、而 digest 又只能在报告写完后取得，会形成循环依赖。
+
+**报告矩阵**（`vima design verify` 据此算 `uncovered`）：
+
+| 保真级 | 必需报告 |
+|---|---|
+| D0 | Semantic（既有 `<taskId>-verifier.json`） |
+| D1 | Semantic + Design |
+| D2 | Semantic + Design + Experience |
+
+任一 digest 与现状不符 ⇒ 该报告判 **stale**，必须重跑。顶层 `verdict:pass` 不是特权：
+`mustPreserveResults` 必须逐 id 存在且各自 `verdict:pass`，experience 的
+`primaryTaskResult.statement` 必须逐字对应 spec、`completed` 必须为 true、`steps` 为正整数且
+`interruptions` 为空；`evidence` 必须是至少含 `kind/path` 的非空结构化对象数组，且 path 为
+项目内确实存在的安全相对路径，否则仍算 uncovered。
+`vima design verify` 汇总落 `.vima/reports/design-verify.json`；`/go` 收口硬门**只消费汇总结果**。
+`vima certify` 的 `implemented` 级复用同一评估器**重算现状**，并要求磁盘汇总与重算结果一致，
+不信任缓存中的 `pass`（D-A34-31）——否则伪造或改稿前的汇总可把未验收项目评为 pipeline-green。
+
+**命令与时间点严格分离**（同一命令跨两阶段用两套未声明的通过条件 = 死锁）：
+`vima design check` 是 DESIGNING 出口，只看设计面（页面尚未实现，**不看任何实现期报告**）；
+`vima design verify --prepare` 只准备报告输入；无 `--prepare` 的 `vima design verify` 才是
+DEVELOPING 收口硬门，检查报告矩阵与 `implementationDigest`。
+
 ## 7. spec 结构化数据块（唯一机器真源，§13.2/§13.3）
 
 写在 docs/spec.md 各章内，围栏格式：<code>```yaml vima:&lt;kind&gt;</code> … <code>```</code>。
@@ -892,10 +1002,23 @@ page 推导，flow 不加新键）。`regions`（A14）仅 kind 声明 `regions:
 **A27 PDL 设计声明（全部可选；「声明即承诺」——缺省行为与现状逐字节一致，一旦声明即全量校验）**：
 
 ```yaml
-design:                      # 页面级设计声明（V-DSN-01：声明时 pattern/density 必填且 ∈ 枚举）
-  pattern: workbench         # ∈ list|detail|form|workbench|master-detail|board
+design:                      # 页面级设计声明
+  # ── A27 键（可选；用了其中任一，pattern 与 density 就必填，V-DSN-01）──
+  pattern: workbench         # ∈ list|detail|form|workbench|master-detail|board|custom
+                             #   custom（A34）= 六种模式都解释不了的独特版面，须带 intent + fidelity: D2
   density: default           # ∈ compact|default|loose（页面基准密度档）
   fold: [待办清单, 患者卡片]  # 首屏承诺：组件实例 name 数组（V-DSN-07 引用必须存在）
+  # ── A34 键（另一关注点，住同一个块但不触发 A27 完整性）──
+  fidelity: D1               # ∈ D0|D1|D2，**必填**（V-DSN-12；designCapability: legacy 项目豁免）
+                             #   D0 是一次明确裁定，「缺失」不等价于 D0
+  primaryTask: 处置一位高风险患者   # D1/D2 必填（V-DSN-11）；D2 收口由 Experience Verifier 真跑
+  mustPreserve:              # D2 必填（V-DSN-11）：不得被降级掉的交互事实
+    - id: live-preview-sync  #   id 页内唯一，报告按 id 逐条对账
+      kind: interaction      #   ∈ visual|interaction|runtime —— **类型即执行者路由**
+      statement: 编辑字段后患者端预览即时同步
+      verifier: experience   #   visual→design；interaction/runtime→experience（相容性强制）
+  # 设计目录**不在这里声明**：路径由 pageId 推导为 docs/review/design/<PAGE-id>/
+  # （A34 D-A34-02——路径既已固定，字段就是可推导冗余，留着只多一个能与真源不一致的写入口）
 regions:
   - columns:
       - { name: 主工作区, width: 1fr, blocks: [cards], role: primary, density: compact }
@@ -1056,6 +1179,10 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-TASK-11 | warn | 任务规模上限（A18）：`layer=business` 且 `side ∈ {backend,fullstack}` 的任务，负责接口数 > **10** → 提示按子域拆分。负责集 = `fm.apis`（声明时）否则契约 apis 全集。理由见 A18：批次时长取批内最大值，超大任务把本可并行的工作串行化。**A24：`status=done` 的任务不参与**——本规则的唯一行动项是「拆分任务」，对已完成任务不可执行；永不消失的 warn 会训练用户忽略整张 warn 列表，把 A22 那批同为 warn 的字段级规则一起废掉 |
 | V-TASK-12 | error | 任务负责接口集闭环（A18）：`fm.apis` 每条归一后 ∈ 该契约 apis；同一契约下 side=backend 的任务中，声明了 `apis` 的**两两不相交**（防重复实现）；若该契约下全部 backend 任务都声明了 `apis`，其并集须 == 契约全集（防漏实现）。未声明 `apis` 的任务不触发后两项 |
 | V-TASK-13 | warn | 收尾流水线存在性（A20）：存在 `layer=business` 任务却无任何 `layer=pipeline` 任务 → 提示补 `full-test`/`code-audit`。**设计期只 warn**（不阻断存量项目开工，守 A19 升级可达性）；收口期由 V-INT-05 升级为 error |
+| V-DSN-09 | error | **设计产物存在性（A34）**：`design.fidelity ∈ {D1,D2}` 的页面，`docs/review/design/<PAGE-id>/manifest.json` 必须存在，`manifest.files` 须声明该级必需产物（D1: `default.png`+`empty.png`；D2 另加 `prototype.html`+`scenarios.md`），且声明的每个文件真的在。**只在 DESIGNING 出口由 `vima design check` 触发，`vima validate` 不查**——设计文件在 DESIGNING 才产生，在 PLANNING 查它会让阶段永远过不去 |
+| V-DSN-10 | error | **custom 的诚实标注三件套（A34）**：`design.pattern: custom` 必须同时带非空 `design.intent` 与 `fidelity: D2`。沿用 A27 `shape: freeform` 口径——承认某些页面就是独特的，好过继续扩枚举（10 词词表仍装不下三栏设计器） |
+| V-DSN-11 | error | **保真级的必填声明（A34）**：D1/D2 必填 `design.primaryTask`（唯一回答「这页为何存在」的键）；D2 再必填 `design.mustPreserve` 非空数组，每条四键齐全（`id` 页内唯一 / `kind` ∈ {visual,interaction,runtime} / 非空 `statement` / `verifier` ∈ {design,experience}），且 **kind↔verifier 相容**：visual→design，interaction·runtime→experience。带类型而非字符串数组的理由：「配置与预览同步」「切换患者不重挂载」无法靠一张截图裁定，无 kind 就无执行者（违反 A6） |
+| V-DSN-12 | error | **保真级必须显式声明（A34）**：每个页面须有 `design.fidelity`；**`designCapability: legacy` 的存量项目整体豁免**（D-A34-18）。A27 的「未声明零影响」口径适用于增量润色，**不适用于一条以「堵逃生口」为目的的机制**——不写 fidelity → 不是 D1/D2 → 跳过全部设计流程、全绿进开发，正是 A34 要治的洞。派生状态 `fidelityClassified` 由本规则计算，不是人工布尔 |
 | V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
 | V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
@@ -1204,7 +1331,7 @@ converge 不重复报同一件事。
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。

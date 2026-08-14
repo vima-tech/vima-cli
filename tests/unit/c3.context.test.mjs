@@ -313,3 +313,34 @@ test('A24：无 local 文件时不出现该节（可选文件，不制造空壳�
   const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
   assert.ok(!bundle.includes('## 项目补充规范'));
 });
+
+test('A34 检索线三：D1/D2 上下文同时携带本页稿、端级方向、交互语言与相邻稿', async (t) => {
+  const root = await cloneGolden(t);
+  const specPath = path.join(root, 'docs/spec.md');
+  await writeFile(specPath, (await readFile(specPath, 'utf8'))
+    .replace('  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12')
+    .replace('  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 快速定位并处置异常设备'));
+  for (const [dir, manifest] of [
+    ['docs/review/design/PAGE-01', { pageId: 'PAGE-01', files: ['default.png', 'empty.png'] }],
+    ['docs/review/design/PAGE-02', { pageId: 'PAGE-02', files: ['default.png'] }],
+    ['docs/review/design/_shell/admin', { appId: 'admin', files: ['brief.md', 'selection.md'] }],
+  ]) {
+    await mkdir(path.join(root, dir), { recursive: true });
+    await writeFile(path.join(root, dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    for (const file of manifest.files.filter((f) => f.endsWith('.png'))) {
+      await writeFile(path.join(root, dir, file), `stub:${file}\n`);
+    }
+  }
+  await writeFile(path.join(root, 'docs/interaction-language.md'), '# Interaction language\n');
+  await mkdir(path.join(root, '.vima/mock'), { recursive: true });
+  await writeFile(path.join(root, '.vima/mock/contract-mock.json'), '{"schemaVersion":"1","apis":[]}\n');
+
+  assert.equal(vima(root, 'context', 'device-list-fe').code, 0);
+  const bundle = await readFile(path.join(root, '.vima/context/device-list-fe.md'), 'utf8');
+  assert.match(bundle, /视觉真源.*docs\/review\/design\/PAGE-01/s);
+  assert.match(bundle, /所属端方向基线.*_shell\/admin/s);
+  assert.match(bundle, /交互语言.*docs\/interaction-language\.md/s);
+  assert.match(bundle, /相邻页面已冻结的稿.*PAGE-02\/default\.png/s);
+  assert.match(bundle, /契约同源 mock.*contract-mock\.json.*__mock=default.*__mock=empty/s);
+  assert.match(bundle, /快速定位并处置异常设备/);
+});
