@@ -31,6 +31,16 @@ async function projectDir(t) {
   return dir;
 }
 
+async function mjsFilesUnder(dir) {
+  const files = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...await mjsFilesUnder(target));
+    else if (entry.name.endsWith('.mjs')) files.push(target);
+  }
+  return files;
+}
+
 test('help / --help / -h：全部命令列出，stdout exit 0', () => {
   for (const args of [['help'], ['--help'], ['-h']]) {
     const r = runCli(args);
@@ -153,6 +163,29 @@ test('错误码矩阵（契约 §3.1）：项目内的前置错误以稳定 code
     assert.equal(r.status, exit, `${args.join(' ')} 应 exit ${exit}，stderr: ${r.stderr}`);
     assert.match(r.stderr, new RegExp(`^vima ${args[0]}: ${code}: `), `${args.join(' ')} 应输出稳定 code ${code}`);
   }
+});
+
+test('契约 §3.1 覆盖 lib/ 中全部稳定错误 code（新增 code 不得漏登记）', async () => {
+  const contract = await readFile(path.join(CLI_ROOT, 'docs', 'internal-contracts.md'), 'utf8');
+  const section = contract.match(/### 3\.1[\s\S]*?(?=\n## 4\.)/)?.[0];
+  assert.ok(section, 'internal-contracts.md 缺 §3.1');
+
+  const rows = [...section.matchAll(/^\| ([A-Z][A-Z0-9_]+) \|/gm)].map((m) => m[1]);
+  const registered = new Set(rows);
+  assert.equal(registered.size, rows.length, '§3.1 不得重复登记 code');
+
+  const actual = new Set(['USAGE']); // usageError / usageFromParseArgs 工厂的固定 code
+  for (const file of await mjsFilesUnder(path.join(CLI_ROOT, 'lib'))) {
+    const source = await readFile(file, 'utf8');
+    const calls = source.matchAll(
+      /(?:new\s+VimaError|precondition|checkFailed)\(\s*['"]([A-Z][A-Z0-9_]+)['"]/g,
+    );
+    for (const match of calls) actual.add(match[1]);
+    for (const match of source.matchAll(/vima [^:\n]+: ([A-Z][A-Z0-9_]+):/g)) actual.add(match[1]);
+  }
+
+  const missing = [...actual].filter((code) => !registered.has(code)).sort();
+  assert.deepEqual(missing, [], `以下稳定 code 未登记于 §3.1：${missing.join(', ')}`);
 });
 
 test('DEBUG 堆栈门控（契约 §14）：默认无堆栈，DEBUG=vima 时附带', async (t) => {

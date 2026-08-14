@@ -2,9 +2,8 @@
 
 > 本文是全部模块的**唯一接口权威**。与设计文档冲突时：文件格式/接口签名以本文为准，
 > 业务语义以 `docs/design/vima-cli-design-v2.md`（下称 §N）为准。
-> 增补项记为 A1–A33（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
-> 更新日期：2026-08-13（对应设计文档 v2.0.5；本文随设计文档修订演进，不单独编号。
-> A16 多端应用模型为契约先行：本文 schema/规则已定稿，按 A16 三波次落实现）。
+> 增补项记为 A1–A34（来源分档见 §12 与 docs/design/v2.1-amendments.md）。
+> 更新日期：2026-08-14（对应设计文档 v2.0.8；本文随设计文档修订演进，不单独编号）。
 
 ## 目录
 
@@ -32,12 +31,13 @@ lib/commands/{create,init,update,upgrade,app}.mjs [C1] + tests/unit/c1.*.test.mj
                                                 （update=更新项目产物；upgrade=升级 CLI 自身，A15；
                                                  app=端册管理 add/list，A16 Wave 3）
 lib/commands/{plan,sync,doctor}.mjs            [C2] + tests/unit/c2.*.test.mjs
-lib/commands/{validate,approve,trace,context,converge,retro,change,certify}.mjs [C3] + tests/unit/c3.*.test.mjs
+lib/commands/{validate,approve,trace,context,converge,retro,change,certify,mock,design}.mjs [C3] + tests/unit/c3.*.test.mjs
                                                 （converge=跨任务集成对账，A20；复用
                                                  validate 导出的代码扫描原语，不复制实现；
                                                  change=维护期变更事务，A31；
-                                                 certify=交付等级认证，A32）
-lib/commands/render-{review,prototype}.mjs
+                                                 certify=交付等级认证，A32；
+                                                 mock=契约样本生成，A27；design=视觉真源兑现，A34）
+lib/commands/render-{review,prototype,matrix}.mjs
 templates/admin/planning/{audit-view,prototype}.mjs
 templates/admin/planning/{review,prototype}.template.html [C4] + tests/unit/c4.*.test.mjs
 scripts/{dev.sh,sync.mjs}                      [开发工具：沙箱演练与模板→沙箱增量同步，不随 npm 包发布]
@@ -76,8 +76,9 @@ tests/e2e.test.mjs tests/helpers.mjs README.md [集成阶段统一编写，agent
   顶层 help 的 create 行须标注模板成熟度（admin=stable，其余 preview，A5 诚实分级）。
 - 所有写盘：`atomicWriteFile`；所有 JSON 落盘：`stableStringify`。
 - 渲染器/生成器**禁止** `Date.now()`、`new Date()`、`Math.random()`——字节确定性是验收项。
-  例外：create/init/approve/sync/change 记录真实时间戳的字段（createdAt、openedAt 等）
-  允许 `new Date().toISOString()`（change 仅限 change.json 状态文件；impact.json 属推导产物，无时间戳）。
+  例外：create/init/approve/sync/change/design 记录真实时间戳的字段（createdAt、openedAt、
+  approvedAt、designApprovalInvalidatedAt、tasksApprovedInvalidatedAt 等）允许
+  `new Date().toISOString()`（change 仅限 change.json 状态文件；impact.json 属推导产物，无时间戳）。
 - 路径统一 `node:path`；项目根定位：含 `docs/lifecycle.json` 或 `.vima/manifest.json` 的当前目录
   （不向上递归查找，v2.0 简化）。
 
@@ -88,10 +89,12 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | code | exit | 抛出点 | 含义 |
 |---|---|---|---|
 | USAGE | 3 | usageError 工厂（全部命令） | 用法/输入/参数解析错误 |
+| ERROR | 1 | change / 顶层未预期异常 | 变更状态解析失败或未预期内部错误 |
 | PREREQ | 4 | create | 环境依赖预检不满足（必需工具缺失/版本不足） |
 | DIR_EXISTS | 4 | create | 目标目录已存在且未加 --force |
 | TEMPLATE_MISMATCH | 4 | create | --force 重跑时目录已有 manifest 且 templateId 不同（A16：防端册/生成物清单被覆写） |
 | APP_EXISTS | 4 | app add | 端 id 已存在于端册（A16 Wave 3） |
+| NOT_INITIALIZED | 4 | app | 缺 .vima/manifest.json，项目尚未完成 init |
 | TEMPLATE_PREVIEW | 4 | init | preview 模板拒绝 init（A5 能力诚实分级） |
 | ALREADY_INIT | 4 | init | 已初始化且未加 --force |
 | NO_MANIFEST | 4 | update | 缺 .vima/manifest.json |
@@ -100,6 +103,15 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | REGISTRY_UNREACHABLE | 2 | upgrade | npm registry 请求失败/超时/响应缺 version（A15；不静默降级为「已是最新」） |
 | INSTALL_FAILED | 2 | upgrade | 全局安装器无法执行或以非零码结束（A15） |
 | NOT_IN_PROJECT | 4 | 全部项目内命令（A24） | 当前目录及其任何祖先都不是 vima 项目（无 `.vima/` 也无 `docs/lifecycle.json`）。**不写任何文件**——原行为按 cwd 静默工作，会把错误结论落盘（实测：在 `backend/` 下 validate 报「2 错误」并写出 `pass: false` 的报告） |
+| PHASE_TRANSITION | 4 | approve / design | 当前生命周期阶段不允许所请求的批准、迁移或验收操作（A34） |
+| DESIGN_INDEX_DRIFT | 4 | design status --check | 设计索引与当前 spec/设计目录推导结果不一致（A34） |
+| NO_APP | 4 | design approve direction | `--app` 指向端册外的端（A34） |
+| DIRECTION_ARTIFACTS | 4 | design approve direction | 方向冻结包缺失、不完整或包含不安全路径（A34） |
+| NO_PAGE | 4 | design approve pages | 指定页面不存在，或没有 D1/D2 页面可批准（A34） |
+| FIDELITY_DOWNGRADE | 4 | design approve pages | 已批准页面降级保真级但未显式豁免并留理由（A34） |
+| NO_DIRECTION | 4 | design reconcile | 尚无有效且新鲜的按端方向批准（A34） |
+| NO_BASELINE | 4 | design reconcile | 缺 DESIGNING 受控回写基线快照（A34） |
+| DESIGN_RECONCILE_INVALID | 4 | design reconcile | 回写后的 spec/契约引用未闭环（A34） |
 | NO_TASKS | 4 | plan / converge / retro / certify | 缺 docs/tasks/ 目录（防在非 vima 项目静默产出空计划 / 空对账报告，且不凭空创建 .vima/reports/） |
 | CHANGE_ACTIVE | 4 | change open | 已存在非 closed 的变更包（A31 单变更在途：先 close 再开） |
 | NO_CHANGE | 4 | change impact/apply/close | 未指定 id 且无在途（非 closed）变更包可默认 |
@@ -322,6 +334,7 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
     "guide": "planning/planning-guide.md",
     "spec": "planning/spec.admin.md",
     "designLanguage": "planning/design-language.md",
+    "interactionLanguage": "planning/interaction-language.md",
     "codingStandards": "planning/coding-standards.md",
     "checklist": "planning/validate.checklist.md",
     "contractExample": "planning/contract.example.md",
@@ -382,6 +395,9 @@ v2.0.0 骨架**只用内置 builtin 目录拷贝**（不执行 npm create/spring
 的项目定档位 + Stage A 版面模式库容器。三者都是项目自己的决定，故 update 永不覆盖。
 **纯文档资产**：不进 schema、不进机检、无渲染消费方（A30 D-A30-05）；缺此键的模板
 （preview 四模板）不安装该文件，行为逐字节不变。
+`planning.interactionLanguage`（**A34**，可选键）→ init 安装为
+`docs/interaction-language.md`（**userOwned**，变量替换，与 designLanguage 同口径）：
+记录从获胜实例或 retro 反哺形成的交互决策及其执行者；缺此键的模板不安装该文件。
 模板变量：拷贝 scaffold 时替换文件内容与文件名中的 `{{projectName}}`、`{{projectPkg}}`
 （projectName 去掉非字母数字后的小写形式）、`{{createdAt}}`；**A16 增 `{{appId}}`**——
 create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单端根布局同样注入其
@@ -405,6 +421,7 @@ create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单�
   "files": { "managed": [{ "path": ".claude/commands/go.md", "checksum": "sha256:<hex>" }],
              "scaffold": [{ "path": "src/App.vue", "checksum": "sha256:<hex>" }],
              "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/design-language.md",
+                            "docs/interaction-language.md",
                             "docs/contracts/", "docs/tasks/",
                             "docs/raw/", "docs/coverage-matrix.md"] } }
 ```
@@ -780,6 +797,15 @@ change.json            # 状态文件（允许真实时间戳，§3 例外）
 baseline/docs/spec.md              # open 时的逐字节快照（spec 缺失则不拷、记 null）
 baseline/docs/contracts/*.md       # open 时全部契约快照（目录镜像 docs/，供 loadSpec/loadContracts 直读）
 impact.json            # 影响面推导产物（无时间戳，同基线 + 同现状 → 同字节）
+```
+
+`lib/commands/change.mjs` 的跨模块复用接口（A34 `design reconcile` 消费，签名冻结）：
+
+```js
+export const CHANGES_REL = '.vima/changes'
+export async function snapshotBaseline(root, changeDir) // → void；逐字节镜像 spec/契约到 baseline/
+export async function computeImpact(root, change)       // change 至少含 {id}；→ §6.18 impact 对象，不写盘
+export async function writeImpact(root, impact)         // → void；stableStringify 写 <changeId>/impact.json
 ```
 
 ```json
