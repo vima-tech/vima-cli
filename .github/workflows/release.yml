@@ -20,6 +20,15 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
+      # prepublishOnly 现在是 `npm test && npm run test:scaffold`，后者会生成三端项目
+      # 跑真实构建（含后端 Maven，release 21）。本 job 只装 Node 的话，npm publish
+      # 会挂在 "release version 21 not supported" —— v3.0.6 首次发布即栽在这里。
+      # CI 的 stable-scaffold job 有 setup-java，发布 job 必须同口径。
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Run tests
         run: npm test
 
