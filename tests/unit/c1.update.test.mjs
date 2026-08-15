@@ -260,3 +260,25 @@ test('update --scaffold-diff：只读报告，全项目文件指纹不变；无�
   assert.equal(noBase.status, 0);
   assert.match(noBase.stdout, /未记录骨架基线/);
 });
+
+test('vimaVersion 两处同源：update 同时写 manifest 与 docs/lifecycle.json（契约 §6.4）', async (t) => {
+  // 回归防线：update 此前只写 manifest，升级后两处永久分叉；而 A21 复盘指纹读的是
+  // lifecycle 那处（retro.mjs），于是每个升级过的项目都会向公开 issue 谎报 vima 版本。
+  const proj = await initializedProject(t, 'up-ver');
+  const lcPath = path.join(proj, 'docs', 'lifecycle.json');
+  const mfPath = path.join(proj, '.vima', 'manifest.json');
+
+  // 造出「已分叉」的存量态：lifecycle 停在旧版本
+  const lc = JSON.parse(await readFile(lcPath, 'utf8'));
+  lc.vimaVersion = '0.0.1-legacy';
+  await writeFile(lcPath, `${JSON.stringify(lc, null, 2)}\n`);
+
+  const r = vima(proj, 'update');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+  const after = JSON.parse(await readFile(lcPath, 'utf8'));
+  const mf = JSON.parse(await readFile(mfPath, 'utf8'));
+  assert.equal(after.vimaVersion, mf.vimaVersion, 'lifecycle 与 manifest 的 vimaVersion 必须同源');
+  assert.notEqual(after.vimaVersion, '0.0.1-legacy', '分叉的存量项目应被自愈');
+  assert.match(r.stdout, /两处同步/, '同步发生时必须如实告知，不得只宣称 manifest');
+});

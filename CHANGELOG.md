@@ -2,6 +2,28 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [Unreleased]
+
+### 修复
+
+- **`vima update` 让 `vimaVersion` 两处分叉，导致升级过的项目向公开 issue 谎报版本**
+  （发布后验证 A19 升级可达性时抓出）。契约 §6.4 明文「lifecycle 与 manifest 的
+  `vimaVersion` **同源于 CLI package.json**」，`init` 两处都写，而 `update` 只写
+  `manifest.vimaVersion` 并打印「vimaVersion 已更新为 X」——`docs/lifecycle.json`
+  原地不动。后果不止显示不一致：**A21 复盘指纹读的是 lifecycle 那处**
+  （`retro.mjs`），于是每个升级过的项目产出的反哺 issue 都带着旧版本号，
+  直接污染 A21 回路的版本维度；而 `doctor` 不对账这两处，分叉不会被体检发现。
+  现 `update` 无条件同步 lifecycle（顺带**自愈已分叉的存量项目**），
+  成功文案如实标注「两处同步」。lifecycle 缺失时静默跳过（创建它是 `init` 的职责）。
+
+### 验证
+
+- **A19 存量项目升级可达性实测通过**：用 npm 上的 3.0.3 建项目 → 本地 3.0.4 `update`
+  → `post-write.mjs` 判为「未修改，随模板更新」被干净覆盖，journal 采集点 0 → 3，
+  零 `.vima-new` 残留。**存量项目能自动拿到 A35 采集能力**，无需人工合并。
+  （例外：早于 hook 纳管的 v2.0.0 时代项目因 manifest 无基线，走保守的人工合并路径——
+  这是 `update.mjs` 的既定设计，非缺陷。）
+
 ## [3.0.4] - 2026-08-15
 
 ### 修复
