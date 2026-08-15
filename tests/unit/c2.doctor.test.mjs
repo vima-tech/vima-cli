@@ -24,7 +24,8 @@ async function makeProject(t) {
   // 合规 CLAUDE.md（10 行）
   await writeFile(path.join(tmp, 'CLAUDE.md'), Array.from({ length: 10 }, (_, i) => `# 第 ${i + 1} 行`).join('\n') + '\n');
 
-  // 完整 .claude：settings + 4 skills + 3 工作流正文 + 6 角色 + 3 hooks（可执行；A18 增 go-continue）
+  // 完整 .claude：settings + 4 skills + 3 工作流正文 + 6 角色 + 4 hooks
+  // （可执行；A18 增 go-continue，A39 增 go-autostart）
   const files = {
     '.claude/settings.json': '{}\n',
     '.claude/skills/go/SKILL.md': '---\ndescription: 继续 Vima 项目开发\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n',
@@ -43,6 +44,7 @@ async function makeProject(t) {
     '.claude/hooks/guard-shared.mjs': '// stub\nprocess.exit(0)\n',
     '.claude/hooks/post-write.mjs': '// stub\nprocess.exit(0)\n',
     '.claude/hooks/go-continue.mjs': '// stub\nprocess.exit(0)\n',
+    '.claude/hooks/go-autostart.mjs': '// stub\nprocess.exit(0)\n',
   };
   for (const [rel, content] of Object.entries(files)) {
     const p = path.join(tmp, rel);
@@ -52,6 +54,7 @@ async function makeProject(t) {
   await chmod(path.join(tmp, '.claude/hooks/guard-shared.mjs'), 0o755);
   await chmod(path.join(tmp, '.claude/hooks/post-write.mjs'), 0o755);
   await chmod(path.join(tmp, '.claude/hooks/go-continue.mjs'), 0o755);
+  await chmod(path.join(tmp, '.claude/hooks/go-autostart.mjs'), 0o755);
   return tmp;
 }
 

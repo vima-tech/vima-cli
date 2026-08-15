@@ -55,6 +55,45 @@ const fail = (taskId, ts, round = 1) => ({
   ts, kind: 'report', ref: `${taskId}/verifier/r${round}`, outcome: 'fail', n: 1,
 });
 
+/** 一条 CLI 命令事件——人敲一次 `vima validate` 就有一条，**不是**任务轨迹。 */
+const cmd = (ref, ts) => ({ ts, kind: 'cmd', ref, outcome: 'ok', n: 0 });
+
+/** 把全部任务退回 pending——复现「刚批准完任务、一个都没开工」的三档全零现场。 */
+async function claimNoneDone(tmp) {
+  const dir = path.join(tmp, 'docs', 'tasks');
+  for (const name of ['device-api-be.md', 'device-list-fe.md', 'full-test.md', 'shared-base.md']) {
+    const p = path.join(dir, name);
+    const text = await readFile(p, 'utf8');
+    await writeFile(p, text.replace(/^status: .*$/m, 'status: pending'));
+  }
+}
+
+/** 写 .vima/go-state.json（golden 不含 .vima，需先建目录）。 */
+async function writeGoState(tmp, state) {
+  const dir = path.join(tmp, '.vima');
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'go-state.json'), JSON.stringify(state));
+}
+
+/** 相对现在的 ISO 时刻。 */
+const minutesAgo = (m) => new Date(Date.now() - m * 60000).toISOString();
+
+/**
+ * 把 golden（PLANNING 期）推进到 DEVELOPING，进入时刻为 m 分钟前。
+ * no-trajectory 的阈值判据依赖「当前正处于 DEVELOPING + 已进行多久」，两者都要真实可控。
+ */
+async function enterDeveloping(tmp, m) {
+  const p = path.join(tmp, 'docs', 'lifecycle.json');
+  const lc = JSON.parse(await readFile(p, 'utf8'));
+  const at = minutesAgo(m);
+  lc.currentPhase = 'DEVELOPING';
+  lc.phaseHistory = [
+    ...lc.phaseHistory.map((h) => (h.completedAt === null ? { ...h, completedAt: at } : h)),
+    { phase: 'DEVELOPING', enteredAt: at, completedAt: null, note: '进入实现期' },
+  ];
+  await writeFile(p, JSON.stringify(lc, null, 2));
+}
+
 async function waitUntil(predicate, timeoutMs = 3000) {
   const started = Date.now();
   while (!predicate()) {
@@ -349,7 +388,7 @@ test('A37 D-A37-01：watch 启动后新建 reports/journal 也必须实时重载
 
   await waitUntil(() => stdout.includes('journal 无事件'));
   await appendJournal(tmp, [pass('shared-base', new Date().toISOString())]);
-  await waitUntil(() => stdout.includes('共 1 条'));
+  await waitUntil(() => stdout.includes('轨迹 1 条'));
   child.kill('SIGTERM');
   await new Promise((resolve) => child.once('exit', resolve));
   assert.equal(stderr, '');
@@ -451,6 +490,105 @@ test('A37 D-A37-02：status 恒 exit 0——有差值也不进退出码', async 
   const proc = runCli(tmp, ['status']);
   assert.ok(proc.stdout.includes('信任度'), '差值必须被呈现');
   assert.equal(proc.status, 0, '但判定归 doctor/converge，status 不进退出码');
+});
+
+// ── 全零盲区：代码在写但没有人在记账（D-A39-01 / D-A39-02）─────────────────
+//
+// 出自 sustain-v3 实证：DEVELOPING 期 journal 有 58 条事件、最近一条距今 6m51s，
+// 而这 58 条**全是** cmd，report 0 条；同期 79 个源文件正在被写、零份 builder 报告、
+// 调度器从未启动。旧版把三类事件混算成「最近一条轨迹事件」，且三档全零时
+// trustSignals 返回空数组——两处叠加，最该报警的现场显示得像一切正常。
+
+test('D-A39-01：命令事件不得冒充任务轨迹（journal 全是 cmd 时不显示轨迹时间）', async (t) => {
+  const tmp = await makeCopy(t);
+  await enterDeveloping(tmp, 30);
+  await appendJournal(tmp, [cmd('plan', minutesAgo(20)), cmd('validate', minutesAgo(6))]);
+
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.equal(v.activity.events, 2, '全部事件仍如实计数');
+  assert.equal(v.activity.reportEvents, 0, 'cmd 不是轨迹事件');
+  assert.equal(v.activity.lastReportAt, null, '没有轨迹就没有轨迹时刻');
+  assert.equal(v.tiers.tracked, 0);
+
+  const table = runCli(tmp, ['status']).stdout;
+  assert.match(table, /0 条任务轨迹事件/);
+  assert.doesNotMatch(table, /最近一条任务轨迹距今/, '零轨迹时不得显示任何轨迹时间');
+});
+
+test('D-A39-02：开发期已推进而零轨迹 → 必须出 no-trajectory 信号（三档全零不等于没问题）', async (t) => {
+  const tmp = await makeCopy(t);
+  await claimNoneDone(tmp);
+  await enterDeveloping(tmp, 30);
+  await appendJournal(tmp, [cmd('validate', minutesAgo(6))]);
+
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.equal(v.tiers.claimed, 0);
+  assert.equal(v.tiers.tracked, 0);
+  assert.equal(v.tiers.verified, 0, '前提：三档全零，旧的四条差值信号一条都不会触发');
+  const sig = v.trust.find((s) => s.id === 'no-trajectory');
+  assert.ok(sig, `三档全零 + 开发期已推进时必须有信号，实得 ${JSON.stringify(v.trust.map((s) => s.id))}`);
+  assert.match(sig.message, /0 个有轨迹事件/);
+  assert.match(sig.message, /go-state\.json 不存在或不可解析/, '调度器状态是这条信号的关键事实');
+  assert.equal(runCli(tmp, ['status']).status, 0, '仍然只呈现不裁定，不进退出码');
+});
+
+test('D-A39-02：刚进开发期（不足阈值）零轨迹不报，保证零假阳性', async (t) => {
+  const tmp = await makeCopy(t);
+  await enterDeveloping(tmp, 2);
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.ok(
+    !v.trust.some((s) => s.id === 'no-trajectory'),
+    '刚进开发期还没有轨迹是正常的，报出来就是噪声',
+  );
+});
+
+test('D-A39-02：非 DEVELOPING 阶段不报 no-trajectory（PLANNING 期本就不该有任务轨迹）', async (t) => {
+  const tmp = await makeCopy(t);
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.equal(v.phase, 'PLANNING');
+  assert.ok(!v.trust.some((s) => s.id === 'no-trajectory'));
+});
+
+test('D-A39-02：go-state.json 存在时如实呈现其 stopReason', async (t) => {
+  const tmp = await makeCopy(t);
+  await enterDeveloping(tmp, 30);
+  await writeGoState(tmp, { phase: 'DEVELOPING', stopReason: 'gate', consecutiveResumes: 0 });
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.equal(v.scheduler.exists, true);
+  assert.equal(v.scheduler.stopReason, 'gate');
+  const sig = v.trust.find((s) => s.id === 'no-trajectory');
+  assert.match(sig.message, /stopReason=gate/);
+});
+
+test('D-A39-01：有轨迹时按轨迹口径显示，并与全部事件数分列', async (t) => {
+  const tmp = await makeCopy(t);
+  await enterDeveloping(tmp, 30);
+  await appendJournal(tmp, [cmd('validate', minutesAgo(20)), pass('shared-base', minutesAgo(3))]);
+
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  assert.equal(v.activity.reportEvents, 1);
+  assert.equal(v.activity.events, 2);
+  assert.ok(v.activity.reportIdleMs >= 0);
+  assert.ok(!v.trust.some((s) => s.id === 'no-trajectory'), '有轨迹就不该再报零轨迹');
+
+  const table = runCli(tmp, ['status']).stdout;
+  assert.match(table, /最近一条任务轨迹距今/);
+  assert.match(table, /轨迹 1 条 \/ 事件合计 2 条/);
+});
+
+test('A37 规格 1：分组每个切面各自合计等于总数，且带小节标题不可跨切面相加', async (t) => {
+  const tmp = await makeCopy(t);
+  const v = JSON.parse(runCli(tmp, ['status', '--json']).stdout);
+  const sum = (o) => Object.values(o).reduce((a, c) => a + c.total, 0);
+  assert.equal(sum(v.groups.bySide), v.groups.total, 'side 切面必须覆盖全部任务');
+  assert.equal(sum(v.groups.byLayer), v.groups.total, 'layer 切面必须覆盖全部任务（business 不可省）');
+  assert.equal(sum(v.groups.byApp), v.groups.total, 'app 切面必须覆盖全部任务');
+
+  const table = runCli(tmp, ['status']).stdout;
+  assert.match(table, /— 按前后端 —/);
+  assert.match(table, /— 按层 —/);
+  // 「按端」小节只在多端项目出现；标签须与「按前后端」一眼可分，不能只差一个字。
+  if (Object.keys(v.groups.byApp).some((a) => a !== '—')) assert.match(table, /— 按端 —/);
 });
 
 // ── 帮助面 ────────────────────────────────────────────────────────────────
