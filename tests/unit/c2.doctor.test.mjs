@@ -24,14 +24,22 @@ async function makeProject(t) {
   // 合规 CLAUDE.md（10 行）
   await writeFile(path.join(tmp, 'CLAUDE.md'), Array.from({ length: 10 }, (_, i) => `# 第 ${i + 1} 行`).join('\n') + '\n');
 
-  // 完整 .claude：settings + 2 命令 + 3 角色 + 3 hooks（可执行；A18 增 go-continue）
+  // 完整 .claude：settings + 4 skills + 3 工作流正文 + 6 角色 + 3 hooks（可执行；A18 增 go-continue）
   const files = {
     '.claude/settings.json': '{}\n',
+    '.claude/skills/go/SKILL.md': '---\ndescription: 继续 Vima 项目开发\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n',
+    '.claude/skills/check/SKILL.md': '---\ndescription: 检查 Vima 项目完成度\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n',
+    '.claude/skills/design/SKILL.md': '---\ndescription: 执行 Vima 设计工作流\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n',
+    '.claude/skills/vima/SKILL.md': '---\ndescription: 执行任意 Vima CLI 命令\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n',
     '.claude/commands/go.md': '# /go\n',
     '.claude/commands/check.md': '# /check\n',
+    '.claude/commands/design.md': '# /design\n',
     '.claude/agents/vima-builder.md': '# builder\n',
     '.claude/agents/vima-verifier.md': '# verifier\n',
     '.claude/agents/vima-planner.md': '# planner\n',
+    '.claude/agents/vima-designer.md': '# designer\n',
+    '.claude/agents/vima-design-reviewer.md': '# design reviewer\n',
+    '.claude/agents/vima-experience-verifier.md': '# experience verifier\n',
     '.claude/hooks/guard-shared.mjs': '// stub\nprocess.exit(0)\n',
     '.claude/hooks/post-write.mjs': '// stub\nprocess.exit(0)\n',
     '.claude/hooks/go-continue.mjs': '// stub\nprocess.exit(0)\n',
@@ -96,7 +104,45 @@ test('doctor：hooks 缺可执行位 → ⑦ ❌ 且 exit 2', async (t) => {
   assert.match(lineOf(proc.stdout, '⑦ hooks'), /^❌/);
 });
 
-test('doctor --json：结构化输出（12 个检查项 + pass 标志，A19 增产物形态项）', async (t) => {
+test('doctor：正式 go skill 缺失 → ⑥ ❌，不能以 legacy command 冒充可稳定触发', async (t) => {
+  const tmp = await makeProject(t);
+  await rm(path.join(tmp, '.claude/skills/go/SKILL.md'));
+
+  const proc = runCli(tmp, ['doctor']);
+  assert.equal(proc.status, 2);
+  assert.match(lineOf(proc.stdout, '⑥ .claude'), /^❌/);
+  assert.match(proc.stdout, /\.claude\/skills\/go\/SKILL\.md/);
+  assert.match(proc.stdout, /vima update/);
+});
+
+test('doctor：任一正式命令入口 skill 缺失 → ⑥ ❌', async (t) => {
+  for (const name of ['check', 'design', 'vima']) {
+    const tmp = await makeProject(t);
+    await rm(path.join(tmp, `.claude/skills/${name}/SKILL.md`));
+
+    const proc = runCli(tmp, ['doctor']);
+    assert.equal(proc.status, 2, `${name}: ${proc.stdout}`);
+    assert.match(lineOf(proc.stdout, '⑥ .claude'), /^❌/);
+    assert.match(proc.stdout, new RegExp(`\\.claude/skills/${name}/SKILL\\.md`));
+  }
+});
+
+test('doctor：skill 无描述、禁用模型触发或缺项目根校验 → ⑥ ❌', async (t) => {
+  const cases = [
+    ['---\nname: check\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n', /缺有效 description/],
+    ['---\ndescription: check\ndisable-model-invocation: yes\n---\n${CLAUDE_SKILL_DIR} ${CLAUDE_PROJECT_DIR}\n', /禁用了模型触发/],
+    ['---\ndescription: check\n---\n无根校验\n', /缺项目根校验变量/],
+  ];
+  for (const [content, expected] of cases) {
+    const tmp = await makeProject(t);
+    await writeFile(path.join(tmp, '.claude/skills/check/SKILL.md'), content);
+    const proc = runCli(tmp, ['doctor']);
+    assert.equal(proc.status, 2, proc.stdout);
+    assert.match(proc.stdout, expected);
+  }
+});
+
+test('doctor --json：结构化输出（13 个检查项 + pass 标志，A38 增未来时间戳项）', async (t) => {
   const tmp = await makeProject(t);
   const proc = runCli(tmp, ['doctor', '--json']);
   assert.equal(proc.status, 0, `stdout: ${proc.stdout}`);
@@ -104,7 +150,7 @@ test('doctor --json：结构化输出（12 个检查项 + pass 标志，A19 增�
   assert.equal(report.schemaVersion, '1');
   assert.equal(report.vimaProject, true);
   assert.equal(report.pass, true);
-  assert.equal(report.checks.length, 12); // A16：⑪ 端册完整性
+  assert.equal(report.checks.length, 13); // A16：⑪ 端册完整性；A38：⑬ 未来时间戳
   for (const c of report.checks) {
     assert.ok(['ok', 'warn', 'error'].includes(c.status), `非法 status: ${c.status}`);
     assert.equal(typeof c.detail, 'string');
@@ -189,4 +235,45 @@ test('doctor ⑫：spec 未生成 → 跳过（不误伤 BOOTSTRAP 期项目）'
   const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑫ 产物形态');
   assert.match(line, /^⚠️/);
   assert.match(line, /未生成/);
+});
+
+// ── A38 D-A38-03：未来时间戳 = 绕过内核手改 frontmatter 的铁证 ────────────────
+
+test('doctor ⑬：全部 updatedAt 为过去 → ✅', async (t) => {
+  const tmp = await makeProject(t);
+  const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑬ 任务 updatedAt');
+  assert.match(line, /^✅/);
+  assert.match(line, /均不晚于当前时钟/);
+});
+
+test('doctor ⑬：updatedAt 为未来 → ❌ 且指名文件（内核只写真实时间）', async (t) => {
+  const tmp = await makeProject(t);
+  const p = path.join(tmp, 'docs/tasks/device-api-be.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text.replace(/^updatedAt: .*$/m, 'updatedAt: 2099-01-01T00:00:00Z'));
+
+  const proc = runCli(tmp, ['doctor']);
+  const line = lineOf(proc.stdout, '⑬ 任务 updatedAt');
+  assert.match(line, /^❌/);
+  assert.match(line, /device-api-be\.md/, '必须指名是哪个文件——只报个数无法行动');
+  assert.equal(proc.status, 2, '存在 ❌ 项 → exit 2');
+});
+
+test('doctor ⑬：换 clone 场景（无 .vima/reports）不假阳性', async (t) => {
+  // D-A38-03 否掉了「taskStats.updatedAt 对不上 journal 的 sync 事件」这条候选判据，
+  // 正是因为 .vima/reports/ 不进版本控制、换 clone 后必然假阳性。本条守住替代判据无此缺陷。
+  const tmp = await makeProject(t);
+  await rm(path.join(tmp, '.vima'), { recursive: true, force: true });
+  const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑬ 任务 updatedAt');
+  assert.match(line, /^✅/, '判据只看 frontmatter 与系统时钟，与 journal 是否存在无关');
+});
+
+test('doctor ⑬：5 分钟内的时钟偏差不算数（跨机协作容差）', async (t) => {
+  const tmp = await makeProject(t);
+  const p = path.join(tmp, 'docs/tasks/device-api-be.md');
+  const text = await readFile(p, 'utf8');
+  const soon = new Date(Date.now() + 60_000).toISOString(); // 未来 1 分钟，在容差内
+  await writeFile(p, text.replace(/^updatedAt: .*$/m, `updatedAt: ${soon}`));
+  const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑬ 任务 updatedAt');
+  assert.match(line, /^✅/);
 });

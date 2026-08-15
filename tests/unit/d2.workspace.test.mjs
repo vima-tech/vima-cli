@@ -12,6 +12,59 @@ import { fileURLToPath } from 'node:url';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ADMIN = path.join(CLI_ROOT, 'templates', 'admin');
 
+test('go 正式入口：project skill 可被用户和 Claude 自动触发，并锚定真实 Vima 根', async () => {
+  const skill = await readFile(path.join(ADMIN, 'workspace/skills/go/SKILL.md'), 'utf8');
+  assert.match(skill, /^---\n[\s\S]*?\n---\n/);
+  assert.match(skill, /description:[^\n]*(继续开发|开始开发)/);
+  assert.match(skill, /\$ARGUMENTS/);
+  assert.match(skill, /\$\{CLAUDE_SKILL_DIR\}/);
+  assert.match(skill, /\$\{CLAUDE_PROJECT_DIR\}/);
+  assert.match(skill, /\.claude\/commands\/go\.md/);
+  assert.match(skill, /vima go/);
+  assert.doesNotMatch(skill, /disable-model-invocation:\s*true/);
+});
+
+test('Claude 命令触发面：三条工作流 skill + /vima 全 CLI 路由均可显式和自然语言触发', async () => {
+  const skillRoot = path.join(ADMIN, 'workspace/skills');
+  assert.deepEqual((await readdir(skillRoot)).sort(), ['check', 'design', 'go', 'vima']);
+
+  for (const name of ['check', 'design', 'go', 'vima']) {
+    const skill = await readFile(path.join(skillRoot, name, 'SKILL.md'), 'utf8');
+    assert.match(skill, /^---\n[\s\S]*?description:[^\n]+[\s\S]*?\n---\n/, `${name} 须有可发现描述`);
+    assert.match(skill, /\$\{CLAUDE_SKILL_DIR\}/, `${name} 须从 skill 位置推导真实根`);
+    assert.match(skill, /\$\{CLAUDE_PROJECT_DIR\}/, `${name} 须拒绝错误 Claude 项目根`);
+    assert.doesNotMatch(skill, /disable-model-invocation:\s*true/, `${name} 不得关闭模型触发`);
+  }
+
+  const check = await readFile(path.join(skillRoot, 'check/SKILL.md'), 'utf8');
+  assert.match(check, /\.claude\/commands\/check\.md/);
+  const design = await readFile(path.join(skillRoot, 'design/SKILL.md'), 'utf8');
+  assert.match(design, /\.claude\/commands\/design\.md/);
+
+  const router = await readFile(path.join(skillRoot, 'vima/SKILL.md'), 'utf8');
+  assert.match(router, /\$ARGUMENTS/);
+  assert.match(router, /vima help/);
+  assert.match(router, /docs\/lifecycle\.json/);
+  assert.match(router, /不得.*手工.*模拟|不能.*手工.*模拟/);
+  assert.match(router, /\/vima <command>/);
+
+  for (const name of ['go', 'check', 'design']) {
+    const legacy = await readFile(path.join(ADMIN, `workspace/commands/${name}.md`), 'utf8');
+    assert.match(
+      legacy,
+      /^---\n[\s\S]*?description:[^\n]+[\s\S]*?\n---\n/,
+      `${name}.md 兼容入口也须保留 description，正式 skill 损坏时仍可被发现`,
+    );
+  }
+});
+
+test('项目宪法：所有 Vima 命令与生命周期意图必须经正式 skill，不只特判 go', async () => {
+  const constitution = await readFile(path.join(ADMIN, 'workspace/CLAUDE.project.md'), 'utf8');
+  assert.match(constitution, /所有 Vima 命令/);
+  assert.match(constitution, /`go`、`check`、`design`、`vima`/);
+  assert.match(constitution, /不得.*手工.*模拟/);
+});
+
 test('A3 冷读门：go.md 满足三条验收 grep 判据（v2.1-amendments A3）', async () => {
   const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
   assert.ok(goMd.includes('深度校验'), 'go.md 须含触发词「深度校验」');
@@ -670,6 +723,45 @@ test('guard-shared A16：端册面拦 apps/<id>/ 共享层；无令牌 exit 2、
   assert.equal(runGuard(root, 'apps/patient/src/components/Btn.ts').status, 0, 'v1 面不认 apps/（诚实回退）');
 });
 
+test('A37 证据边界：Agent 的 Write/Edit 不能直接篡改 journal 账本', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-journal-guard-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const blocked = runGuard(root, '.vima/reports/journal.jsonl');
+  assert.equal(blocked.status, 2);
+  assert.match(blocked.stderr, /过程账本写保护/);
+  assert.equal(runGuard(root, '.vima/reports/task-1-verifier.json').status, 0, '报告仍由 verifier Agent 正常产出');
+});
+
+test('A37 report 采集：拒绝空壳/冒名 pass，并按完整报告内容而非 result 字符串裁定事件', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-report-evidence-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, '.vima/reports'), { recursive: true });
+  const report = path.join(root, '.vima/reports/task-1-verifier.json');
+  const journal = path.join(root, '.vima/reports/journal.jsonl');
+
+  await writeFile(report, JSON.stringify({ result: 'pass' }));
+  assert.equal(runHook(root, '.vima/reports/task-1-verifier.json').status, 0);
+  await assert.rejects(readFile(journal, 'utf8'), { code: 'ENOENT' }, '空壳 pass 不得生成证据');
+
+  const base = {
+    taskId: 'task-1', round: 1, result: 'pass', checklist: [],
+    points: [{ point: 'A', passed: false }], missing: [], contractViolations: [],
+  };
+  await writeFile(report, JSON.stringify(base));
+  runHook(root, '.vima/reports/task-1-verifier.json');
+  let rows = (await readFile(journal, 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(rows.at(-1).outcome, 'fail', 'result=pass 不能覆盖未通过点位');
+
+  await writeFile(report, JSON.stringify({
+    ...base,
+    round: 2,
+    points: [{ point: 'A', passed: false, waived: true, reason: '用户明确裁定' }],
+  }));
+  runHook(root, '.vima/reports/task-1-verifier.json');
+  rows = (await readFile(journal, 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(rows.at(-1).outcome, 'pass', '合法 waived 不应被误算为 fail');
+});
+
 test('post-write A16/A23：多端业务代码不逃逸机检；admin-web 与 mp-native 各查各的规范面', async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-pw-multi-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -843,4 +935,35 @@ test('A34 收口 C-A34-01/02：分级建议与阶段可见性写进契约（闸�
   assert.match(contracts, /fidelitySuggestions/, '§6.20 须定义该字段');
   assert.match(contracts, /`fidelitySuggestions` 恒不阻断/, '恒不阻断的口径必须写死（D-A34-03）');
   assert.match(contracts, /gateApplies/, '非 DESIGNING 阶段的预览语义必须可区分');
+});
+
+test('A37 D-A37-04：settings.json 注册 statusLine 且直调 vima status --line（不新增脚本资产）', async () => {
+  const settings = JSON.parse(await readFile(path.join(ADMIN, 'workspace/settings.json'), 'utf8'));
+  assert.equal(settings.statusLine?.type, 'command', 'statusLine 须为 command 型');
+  assert.equal(
+    settings.statusLine?.command,
+    'vima status --line',
+    // 改成自建脚本就必须同步 init/doctor 的落点清单（CLAUDE.md 分层边界）——
+    // 直调 CLI 是「落点清单零变更」的唯一形态，这条断言守住它。
+    'statusLine 必须直调 CLI，不得改为 .claude/ 下的自建脚本',
+  );
+  const { existsSync } = await import('node:fs');
+  assert.equal(
+    existsSync(path.join(ADMIN, 'workspace/statusline.mjs')),
+    false,
+    'D-A37-04：不得新增 statusline 脚本资产',
+  );
+});
+
+test('A38 规格 2：AGENTS.md 最低红线含 L3/L0 三条（跨工具口不能只有 Claude 才受约束）', async () => {
+  // AGENTS.md 是读 AGENTS.md 的工具（Cursor / Codex / Jules）唯一拿得到的约束。
+  // 此前它只有契约真源 / @vima 标注 / 自检命令三条，**没有一条说「确定性操作必须走 CLI」**——
+  // 而项目宪法与四份 skill 正文里的那句是 Claude Code 专属，对这些工具毫无作用。
+  const agents = await readFile(path.join(ADMIN, 'workspace/AGENTS.project.md'), 'utf8');
+  assert.match(agents, /vima help/, 'L3：命令集真源必须点名，不许凭记忆猜');
+  assert.match(agents, /vima sync/, 'L3：状态重建的唯一入口必须点名');
+  assert.match(agents, /不要手改任务 frontmatter/, 'L3：手改 frontmatter 是 sustain-v4 的实际失效形态');
+  assert.match(agents, /updatedAt/, 'L3：未来时间戳 = 伪造证据，须明写（与 doctor ⑬ 同一判据）');
+  assert.match(agents, /非 vima 项目根/, 'L0：跨工具口能做到的最强形式是要求它主动自查一次');
+  assert.match(agents, /vima status/, 'L0：自查动作必须给得出具体命令');
 });

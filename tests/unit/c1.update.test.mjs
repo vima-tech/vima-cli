@@ -135,6 +135,25 @@ test('update：manifest 未记录的模板新增文件 → 自动安装并登记
   assert.deepEqual(after.install, { minimal: false, skipScan: false }, '安装形态须固化到 manifest');
 });
 
+test('update：旧项目自动补装并登记全部正式命令入口 skills', async (t) => {
+  const proj = await initializedProject(t);
+  const rels = ['go', 'check', 'design', 'vima'].map((name) => `.claude/skills/${name}/SKILL.md`);
+  const mPath = path.join(proj, '.vima/manifest.json');
+  const m = JSON.parse(await readFile(mPath, 'utf8'));
+  m.files.managed = m.files.managed.filter((e) => !rels.includes(e.path));
+  await writeFile(mPath, `${JSON.stringify(m, null, 2)}\n`);
+  for (const rel of rels) await unlink(path.join(proj, rel));
+
+  const r = vima(proj, 'update');
+  assert.equal(r.status, 0, r.stderr);
+  const after = JSON.parse(await readFile(mPath, 'utf8'));
+  for (const rel of rels) {
+    assert.match(r.stdout, new RegExp(`\\[新增\\] ${rel.replaceAll('.', '\\.')} `));
+    assert.ok(await fileExists(path.join(proj, rel)));
+    assert.ok(after.files.managed.some((e) => e.path === rel));
+  }
+});
+
 test('update：--minimal 项目不会被灌入 docs/ 资产（形态由 install 判定，旧 manifest 靠反推）', async (t) => {
   const box = await sandbox(t);
   assert.equal(vima(box, 'create', 'min-admin', '-t', 'admin', '--no-git', '--no-install').status, 0);

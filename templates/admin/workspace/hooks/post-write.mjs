@@ -175,6 +175,40 @@ function journalGuards(root, rules) {
   }
 }
 
+/**
+ * 把 Agent 报告压成 journal 事件前先做最小 schema/一致性校验。
+ * 这不能把 Agent 报告升级成独立防伪证据，但能拒绝 `{result:"pass"}` 这类空壳与文件名冒名。
+ */
+function reportEventOf(rep, taskId, role) {
+  if (!rep || typeof rep !== 'object' || rep.taskId !== taskId) return null;
+  if (role === 'builder') {
+    if (!['completed', 'failed'].includes(rep.status)) return null;
+    const acceptance = rep.acceptance && typeof rep.acceptance === 'object' ? rep.acceptance : {};
+    const total = Number.isFinite(acceptance.total) ? acceptance.total : 0;
+    const passed = Number.isFinite(acceptance.passed) ? acceptance.passed : 0;
+    return {
+      round: 1,
+      outcome: rep.status === 'completed' ? 'pass' : 'fail',
+      failed: Math.max(0, total - passed),
+    };
+  }
+
+  if (!Number.isInteger(rep.round) || rep.round < 1 || !['pass', 'fail'].includes(rep.result)) return null;
+  if (!Array.isArray(rep.checklist) || !Array.isArray(rep.points)
+    || !Array.isArray(rep.missing) || !Array.isArray(rep.contractViolations)) return null;
+  const entries = [...rep.checklist, ...rep.points];
+  if (entries.some((pt) => !pt || typeof pt !== 'object' || typeof pt.passed !== 'boolean')) return null;
+  const failed = entries.filter((pt) => {
+    if (pt.passed === true) return false;
+    return !(pt.waived === true && typeof pt.reason === 'string' && pt.reason.trim() !== '');
+  }).length + rep.missing.length + rep.contractViolations.length;
+  return {
+    round: rep.round,
+    outcome: rep.result === 'pass' && failed === 0 ? 'pass' : 'fail',
+    failed,
+  };
+}
+
 let raw = '';
 process.stdin.on('data', (d) => (raw += d));
 process.stdin.on('end', () => {
@@ -220,20 +254,20 @@ process.stdin.on('end', () => {
   // 位置必须在下方早退门之前——那道门只放行 .vue/.ts/.tsx/.wxml/.wxss，会把 .json 报告挡掉。
   // 由 hook 采而不让子代理自己写（D-A35-02）：子代理是概率性的，漏一条就断一段曲线。
   // §6.9 的文件名与 schema 一字不改（D-A35-03）——被覆盖的仍是内容，留痕的是「第 N 轮什么结果」。
-  const repM = /^\.vima\/reports\/(.+)-(verifier|builder)\.json$/.exec(rel);
+  const repM = /^\.vima\/reports\/([a-z0-9][a-z0-9-]*)-(verifier|builder)\.json$/.exec(rel);
   if (repM) {
     try {
       const rep = JSON.parse(readFileSync(absPath, 'utf8'));
-      const round = Number.isFinite(rep.round) ? rep.round : 1;
-      const points = Array.isArray(rep.points) ? rep.points : [];
-      const failed = points.filter((pt) => pt && typeof pt === 'object' && pt.passed !== true).length;
-      journalAppend(root, {
-        ts: new Date().toISOString(),
-        kind: 'report',
-        ref: `${repM[1]}/${repM[2]}/r${round}`,
-        outcome: rep.result === 'pass' || (points.length > 0 && failed === 0) ? 'pass' : 'fail',
-        n: failed,
-      });
+      const event = reportEventOf(rep, repM[1], repM[2]);
+      if (event) {
+        journalAppend(root, {
+          ts: new Date().toISOString(),
+          kind: 'report',
+          ref: `${repM[1]}/${repM[2]}/r${event.round}`,
+          outcome: event.outcome,
+          n: event.failed,
+        });
+      }
     } catch {
       /* 报告不可解析 → 不记（宁缺勿假） */
     }

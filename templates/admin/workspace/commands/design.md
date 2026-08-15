@@ -1,3 +1,7 @@
+---
+description: 执行 Vima DESIGNING 阶段的视觉设计、方向选择、页面冻结和出口闸门；用户输入 /design、开始设计或继续设计时使用。
+---
+
 # /design 命令
 
 ## 触发条件

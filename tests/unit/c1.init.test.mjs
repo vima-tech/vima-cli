@@ -83,6 +83,10 @@ test('init：CLAUDE.md < 50 行、hooks 可执行位、manifest.managed > 0、li
     'docs/ui-framework/CAPABILITY.md',
     '.claude/settings.json',
     '.claude/commands/go.md',
+    '.claude/skills/go/SKILL.md',
+    '.claude/skills/check/SKILL.md',
+    '.claude/skills/design/SKILL.md',
+    '.claude/skills/vima/SKILL.md',
     '.claude/agents/vima-builder.md',
   ]) {
     assert.ok(await fileExists(path.join(proj, rel)), `应存在: ${rel}`);

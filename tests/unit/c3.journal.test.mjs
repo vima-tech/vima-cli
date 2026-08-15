@@ -152,7 +152,10 @@ test('hook 采集口②：子代理报告落盘 → report 事件（ref 带轮�
   await mkdir(path.join(root, '.vima', 'reports'), { recursive: true });
   await writeFile(path.join(root, rel), JSON.stringify({
     taskId: 'demo', round: 2, result: 'fail',
+    checklist: [],
     points: [{ point: 'p1', passed: false }, { point: 'p2', passed: true }],
+    missing: [],
+    contractViolations: [],
   }));
   const r = hook(root, rel);
   assert.equal(r.status, 0, `hook 应放行报告写入；stderr: ${r.stderr}`);

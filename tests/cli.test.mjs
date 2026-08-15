@@ -11,6 +11,7 @@ import { runCli, CLI_ROOT } from './helpers.mjs';
 const ALL_COMMANDS = [
   'create', 'init', 'update', 'upgrade', 'doctor', 'validate', 'render-review',
   'render-prototype', 'render-matrix', 'sync', 'plan', 'approve', 'context', 'trace',
+  'go',
 ];
 
 async function emptyDir(t) {

@@ -1,3 +1,8 @@
+---
+description: 执行或断点继续 Vima 项目开发；用户输入 /go、开始开发、继续开发或断点继续时使用。
+argument-hint: [--commit]
+---
+
 # /go 命令
 
 ## 触发条件

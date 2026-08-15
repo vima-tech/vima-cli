@@ -30,7 +30,9 @@ docs/pact-absorption.md docs/design/v2.1-amendments.md [A  吸收分析]
 lib/commands/{create,init,update,upgrade,app}.mjs [C1] + tests/unit/c1.*.test.mjs
                                                 （update=更新项目产物；upgrade=升级 CLI 自身，A15；
                                                  app=端册管理 add/list，A16 Wave 3）
-lib/commands/{plan,sync,doctor}.mjs            [C2] + tests/unit/c2.*.test.mjs
+lib/commands/{plan,sync,doctor,status}.mjs     [C2] + tests/unit/c2.*.test.mjs
+                                                （status=运行状态可观测，A37；只写 stdout，
+                                                 不产出任何仓库内文件，恒 exit 0）
 lib/commands/{validate,approve,trace,context,converge,retro,change,certify,mock,design}.mjs [C3] + tests/unit/c3.*.test.mjs
                                                 （converge=跨任务集成对账，A20；复用
                                                  validate 导出的代码扫描原语，不复制实现；
@@ -107,6 +109,8 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | REGISTRY_UNREACHABLE | 2 | upgrade | npm registry 请求失败/超时/响应缺 version（A15；不静默降级为「已是最新」） |
 | INSTALL_FAILED | 2 | upgrade | 全局安装器无法执行或以非零码结束（A15） |
 | NOT_IN_PROJECT | 4 | 全部项目内命令（A24） | 当前目录及其任何祖先都不是 vima 项目（无 `.vima/` 也无 `docs/lifecycle.json`）。**不写任何文件**——原行为按 cwd 静默工作，会把错误结论落盘（实测：在 `backend/` 下 validate 报「2 错误」并写出 `pass: false` 的报告） |
+| GO_SKILL_MISSING | 4 | go | 项目缺 `.claude/skills/go/SKILL.md`，不能稳定发现/触发 `/go`；运行 `vima update` 补装 |
+| CLAUDE_NOT_FOUND | 4 | go | 无法从 PATH 启动 Claude Code；安装 `claude` 后重试 |
 | PHASE_TRANSITION | 4 | approve / design | 当前生命周期阶段不允许所请求的批准、迁移或验收操作（A34） |
 | DESIGN_INDEX_DRIFT | 4 | design status --check | 设计索引与当前 spec/设计目录推导结果不一致（A34） |
 | NO_APP | 4 | design approve direction | `--app` 指向端册外的端（A34） |
@@ -197,6 +201,9 @@ export async function loadTasks(root)
 // 读 docs/tasks/*.md（跳过 _ 前缀与 README.md）→ [{ file, id, fm, body }]
 // fm 必含 taskId,title,status,layer,side,dependsOn,retryCount,updatedAt（contract 可选）
 // 缺字段 → VimaError('TASK_FM', ..., {path})；status/layer/side 取值非法同上
+export async function loadTasksTolerant(root)
+// → { tasks, issues:[{file,code,message}] }；逐文件隔离坏任务，只供 status 等只读观察口，
+// validate/plan 等闸门仍必须使用严格 loadTasks
 export async function saveTaskFrontmatter(task, updates)  // 整体重写 frontmatter，保留 body
 
 // lib/model/lifecycle.mjs
@@ -274,6 +281,62 @@ export function journalMetrics(events)    // 事件数组 → 派生指标（A35
 // 原始 `ts` 不出。A21 既有脱敏判据原样适用，不放宽。**不读系统时钟。**
 // 出处：原为 retro.mjs 私有实现，A36 因出现第二个消费方（render-journal）而抽出；
 // 抽取成本记在 A36 名下，retro 行为零变化（c3.retro 12 个用例为回归网）。
+
+// lib/model/progress.mjs（A37 运行状态聚合器）
+// **只读不写；不读系统时钟**——`now` 一律由命令层注入（同 journal.mjs 纪律，不为本项破例）。
+// **只呈现差值不判定对错**（D-A37-02）：成因判定与修复建议属 doctor / converge。
+export const NO_APP        // '—'：无 app 字段（单端项目）的分组键
+export const MIN_SAMPLE    // 3：低于此值一律拒绝外推
+export const RECENT_WINDOW // 10：乐观端速率只看最后这么多次验收通过
+
+export function groupTasks(tasks, verifiedIds = null)
+// → { total, byStatus, bySide:{backend,frontend,fullstack}, byLayer:{shared,business,pipeline},
+//     byApp:{<appId|NO_APP>} }，每个桶 = { total, verified, pending, running, done, failed, blocked }
+// 三张表预置全部枚举键（计数为 0 也出）。`verified` 取自 journal 而非 status 字段——
+// 分组的「实际进度」必须与三档总表同口径，否则同屏自相矛盾。
+
+export function taskEvidence(events)
+// → { tracked:Set<taskId>, verified:Map<taskId, ms>, firstPass:Map<taskId,ms>,
+//      order:[taskId], lastEventTs:number|null }
+// 判据取 §6.21 的 `report` 事件（hook 旁路采集，但报告输入仍由 Agent 产出，不宣称独立防伪）。
+// **按行序遍历**：verified 表示最新 verifier 事件仍为 pass；firstPass/order 只供 ETA，
+// 后续 fail 撤销当前 verified 但不抹除历史吞吐样本。ts 不可解析的 pass 不构成验收证据。
+
+export function currentVerifiedIds(tasks, evidence, reopenedAt = {})
+// → Set<taskId>；最新 verifier 为 pass，且任务没有在该 pass 后被更新为非 done。
+// 非 done 的 updatedAt 早于/等于 pass 时保留倒挂信号；严格晚于 pass 视为 reopen，旧验收失效。
+// reopenedAt 取 `.vima/changes/*/change.json` 的 appliedAt/reopened 水位；pass 必须严格晚于水位，
+// 防止任务重新标 done 后把 change apply 之前的旧 pass 复活。
+
+export function evidenceTiers(tasks, evidence)
+// → { total, claimed, tracked, verified, gaps:{claimedVsTracked,trackedVsVerified}, inverted }
+// 证据强度三档（A37 规格 1）：claimed=frontmatter status done（可伪造）、
+// tracked/verified=journal 的 hook 采集事件（相对更强，但非独立防伪）。
+// 不变式 claimed ≥ tracked ≥ verified，
+// 破坏即 `inverted: true`。tracked/verified 只统计仍存在于任务清单里的 taskId
+// ——journal 保留已删除任务的历史事件，计进来会让分子超过分母。
+
+export function phaseTimeline(lifecycle, now)
+// → { phases:[{phase,enteredAt,completedAt,ms,current}], startedAt, totalMs }
+// 取 phaseHistory 已落盘的时间戳；当前阶段（completedAt=null）用 now − enteredAt。
+// 负值夹到 0——未来时间戳不该产生负用时。
+export function phaseEnteredAt(lifecycle, phase)  // → ms | null
+
+export function estimate({ completions, remaining, now, since })
+// → { estimable, reason, samples, remaining, ratePerHour:{conservative,optimistic}|null,
+//     etaMs:{conservative,optimistic}|null }
+// completions = 首次验收通过的毫秒序列（**按行序**）。样本 < MIN_SAMPLE 或 remaining ≤ 0
+// → estimable:false 且 etaMs/ratePerHour 恒 null，reason 说明还缺几个。
+// since/completions 含未来时间、now 非法或总跨度 ≤0 时同样拒绝估算，不得把负跨度夹成 1ms。
+// 保守端 = 全程均速（分母含准备期），乐观端 = 最近 ≤RECENT_WINDOW 次的窗口均速。
+// **刻意不用 frontmatter `updatedAt`**（D-A37-03）：它是 Agent 手写的，
+// sustain-v4 实测 68 条同一时刻 + 6 条超前真实时钟 1–3.5 小时，项目越出问题它越虚构。
+
+export function trustSignals({ tiers, groups, lifecycle, batchPlan })
+// → [{ id, message }]，id ∈ tier-gap | tier-unverified | tier-inverted | stats-stale | plan-stale
+// taskStats/batch-plan 对比 total/pending/running/done/failed/blocked 全部已有数值键，不只 done。
+// **封闭集**，全部是「同一个数在仓库里有几个不一样的副本」。只回答「谁说了什么」，
+// 不回答「谁错了、该怎么改」——越界去判定就会长成第二个 doctor 并与其规则表分叉。
 ```
 
 ## 6. 文件格式 Schema
@@ -465,7 +528,9 @@ create/app add 按端拷贝各 app scaffold 时注入该端 id（backend 与单�
                "sharedDirs": ["src/main/java/com/myapp/config",
                               "src/main/java/com/myapp/security"] },
   "install": { "minimal": false, "skipScan": false },
-  "files": { "managed": [{ "path": ".claude/commands/go.md", "checksum": "sha256:<hex>" }],
+  "files": { "managed": [{ "path": ".claude/skills/vima/SKILL.md", "checksum": "sha256:<hex>" },
+                           { "path": ".claude/skills/go/SKILL.md", "checksum": "sha256:<hex>" },
+                           { "path": ".claude/commands/go.md", "checksum": "sha256:<hex>" }],
              "scaffold": [{ "path": "src/App.vue", "checksum": "sha256:<hex>" }],
              "userOwned": ["CLAUDE.md", "docs/spec.md", "docs/design-language.md",
                             "docs/interaction-language.md",
@@ -497,7 +562,36 @@ files，不得清空**；templateId 不同 → TEMPLATE_MISMATCH exit 4（§3.1�
 resolveApps 合成的默认端册与真实布局不符）。**init 不重写 `docs/lifecycle.json`**：
 状态不是生成物，已存在则保留并提示（`--force` 的语义是重建生成物，不是清空进度）。
 
-init 安装清单的 managed 部分含 `AGENTS.md`（← workspace/AGENTS.project.md 变量替换，
+init 安装清单的 managed 部分含四个 Claude Code project skills，形成分层触发面：
+
+| skill | 显式入口 | 覆盖面 |
+|---|---|---|
+| `go` | `/go [--commit]` | 开始/继续开发、断点续跑 |
+| `check` | `/check [深度检查]` | 完成度、构建、任务点、运行时与收敛报告 |
+| `design` | `/design` | DESIGNING 阶段完整视觉工作流 |
+| `vima` | `/vima <command> [options]` | 当前 `vima help` 列出的全部 CLI 命令；用命名空间规避 Claude 内置 `/doctor`、`/context`、`/help` 冲突 |
+
+四者均带自然语言触发描述，校验 `${CLAUDE_SKILL_DIR}` 推导出的 Vima 根与
+`${CLAUDE_PROJECT_DIR}` 一致；不一致时停止，不在错误 cwd 执行，也不得以手工读写模拟
+确定性 CLI。`vima` router 以运行时 `vima help` 和 `docs/lifecycle.json` 为真源，不复制一份
+会漂移的命令清单；自然语言意图不唯一时只列候选，不执行写命令。`go/check/design` skill
+分别读取 `.claude/commands/{go,check,design}.md` 的完整协议正文，防长工作流双真源漂移；
+三份兼容 command 自身也保留 frontmatter description，在正式 skill 损坏时仍有降级发现面。
+Claude Code 同名 skill 优先于 command。
+
+`doctor` 的 ⑥ 不只检查文件存在，还解析四份 skill frontmatter：description 非空、不得
+`disable-model-invocation: true`、正文必须同时使用两个项目根变量；任一不满足即 error 并提示
+`vima update`。这使“入口文件存在但无法自动触发”成为可机检故障。
+
+**触发可靠性与规则能力必须分开呈报**：Sustain v4 实证
+（`docs/design/sustain-v4-truthsource-drift.md`）证明 `vima validate` 当时虽实际运行且零 error，
+仍未覆盖 DDL↔entities/enums、契约文件引用、骨架响应信封等外部真源对账。router 因此必须把
+“命令已成功执行”限定为“当前实现的规则已通过”，无对应规则/报告的维度一律说“未验证”，
+不得扩大成“规格属实”或“真源无漂移”。新增触发机制解决命令被绕过，不冒充尚未实现的校验能力。
+
+`vima go [--commit]` 是终端稳定入口：顶层
+A24 根定位后，以项目根为 cwd 执行 `claude "/go [--commit]"`，创建全新交互会话；
+`--dry-run` 只展示根与启动命令。managed 另含 `AGENTS.md`（← workspace/AGENTS.project.md 变量替换，
 A8 跨工具指针文件：声明真源为 CLAUDE.md + 三条最低红线，用户定制走 CLAUDE.md）、
 `docs/ui-framework/**`（组件文档：CAPABILITY.md 索引档 + ICONS.md 图标清单 +
 llms-full.txt 单文件全量档 + 每组件一份
@@ -1079,13 +1173,23 @@ JSON Lines，append-only，**五键封顶**，无 `schemaVersion`（与 §6.10 `
 
 | 采集口 | 位置 | 记录条件 |
 |---|---|---|
-| ① `cmd` | `lib/cli.mjs` 出口漏斗（全仓唯一），**三个返回点全覆盖** | 项目外（无项目根）**不记**；`exitCode ≠ 0` **全记**；`exitCode = 0` 且 `cmd ∈ JOURNAL_ON_SUCCESS` 且 argv 不含 `--check`/`--dry-run` **记**；其余不记 |
-| ② `report` | `templates/*/workspace/hooks/post-write.mjs`，**早退门之前** | 写入路径匹配 `.vima/reports/<taskId>-{verifier,builder}.json` 时读回该文件；不可解析 → 不记（宁缺勿假）|
+| ① `cmd` | `lib/cli.mjs` 出口漏斗（全仓唯一），**三个返回点全覆盖** | 项目外（无项目根）**不记**；`cmd ∈ JOURNAL_EXEMPT` **一律不记（含失败）**；`exitCode ≠ 0` **全记**；`exitCode = 0` 且 `cmd ∈ JOURNAL_ON_SUCCESS` 且 argv 不含 `--check`/`--dry-run` **记**；其余不记 |
+| ② `report` | `templates/*/workspace/hooks/post-write.mjs`，**早退门之前** | 写入路径匹配 `.vima/reports/<taskId>-{verifier,builder}.json` 时读回；文件名 taskId 必须等于报告 taskId，round/result/数组结构须符合 §6.9；空壳/冒名/不可解析 → 不记。verifier 的 outcome 由 checklist+points+missing+contractViolations 重算，合法 waived 不计 fail，不能只信 `result:"pass"` |
 | ③ `guard` | 同上，三处 `exit(2)` 之前 | 同一次写入内同条规范**去重后各记一条** |
 
 `JOURNAL_ON_SUCCESS = {init, update, sync, plan, validate, approve, converge, certify, change, design}`。
 **`retro` 刻意不在其中**（D-A35-12 自我豁免）：retro 读 journal 生成报告，若它自己也写一行，
 A21 既有判据「连续两次 retro 字节一致」当场失败。任何写 journal 的消费方都必须自我豁免。
+
+`JOURNAL_EXEMPT = {status}`（A37）——**连失败也不记**，比 retro 的自我豁免更强，两条理由：
+① `status` 声明「一律不落盘」，写一行 journal 就是落盘，且会让它自己变成第 4 个状态源，
+正是它要治的病；② `status --line` 由 Claude Code statusLine 高频调用，一旦失败会把 journal
+刷成一片同样的错误行，A35 的过程曲线当场被噪声淹没。
+新增豁免命令须同时满足「只读且高频」两条，否则应走 `JOURNAL_ON_SUCCESS` 白名单而非豁免。
+
+**A37 证据边界**：`guard-shared.mjs` 阻断 Agent 经 Write/Edit 直接修改
+`.vima/reports/journal.jsonl`，hook 自身的文件追加不经过工具通道，故不受影响。但 verifier/builder
+报告仍由 Agent 产出，report 事件只能证明“该报告写入被 hook 观察到”，不能宣称密码学或独立防伪。
 
 **开关**：默认开启；`VIMA_JOURNAL=0` 关闭（D-A35-07——默认关等于数据永远不存在，机制失效）。
 **不进退出码、不进任何 validate/converge 规则**（D-A35-05，同 `runtime-errors` 既定口径）。
@@ -1528,7 +1632,7 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效；**A35 出自「能否增加 agent 那样的轨迹记录」用户提问**（docs/design/process-journal-proposal.md）——过程轨迹 journal.jsonl：给 A21 反哺回路补上时间维，内核出口 + post-write hook 双采集口，消费方为 retro 与 render-journal 两个（**A36 改判：原定「消费方只有 retro」**，故聚合实现落 lib/model/journal.mjs 而非 retro.mjs 私有）；**A36 出自「不仅要有可溯源功能，同时要有人类审核窗口 UI」用户要求**（2026-08-15）——过程轨迹视图 `vima render-journal` → `.vima/reports/journal.html`（§11.1），只读不批，并抽出 lib/model/journal.mjs 归集器供两个消费方共用）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效；**A35 出自「能否增加 agent 那样的轨迹记录」用户提问**（docs/design/process-journal-proposal.md）——过程轨迹 journal.jsonl：给 A21 反哺回路补上时间维，内核出口 + post-write hook 双采集口，消费方为 retro 与 render-journal 两个（**A36 改判：原定「消费方只有 retro」**，故聚合实现落 lib/model/journal.mjs 而非 retro.mjs 私有）；**A36 出自「不仅要有可溯源功能，同时要有人类审核窗口 UI」用户要求**（2026-08-15）——过程轨迹视图 `vima render-journal` → `.vima/reports/journal.html`（§11.1），只读不批，并抽出 lib/model/journal.mjs 归集器供两个消费方共用；**A37 出自「希望有一个位置能实时看到当前 vima 的运行状态」用户要求**（2026-08-15，立项实证为 sustain-v4 重建 2h24m 内 21 个任务自称 done / 0 个有轨迹而无人察觉）——运行状态可观测 `vima status`：证据强度三档进度（自称/有轨迹/已验收）+ 分组任务量 + 真时间用时 + 拒绝无样本外推的 ETA，四个呈现口（默认表格/`--watch`/`--json`/`--line`），**只写 stdout 不落盘、恒 exit 0**，并改判 A35/A36 的「不做实时刷新」（D-A37-01，改判只及于实时刷新，TUI/服务进程/上报仍全部不做））
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。
@@ -1827,3 +1931,47 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
 - **doctor（A16 新增检查项）**：端册完整性——apps[].dir 在位、id 合法 slug、kind ∈
   planning.kinds、各端骨架完整性（preview kind 未生成骨架如实报告；进 DEVELOPING 前
   该项为 ❌ 阻断级）。
+- **status（A37）**：`vima status [--watch|--json|--line]` 运行状态可观测。
+  三档进度口径：`claimed`＝任务 frontmatter `status: done`（Agent 写，可伪造）；
+  `tracked`／`verified`＝§6.21 `report` 事件（post-write hook 旁路采集；禁止直改 journal，
+  但报告输入由 Agent 产出，非独立防伪），
+  不变式 `claimed ≥ tracked ≥ verified`。用时取 `phaseHistory` 真时间戳；
+  当前 verified 取最新 verifier 结果，并以 change.appliedAt/reopened 水位保证任务重开后旧 pass
+  不会因再次标 done 而复活；ETA 另取首次 pass 的真实 `ts`
+  （frontmatter `updatedAt` **不得用于速率**，只用于识别 pass 后的 reopen，D-A37-03），
+  样本 < 3 一律 `estimable: false` 且 `etaMs`/`ratePerHour` 恒 `null`。
+  **硬约束**：只写 stdout、不产出任何仓库内文件、不接 `--out`/`--serve`/`--output`
+  （未知选项 → usage exit 3，不得静默忽略）；**恒 exit 0**——差值只呈现不裁定
+  （D-A37-02，判定归 doctor/converge）；`JOURNAL_EXEMPT` 连失败也不写 journal（§6.21）。
+  `--line` **在数据读取/运行异常下必须 exit 0 并输出单行**（参数用法错误仍为 exit 3，
+  D-A37-04）——它由 statusLine 常驻调用，
+  非零退出码只会让状态栏显示空白，而「会话开在非项目根」正是它要可视化的故障；
+  「是不是项目」的判据复用 `findProjectRoot`，不得自造第二套。
+  默认/JSON 在非项目根同样显式输出 `project.detected=false`，不得伪装成 0/0 的空项目；
+  `--line|--watch|--json` 两两互斥。坏任务逐文件隔离并通过 `dataIssues.tasks` 呈现；
+  `--watch` 动态补监听晚创建目录，且低频重新读盘兜底 fs.watch 丢事件。
+  `status` 与 `init`/`doctor` 同列 `PROJECT_SCOPED` 但不在 `PROJECT_REQUIRED`（§3 顶层路由）。
+  statusLine 由 `templates/*/workspace/settings.json` 直调 CLI，**不新增脚本资产**
+  ——新增文件就要同步 init/doctor 落点清单（D-A37-04，d2 防漂移断言守着）。
+- **稳定触发面四层（A38）**：一条 vima 命令要真正跑起来，四层必须同时成立——
+  **L0 会话锚定**（会话 cwd 在项目根）/ **L1 入口发现**（找得到该调哪条）/
+  **L2 入口完整**（入口资产在位且有效）/ **L3 执行忠实**（真调 CLI 而非手工模拟）。
+  L1 由四个 project skills + `/vima` 命名空间路由覆盖（§6.4 安装清单），
+  L2 由 `doctor` ⑥ 覆盖（文件齐全 + frontmatter 有效 + 未禁用模型触发 + 项目根校验变量在位）。
+  - **L0 是能力边界，不是待办**（D-A38-01）：会话 cwd 不在项目里时，skills / hooks /
+    `statusLine` / 项目宪法全部来自项目 `.claude/`，一个都不加载，vima 在该会话内
+    **没有任何代码执行点**。任何「从该会话内部自动发现并纠正」的提案，
+    先回答「代码在哪一行被执行」，答不出即不立项。缓解只在入口侧（`vima go` 作为
+    缺省启动路径，按 `currentPhase` 分派、四阶段通吃）与会话外（另开终端
+    `vima status --watch`；或用户自行把 `vima status --line` 挂进**用户级**
+    `~/.claude/settings.json`——**vima 不代写用户级配置**，越权且不可回滚）。
+  - **L3 的机检只做零假阳性的那一条**（D-A38-03）：任务 frontmatter `updatedAt`
+    晚于当前时钟（容差 5 分钟）→ `doctor` ⑬ 报 error 并**指名文件**。
+    内核写 `updatedAt` 一律用真实时钟，未来值只可能是手写的。
+    **不进 validate、不拦 `/go`**——成因可能只是机器时钟不准。
+    被否判据：`taskStats.updatedAt` 与 journal 的 `sync` 事件对不上——`.vima/reports/`
+    不进版本控制，换 clone 后必然假阳性。
+  - **L3 的跨工具口在 `AGENTS.md`**（D-A38-02）：项目宪法与 skill 正文都是 Claude Code
+    专属，读 `AGENTS.md` 的工具（Cursor / Codex / Jules）此前拿不到任何「必须走 CLI」的约束。
+    三条红线加在既有「最低红线」清单里，不新增文件、不新增落点；
+    `d2.workspace` 的防漂移断言逐条守着。

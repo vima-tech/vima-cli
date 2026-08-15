@@ -40,6 +40,13 @@
       "constraint": ">=3.9",
       "optional": true,
       "hint": "缺失不阻断：backend/mvnw 首次运行会自动下载 Maven（需联网）"
+    },
+    {
+      "tool": "claude-code",
+      "check": "claude --version",
+      "constraint": ">=2.1.196",
+      "optional": true,
+      "hint": "缺失不阻断骨架创建，但无法使用 Claude 命令入口；低版本不支持 project skills 的项目根变量"
     }
   ],
   "apps": [

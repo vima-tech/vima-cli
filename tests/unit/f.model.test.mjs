@@ -8,7 +8,7 @@ import { VimaError, EXIT } from '../../lib/util/errors.mjs';
 import {
   ensureDir, fileExists, atomicWriteFile, stableStringify, sha256, sha256File, walkFiles, findProjectRoot,
 } from '../../lib/util/fs.mjs';
-import { loadTasks, saveTaskFrontmatter } from '../../lib/model/tasks.mjs';
+import { loadTasks, loadTasksTolerant, saveTaskFrontmatter } from '../../lib/model/tasks.mjs';
 import { defaultLifecycle, loadLifecycle, saveLifecycle } from '../../lib/model/lifecycle.mjs';
 import { loadSpec } from '../../lib/model/spec.mjs';
 import { loadContracts, apiKey } from '../../lib/model/contracts.mjs';
@@ -179,6 +179,19 @@ test('loadTasks：缺 frontmatter 围栏抛 TASK_FM', async (t) => {
   const root = await tempRoot(t);
   await writeTask(root, 'bad.md', '# 没有 frontmatter 的任务');
   await expectVimaError(() => loadTasks(root), { code: 'TASK_FM', messageRe: /frontmatter/ });
+});
+
+test('loadTasksTolerant：逐文件隔离损坏任务，保留其余有效任务与问题明细', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'a.md', taskDoc({ taskId: 'valid-a' }));
+  await writeTask(root, 'b.md', '没有 frontmatter');
+  await writeTask(root, 'c.md', taskDoc({ taskId: 'valid-c' }));
+
+  const result = await loadTasksTolerant(root);
+  assert.deepEqual(result.tasks.map((task) => task.id), ['valid-a', 'valid-c']);
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].file, 'docs/tasks/b.md');
+  assert.equal(result.issues[0].code, 'TASK_FM');
 });
 
 test('loadTasks：重复 taskId 抛 TASK_FM，并指出两个任务文件', async (t) => {

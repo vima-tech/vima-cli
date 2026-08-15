@@ -38,6 +38,16 @@ process.stdin.on('end', () => {
   let rel = path.isAbsolute(filePath) ? path.relative(root, filePath) : filePath;
   rel = rel.split(path.sep).join('/').replace(/^\.\//, '');
 
+  // A37：journal 由 hook/CLI 旁路追加，Agent 的 Write/Edit 不得直接改账本。
+  // 这只能防止直改 journal；verifier 报告仍由 Agent 产出，status 不得宣称整条证据不可伪造。
+  if (rel === '.vima/reports/journal.jsonl') {
+    console.error(
+      `过程账本写保护：拦截 Agent 直接修改 ${rel}\n` +
+        'journal 只能由 Vima hook/CLI 旁路追加；请修改真实任务或报告，让采集链自然产生事件。',
+    );
+    process.exit(2);
+  }
+
   // 共享目录判定：manifest 端册优先（A16），v1 无 apps 键回退字面量
   let hitFrontend = false;
   let hitBackend = false;
