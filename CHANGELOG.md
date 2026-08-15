@@ -2,6 +2,42 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [3.1.1] - 2026-08-15
+
+### 新增
+
+- **DEVELOPING 期自动开工 `SessionStart` hook（A39 / D-A39-03）**。此前「起」这一步
+  没有任何自动化：`go-continue.mjs`（A18）是**续跑器不是启动器**，只在
+  `.vima/go-state.json` 已存在且 `stopReason=in-progress` 时阻止停轮，而 `settings.json`
+  从未注册 `SessionStart`——于是人不敲 `/go` 就永远不开工，会话却不会闲着，
+  它会照着任务文件手写代码。sustain-v3 实测：并行度 8 的批次计划退化成单线程串行
+  （约 34 秒/文件），79 个源文件落盘、零份 builder 报告、134 个任务 frontmatter 全 `pending`。
+  - 新增 `.claude/hooks/go-autostart.mjs`：会话开在 DEVELOPING 期的 Vima 项目、
+    有未完成任务、且没有其他会话在跑调度时，注入并发调度指令。
+  - **注入而非执行**——调度正文仍以 `.claude/commands/go.md` 为唯一真源，不在 hook 里复制。
+  - 放行优先：判据不成立/文件缺失/解析失败一律静默 exit 0；`VIMA_AUTOSTART=0` 可关闭；
+    `resume`/`compact` 会话不注入；`go-state.json` 在 10 分钟内更新过则让位，避免两会话竞写热文件。
+  - **仍属协作式控制模型**：它解决「没有人触发」，**不解决**「Agent 不遵守」——
+    后者需 `H-ADR-01` 裁定为监督式才有运行时保证，不得宣称成「运行时调度」。
+
+### 修复
+
+- **`vima status` 的活动行不再让命令事件冒充任务轨迹（D-A39-01）**。`taskEvidence` 的
+  `lastEventTs` 原本收下**任何** `kind` 的事件，呈现层却称之为「最近一条**轨迹**事件」。
+  sustain-v3 实测因此显示「最近一条轨迹事件距今 6m51s（共 58 条）」，而这 58 条全是
+  `cmd`（人敲的 `vima validate`）、`report` 0 条。现分离 `reportEvents`/`lastReportTs`，
+  活动行只认 `report`；零轨迹时如实写明「journal 里的 N 条全是命令/规范事件」。
+- **补 `no-trajectory` 信号，覆盖 `trustSignals` 的全零盲区（D-A39-02）**。原封闭集四条
+  全部依赖「两个来源对不上」，`claimed = tracked = verified = 0` 时一条都不触发——
+  恰恰是最该被看见的状态（代码在写，但没有人在记账）。新信号在
+  「DEVELOPING + 零轨迹 + 开发期已进行 ≥10 分钟」时并列呈现事实：开发期时长、
+  轨迹条数、非轨迹事件条数、`.vima/go-state.json` 的有无与 `stopReason`。
+  沿用 D-A37-02**只呈现不裁定**，status 仍恒 exit 0。10 分钟阈值保证零假阳性。
+- **分组表不再让人误加出一个超过总数的和**。三个切面（前后端 / 层 / 端）此前连排且
+  只有 `— 按端 —` 一个小节标题，`business` 行还被省略，纵向读下来会得到
+  54+78+2+4+2=140 而分母是 134。现三个切面各自带标题、各自合计等于总数；
+  side 的标题由「按端型」改为「按前后端」，与 app 的「按端」一眼可分。
+
 ## [3.1.0] - 2026-08-15
 
 ### 新增
