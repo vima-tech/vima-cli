@@ -13,7 +13,7 @@
 ## GET /api/device/list
 
 - 请求参数：`{ name?: string, status?: string, pageNum: number, pageSize: number }`
-- 响应：`ApiResponse<PageResult<Device>>`
+- 响应：`ApiResponse<PageResponse<Device>>`
 - 错误码：40001 参数校验失败
 
 ## POST /api/device

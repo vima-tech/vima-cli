@@ -967,3 +967,28 @@ test('A38 规格 2：AGENTS.md 最低红线含 L3/L0 三条（跨工具口不能
   assert.match(agents, /非 vima 项目根/, 'L0：跨工具口能做到的最强形式是要求它主动自查一次');
   assert.match(agents, /vima status/, 'L0：自查动作必须给得出具体命令');
 });
+
+test('契约示例引用的响应包装类型，必须在骨架 dto 里真实存在', async () => {
+  // 出自 sustain-v3 现场：示例写 `ApiResponse<PageResult<Device>>`，而骨架的 DTO 类
+  // 叫 PageResponse（骨架 49 处全用它，PageResult 一个都没有）。照示例写契约的 Agent
+  // 会产出一个后端根本不存在的类型名——sustain-v3 全线 246 处 PageResponse 与示例
+  // 长期不一致，`vima update` 每次都把该文件报成「用户已修改」，掩盖了真正的错方在示例。
+  const example = await readFile(path.join(ADMIN, 'planning', 'contract.example.md'), 'utf8');
+  const dtoDir = path.join(
+    ADMIN, 'scaffold', 'backend', 'src', 'main', 'java', 'com', '{{projectPkg}}', 'dto',
+  );
+  const dtoNames = new Set(
+    (await readdir(dtoDir)).filter((n) => n.endsWith('.java')).map((n) => n.slice(0, -'.java'.length)),
+  );
+  assert.ok(dtoNames.size > 0, `骨架 dto 目录读不到类：${dtoDir}`);
+
+  // 取 `ApiResponse<Xxx<...>>` 里的内层包装类型（分页等），逐个反查骨架是否有同名类。
+  const referenced = [...example.matchAll(/ApiResponse<([A-Z]\w*)</g)].map((m) => m[1]);
+  assert.ok(referenced.length > 0, '示例应至少演示一处泛型包装响应');
+  for (const type of new Set(referenced)) {
+    assert.ok(
+      dtoNames.has(type),
+      `契约示例引用了骨架里不存在的类型 ${type}；骨架 dto 现有：${[...dtoNames].sort().join(', ')}`,
+    );
+  }
+});

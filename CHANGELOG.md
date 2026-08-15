@@ -2,6 +2,19 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [Unreleased]
+
+### 修复
+
+- **契约示例引用了骨架里不存在的类型**。`templates/admin/planning/contract.example.md`
+  写 `ApiResponse<PageResult<Device>>`，而骨架的 DTO 类叫 `PageResponse`
+  （`templates/.../dto/PageResponse.java`，骨架 49 处全用它，`PageResult` 一个都没有）。
+  照示例写契约的 Agent 会产出后端根本不存在的类型名。sustain-v3 现场实证：项目全线
+  246 处 `PageResponse`（契约 103 / 后端 47 / 前端 96），示例长期与之相左，
+  于是 `vima update` 每次都把该文件报成「用户已修改」，反而掩盖了错方其实在示例。
+  新增防漂移断言：示例中 `ApiResponse<Xxx<…>>` 的内层包装类型必须在骨架 dto 目录
+  有同名 `.java`（注入 `PageResult` 可跑红，已反向验证）。
+
 ## [3.1.1] - 2026-08-15
 
 ### 新增
