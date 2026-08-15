@@ -2,6 +2,36 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [3.0.6] - 2026-08-15
+
+### 变更
+
+- **端命名去领域词：小程序端 `patient` → `mp`**（用户裁定）。`patient` 是医疗场景的
+  领域词，泄漏进了通用工具的**默认端册**与全部示例；而同一份 `template.json` 里
+  `h5` 是按**形态**命名的——同一处配置两套口径。现三端一律按形态：`admin` / `mp` / `h5`。
+  落点：默认端册、CLI 全部示例、`create` 错误提示、workspace 资产、契约 §6 与
+  增补项 A16/A23/A25 的规格示例。顺带去掉同类泄漏的示例项目名 `nutri` 与端 id `ph5`。
+  **刻意保留**：`vima-experience-verifier.md` 的 Sustain 具名实证（改了就是篡改证据
+  来源）、UI 库补丁记录里的 `/inpatient-order` 真实路由、`patientId` 作路径参数名举例。
+
+### 新增
+
+- **stable 模板真实构建守卫**：`scripts/check-stable-scaffold.mjs` 生成三端项目并跑
+  真实构建（三端 `npm install` + `build:check`/`typecheck`/`audit` + 后端 Maven），
+  接进 CI 与 `prepublishOnly`。后端初始口令改为环境变量注入
+  （`VIMA_INITIAL_ADMIN_PASSWORD`），新增 `LoginAttemptService` 登录失败限流与
+  `d3.scaffold-quality` 守卫用例。
+
+### 改进
+
+- **顶层 `help` 按生命周期分 6 组**（此前 24 条平铺，看不出「现在该用哪个」）。
+  分组只影响呈现——命令集合真源仍是 `TOPICS`，漏进分组表的落「其他」兜底不静默消失。
+- **拼错命令给近似候选**：`vima valdate` → 「你是不是要 vima validate」。复用 A8 T1-2
+  的图标最近邻同款手法——此前**图标名**拼错有 3 个候选，**命令名**却只说「未知命令」，
+  同一个仓库两套待遇；毫不相干时退回通用提示，不硬给。
+- **12 条一览描述收进 80 显示列**，细节留在 `vima help <cmd>`。度量必须是**显示列宽**
+  （中文占 2 列）——用码元或 `awk` 数字符会把 110 列的行判成合规，本轮初测就踩过。
+
 ## [3.0.5] - 2026-08-15
 
 ### 修复
