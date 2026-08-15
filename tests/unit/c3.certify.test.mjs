@@ -61,7 +61,22 @@ async function verifierPass(root, taskId) {
   );
 }
 
-/** 写一份集成对账报告（绿或红）。 */
+/**
+ * 给黄金夹具的 Controller 补上 Spring 注解，使 4 个契约接口全部有实现
+ * （与 c3.converge.test.mjs 同一手法）——否则任务标 done 时 converge 必报 V-INT-01。
+ */
+async function annotateController(root) {
+  const p = path.join(root, 'backend/src/main/java/demo/DeviceController.java');
+  let s = await readFile(p, 'utf8');
+  s = s.replace('public class DeviceController {', '@RequestMapping("/api/device")\npublic class DeviceController {');
+  s = s.replace('    public Object list(', '    @GetMapping("/list")\n    public Object list(');
+  s = s.replace('    public Object create(', '    @PostMapping\n    public Object create(');
+  s = s.replace('    public Object batchDelete(', '    @PostMapping("/batch-delete")\n    public Object batchDelete(');
+  s = s.replace('    public Object detail(', '    @GetMapping("/detail")\n    public Object detail(');
+  await writeFile(p, s);
+}
+
+/** 写一份**手工伪造**的集成对账报告（绿或红）——certify 重算后应识破。 */
 async function convergence(root, { errors = 0, openPoints = 0 } = {}) {
   await mkdir(path.join(root, '.vima', 'reports'), { recursive: true });
   await writeFile(
@@ -113,39 +128,65 @@ test('等级 2 implemented：任务全 done 但缺 Verifier 通过报告 → 不
   assert.equal(report.deliveryLevel, 'implemented');
 });
 
-test('等级 3/4：converged 需报告零 error；pipeline-green 需流水线任务全 done', async (t) => {
+test('等级 3/4：converged 需重算零 error 且缓存与重算一致；pipeline-green 需流水线任务全 done', async (t) => {
   const root = await cloneGolden(t);
   await approve(root);
+  await annotateController(root);
   await markDone(root, ['shared-base', 'device-api-be', 'device-list-fe']);
   await verifierPass(root, 'device-api-be');
   await verifierPass(root, 'device-list-fe');
 
-  // 红报告 → 不达成
-  await convergence(root, { errors: 2 });
+  // 手工伪造的绿报告蒙混不过去：certify 重算后与缓存不一致 → 不达成
+  await convergence(root);
   vima(root, 'certify');
   let report = await readReport(root);
   assert.equal(report.deliveryLevel, 'implemented');
-  assert.match(levelOf(report, 'converged').missing.join(' '), /errors=2/);
+  assert.match(levelOf(report, 'converged').missing.join(' '), /已过期/);
 
-  // 绿报告 → converged；pipeline 未 done 时到此为止
-  await convergence(root);
+  // 真跑 converge → converged；pipeline 未 done 时到此为止
+  assert.equal(vima(root, 'converge').code, 0);
   vima(root, 'certify');
   report = await readReport(root);
   assert.equal(report.deliveryLevel, 'converged');
   assert.match(levelOf(report, 'converged').evidence[0], /sha256/);
+  assert.match(levelOf(report, 'converged').evidence[0], /重算逐字节一致/);
   assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /full-test/);
 
-  // pipeline done → 最高级
+  // pipeline done → 最高级（pipeline 任务状态不进 convergence 报告，故不使其过期）
   await markDone(root, ['full-test']);
   vima(root, 'certify');
   report = await readReport(root);
   assert.equal(report.deliveryLevel, 'pipeline-green');
 });
 
+test('converged 不采信过期报告：报告生成后任务状态又变 → 掉级并提示重跑 converge', async (t) => {
+  const root = await cloneGolden(t);
+  await approve(root);
+  await annotateController(root);
+  await markDone(root, ['device-api-be']);
+  await verifierPass(root, 'device-api-be');
+  assert.equal(vima(root, 'converge').code, 0);
+
+  // 报告落盘后任务状态又变（device-list-fe 标 done → 报告的 unmarkedDone 会变），
+  // 但没人重跑 converge：报告仍是绿的，却已不描述现状
+  await markDone(root, ['device-list-fe']);
+  vima(root, 'certify');
+  const before = await readReport(root);
+  assert.equal(levelOf(before, 'converged').satisfied, false, '过期报告不得算 converged');
+  assert.match(levelOf(before, 'converged').missing.join(' '), /已过期.*重跑 vima converge/s);
+
+  // 重跑 converge → 重新达成
+  assert.equal(vima(root, 'converge').code, 0);
+  vima(root, 'certify');
+  const after = await readReport(root);
+  assert.equal(levelOf(after, 'converged').satisfied, true);
+});
+
 test('连续性：跳级不算——低级不满足时高级即便证据齐全也不提升 deliveryLevel', async (t) => {
   const root = await cloneGolden(t);
   // 不 approve（等级 1 不满足），但把 converge 与 pipeline 证据都造齐
-  await convergence(root);
+  await annotateController(root);
+  assert.equal(vima(root, 'converge').code, 0);
   await markDone(root, ['full-test']);
   vima(root, 'certify');
   const report = await readReport(root);

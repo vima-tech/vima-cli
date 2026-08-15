@@ -244,6 +244,23 @@ test('validatePages 导出：apis 为空 → V-SPEC-03（渲染命令复用的�
   assert.ok(errors.some((e) => e.rule === 'V-SPEC-03' && e.message.includes('apis')), JSON.stringify(errors));
 });
 
+test('validatePages 导出：page 块缺 id → V-SPEC-03 且带开栏行号（缺 id 的块不入 pages Map，不能静默消失）', () => {
+  const text = [
+    '# 3. 页面清单',
+    '',
+    '```yaml vima:page',
+    'title: 无 id 的残缺页',
+    'layout: [table]',
+    'apis: [GET /api/x]',
+    '```',
+    '',
+  ].join('\n');
+  const errors = validatePages({ pages: new Map(), roles: [], menus: [], flows: [], text });
+  const hit = errors.filter((e) => e.rule === 'V-SPEC-03' && /缺少非空 id/.test(e.message));
+  assert.equal(hit.length, 1, JSON.stringify(errors));
+  assert.match(hit[0].message, /第 3 行开栏/);
+});
+
 // ---------------------------------------------------------------------------
 // 规则表补齐（契约 §8 全 20 条逐条有断言；见差距评估 P2-1）
 // ---------------------------------------------------------------------------
@@ -259,6 +276,18 @@ test('破坏：删 vima:entities 块 → V-SPEC-02，exit 2', async (t) => {
   assert.equal(r.code, 2);
   const report = await readReport(root);
   assert.ok(report.errors.some((e) => e.rule === 'V-SPEC-02'), JSON.stringify(report.errors));
+});
+
+test('破坏：删掉 PAGE-02 的 id → V-SPEC-03，exit 2（整块被 loadSpec 丢弃也必须报出来）', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/spec.md', 'id: PAGE-02\ntitle: 设备详情\n', 'title: 设备详情\n');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(
+    report.errors.some((e) => e.rule === 'V-SPEC-03' && /缺少非空 id/.test(e.message)),
+    JSON.stringify(report.errors),
+  );
 });
 
 test('破坏：角色 menus 置空 → V-SPEC-06，exit 2', async (t) => {

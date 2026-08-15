@@ -212,3 +212,35 @@ test('approve 前置 4：legacy 存量项目整体豁免设计闸门（A19 存�
   const r = vima(root, 'approve');
   assert.equal(r.code, 0, `存量项目不该被新增闸门挡住\nstderr: ${r.stderr}`);
 });
+
+test('approve 前置 4：分级建议分歧在批准这一刻如实呈报，但不阻断（契约 §6.20）', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  // 判据指向 D1、声明仍是 D0 —— 这正是「全项目声明 D0 绕过 DESIGNING」的形态
+  const specPath = path.join(root, 'docs/spec.md');
+  await writeFile(specPath, (await readFile(specPath, 'utf8')).replace(
+    '  - block: table\n    name: 设备表格',
+    '  - block: table\n    name: 设备表格\n    data: { shape: chart, of: Device }',
+  ));
+  assert.equal(vima(root, 'approve', '--planning').code, 0);
+  renderReal(root);
+  assert.equal(vima(root, 'render-matrix').code, 0);
+
+  const r = vima(root, 'approve');
+  assert.equal(r.code, 0, `恒不阻断（D-A34-03）: ${r.stderr}`);
+  // 结果性输出走 stdout（契约 §3）
+  assert.match(r.stdout, /声明保真级低于\/不同于 spec 判据建议/);
+  assert.match(r.stdout, /PAGE-01 声明 D0，按判据建议 D1/);
+  const lifecycle = JSON.parse(await readFile(path.join(root, 'docs/lifecycle.json'), 'utf8'));
+  assert.equal(lifecycle.checklists.PLANNING.tasksApproved, true, '呈报不是阻断');
+});
+
+test('approve 前置 4 否定用例：声明与判据一致时不打分级提示（不制造永久噪声）', async (t) => {
+  const root = await cloneGolden(t);
+  await markA34(root);
+  assert.equal(vima(root, 'approve', '--planning').code, 0);
+  renderReal(root);
+  const r = vima(root, 'approve');
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /按判据建议/);
+});

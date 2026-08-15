@@ -4,7 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, rm, readFile, cp, stat, appendFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile, mkdir, cp, stat, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -255,4 +255,99 @@ test('A16 多端链路：validate→render×3→sync→plan→trace→approve �
   assert.ok(apps, 'doctor 含端册检查项');
   assert.notEqual(apps.status, 'error', 'PLANNING 期 preview 骨架缺失不得 error（不假阻塞）');
   assert.match(apps.detail, /patient/, '端册项如实报告 patient 端骨架状态');
+});
+
+// ⑪ A34 视觉轨道的**实质**链路。
+// 黄金夹具全页 D0，走的是 d0Only 空真路径——DESIGNING 会被确定性跳过，
+// 于是「方向包 → approve direction → 逐页稿 → approve pages → design check 真检 →
+// DEVELOPING 收口 verify」这条 A34 的核心链路在端到端层零覆盖，只有单元测试。
+// 本例用独立工程把它走一遍，并在两处闸门各验一次「真的会咬人」。
+test('⑪A34 D1 实质链路：DESIGNING 双闸门 + DEVELOPING 收口硬门（含否定用例）', async () => {
+  const dproj = path.join(sandbox, 'design-sys');
+  assert.equal(vima(['create', 'design-sys', '--template', 'admin', '--no-git', '--no-install'], sandbox).code, 0);
+  assert.equal(vima(['init'], dproj).code, 0);
+  for (const dir of ['docs', 'apps', 'backend']) {
+    await cp(path.join(GOLDEN, dir), path.join(dproj, dir), { recursive: true, force: true });
+  }
+  const d = (args) => vima(args, dproj);
+  const readReport = async (rel) => JSON.parse(await readFile(path.join(dproj, rel), 'utf8'));
+
+  // 把 PAGE-01 提到 D1（D1/D2 必填 primaryTask，V-DSN-11）
+  const specPath = path.join(dproj, 'docs/spec.md');
+  const spec = await readFile(specPath, 'utf8');
+  await writeFile(specPath, spec
+    .replace('  fidelity: D0                # A34 V-DSN-12', '  fidelity: D1                # A34 V-DSN-12')
+    .replace('  fold: [设备表格]', '  fold: [设备表格]\n  primaryTask: 定位一台异常设备并完成处置'));
+  for (const c of ['render-review', 'render-prototype', 'render-matrix']) assert.equal(d([c]).code, 0);
+  assert.equal(d(['validate']).code, 0);
+  assert.equal(d(['approve', '--planning']).code, 0, 'PLANNING → DESIGNING');
+
+  // 闸门一（DESIGNING 出口）：缺方向包与逐页稿 → 必须红
+  const blocked = d(['design', 'check']);
+  assert.equal(blocked.code, 2, '缺稿却放行 = A34 白做');
+  assert.match(blocked.out, /V-DSN-09/);
+  const r1 = await readReport('.vima/reports/design-check.json');
+  assert.equal(r1.gateApplies, true, 'DESIGNING 期才是闸门判定（C-A34-02）');
+  assert.equal(r1.derived.designArtifactsComplete, false);
+  assert.equal(r1.derived.directionApproved, false);
+
+  // 冻结方向包（A0 三方向，固定六件交付物）与逐页稿（D1 = 正常态 + 空态）
+  const shellDir = path.join(dproj, 'docs/review/design/_shell/admin');
+  const pageDir = path.join(dproj, 'docs/review/design/PAGE-01');
+  await mkdir(shellDir, { recursive: true });
+  await mkdir(pageDir, { recursive: true });
+  const shellFiles = ['brief.md', 'direction-a.png', 'direction-b.png', 'direction-c.png', 'comparison.md', 'selection.md'];
+  for (const f of shellFiles) await writeFile(path.join(shellDir, f), `stub:${f}\n`);
+  await writeFile(path.join(shellDir, 'manifest.json'),
+    `${JSON.stringify({ schemaVersion: '1', appId: 'admin', files: shellFiles }, null, 2)}\n`);
+  for (const f of ['default.png', 'empty.png']) await writeFile(path.join(pageDir, f), `stub:${f}\n`);
+  await writeFile(path.join(pageDir, 'manifest.json'),
+    `${JSON.stringify({ schemaVersion: '1', pageId: 'PAGE-01', fidelity: 'D1', files: ['default.png', 'empty.png'] }, null, 2)}\n`);
+
+  assert.equal(d(['design', 'approve', 'direction', '--app', 'admin']).code, 0);
+  assert.equal(d(['design', 'approve', 'pages']).code, 0);
+  const passed = d(['design', 'check']);
+  assert.equal(passed.code, 0, passed.out);
+  const r2 = await readReport('.vima/reports/design-check.json');
+  assert.ok(Object.values(r2.derived).every(Boolean), '六项派生必须全绿才能离开 DESIGNING');
+  assert.equal(r2.d0Only, false, '存在 D1 页 ⇒ 不得走 d0Only 空真路径');
+
+  assert.equal(d(['approve']).code, 0, 'DESIGNING → DEVELOPING');
+  const lc = JSON.parse(await readFile(path.join(dproj, 'docs/lifecycle.json'), 'utf8'));
+  assert.equal(lc.currentPhase, 'DEVELOPING');
+
+  // 闸门二（DEVELOPING 收口）：--prepare 先给出报告作者要抄写的三个 digest
+  assert.equal(d(['design', 'verify', '--prepare']).code, 0);
+  const inputs = await readReport('.vima/reports/design-verify-inputs.json');
+  const p1 = inputs.pages.find((p) => p.id === 'PAGE-01');
+  assert.deepEqual(p1.required, ['design'], 'D1 = Semantic + Design');
+  assert.ok(p1.implementationDigest, '本页任务有 @vima 标注 ⇒ 实现摘要必须算得出');
+
+  // 否定用例①：报告缺失 → 收口硬门必须红（不能靠「没跑」蒙混）
+  const noReport = d(['design', 'verify']);
+  assert.equal(noReport.code, 2);
+  assert.match(noReport.out, /未覆盖 PAGE-01\[D1\] design：报告缺失/);
+
+  // 补齐报告 → 转绿
+  await mkdir(path.join(dproj, '.vima/reports/design'), { recursive: true });
+  const reportPath = path.join(dproj, '.vima/reports/design/PAGE-01.json');
+  await writeFile(reportPath, `${JSON.stringify({
+    pageId: 'PAGE-01',
+    specDigest: p1.specDigest,
+    designDigest: p1.designDigest,
+    implementationDigest: p1.implementationDigest,
+    mustPreserveResults: [],
+    evidence: [{
+      kind: 'screenshot', path: 'docs/review/design/PAGE-01/default.png',
+      viewport: '1600x900', scenarioId: null, mustPreserveId: null,
+    }],
+    verdict: 'pass',
+  }, null, 2)}\n`);
+  assert.equal(d(['design', 'verify']).code, 0, '证据齐备后收口硬门放行');
+
+  // 否定用例②：改了设计稿 → 旧报告判 stale（批准与验收都不是一次性的）
+  await appendFile(path.join(pageDir, 'default.png'), 'changed\n');
+  const stale = d(['design', 'verify']);
+  assert.equal(stale.code, 2);
+  assert.match(stale.out, /过期 PAGE-01 design：designDigest 已变/);
 });

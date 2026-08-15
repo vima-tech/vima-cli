@@ -31,7 +31,7 @@
 //   **本 hook 不检查、也永远不会检查「是否使用了组件」**（A27 P17）：机检对象是风格合规
 //   与结构对账；组件是形态的一种实现，不是设计的单位——表达形式的选择权在页面。
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 /** 编辑距离（Levenshtein）：图标名拦截时给近似候选用（A8，确定性零依赖）。 */
@@ -117,6 +117,64 @@ function pageRootOverrides(text) {
   return out;
 }
 
+// ── A35 过程轨迹采集（契约 §6.21）──────────────────────────────────────────
+// 本 hook 是独立脚本，取不到 vima 的 lib/util——故内联一份 appendJsonLine，
+// 纪律与 lib/util/fs.mjs 的那份逐条一致（≤1024B 原子追加 / 超长截 ref / 异常全吞）。
+const JOURNAL_MAX_LINE = 1024;
+
+/**
+ * 规范条目名的**封闭枚举**（D-A35-10）。
+ *
+ * 两条纪律：
+ *   1. **禁止在命中处现拼字符串**——journal 会流向 vima retro，而 retro 的产物是要贴进
+ *      公开 issue 的；`ref` 一旦带上文件路径 / 页面 ID / 组件名，就把客户项目的文件树
+ *      带进了公开仓库。它只回答「哪条规范被违反」，不回答「在哪违反的」——后者是本 hook
+ *      当场给 Agent 的 stderr 反馈，不是复盘素材。
+ *   2. **跨端同规则合并为一个值**（如 admin 与 h5 的深路径导入）——分布要回答的是
+ *      「哪条规范框架没讲清楚」，端别不改变这个答案。
+ */
+const RULE = {
+  DEEP_IMPORT: '§10.5/深路径导入',
+  PHANTOM_PKG: '§10.5/幻包名',
+  NATIVE_DIALOG: '§8.3/原生弹窗',
+  PAGE_ROOT: '§13.3/页面根类',
+  NAKED_COLOR: 'A27/裸色值',
+  NAKED_SIZE: 'A27/裸尺寸',
+  ROOT_OVERRIDE: 'A27/骨架覆写',
+  ACTION_COL: 'A27/操作列宽',
+  ICON_NAME: 'A6/图标名',
+  PAGE_UNKNOWN: '§13.3/页面不在 manifest',
+  BLOCK_MARK: '§13.3/区块标记',
+};
+
+/** 默认开启（D-A35-07）；VIMA_JOURNAL=0 关闭。 */
+const journalOn = () => process.env.VIMA_JOURNAL !== '0';
+
+/** 追加一行；任何异常一律吞掉——采集是旁路，绝不能改变本 hook 的退出码。 */
+function journalAppend(root, obj) {
+  if (!journalOn()) return;
+  try {
+    let line = `${JSON.stringify(obj)}\n`;
+    if (Buffer.byteLength(line) > JOURNAL_MAX_LINE && typeof obj.ref === 'string') {
+      const over = Buffer.byteLength(line) - JOURNAL_MAX_LINE;
+      line = `${JSON.stringify({ ...obj, ref: obj.ref.slice(0, Math.max(0, obj.ref.length - over - 1)) })}\n`;
+    }
+    if (Buffer.byteLength(line) > JOURNAL_MAX_LINE) return;
+    const dir = path.join(root, '.vima', 'reports');
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(path.join(dir, 'journal.jsonl'), line);
+  } catch {
+    /* 采集失败不影响巡检本体 */
+  }
+}
+
+/** 规范命中事件：同一次写入里同条规范只记一次（去重后逐条落盘）。 */
+function journalGuards(root, rules) {
+  for (const ref of [...new Set(rules)]) {
+    journalAppend(root, { ts: new Date().toISOString(), kind: 'guard', ref, outcome: 'block' });
+  }
+}
+
 let raw = '';
 process.stdin.on('data', (d) => (raw += d));
 process.stdin.on('end', () => {
@@ -157,6 +215,30 @@ process.stdin.on('end', () => {
   //（v1 manifest / 无 manifest 回退 'src/'，与 guard-shared 同款回退口径）
   let rel = path.isAbsolute(filePath) ? path.relative(root, filePath) : filePath;
   rel = rel.split(path.sep).join('/').replace(/^\.\//, '');
+
+  // ── A35 采集口②-1：子代理报告落盘事件 ──────────────────────────────────
+  // 位置必须在下方早退门之前——那道门只放行 .vue/.ts/.tsx/.wxml/.wxss，会把 .json 报告挡掉。
+  // 由 hook 采而不让子代理自己写（D-A35-02）：子代理是概率性的，漏一条就断一段曲线。
+  // §6.9 的文件名与 schema 一字不改（D-A35-03）——被覆盖的仍是内容，留痕的是「第 N 轮什么结果」。
+  const repM = /^\.vima\/reports\/(.+)-(verifier|builder)\.json$/.exec(rel);
+  if (repM) {
+    try {
+      const rep = JSON.parse(readFileSync(absPath, 'utf8'));
+      const round = Number.isFinite(rep.round) ? rep.round : 1;
+      const points = Array.isArray(rep.points) ? rep.points : [];
+      const failed = points.filter((pt) => pt && typeof pt === 'object' && pt.passed !== true).length;
+      journalAppend(root, {
+        ts: new Date().toISOString(),
+        kind: 'report',
+        ref: `${repM[1]}/${repM[2]}/r${round}`,
+        outcome: rep.result === 'pass' || (points.length > 0 && failed === 0) ? 'pass' : 'fail',
+        n: failed,
+      });
+    } catch {
+      /* 报告不可解析 → 不记（宁缺勿假） */
+    }
+    process.exit(0); // 报告不是前端业务代码，后续规范面不适用
+  }
   let vimaManifest = null;
   try {
     vimaManifest = JSON.parse(readFileSync(path.join(root, '.vima', 'manifest.json'), 'utf8'));
@@ -202,19 +284,22 @@ process.stdin.on('end', () => {
   }
 
   const problems = [];
+  // A35：与 problems 平行的规范枚举命中表——命中处只填枚举，不拼现场（D-A35-10）
+  const guardHits = [];
+  const flag = (rule, msg) => { guardHits.push(rule); problems.push(msg); };
 
   // ── 2. 导入与反馈规范（§10.5 第三道防线 / §8.3）——按端各查各的 ──
   if (isH5) {
     // 深路径导入 vendor 组件（应从 @ui 入口取，与 admin 端「组件已全局注册」同款理由：
     // 逐处深导入会让「哪些是框架能力」不可机检）
     if (/from\s+["'][^"'\n]*vendor\/vima-ui-h5\/dist\/(?:components|feedback)/.test(text)) {
-      problems.push(
+      flag(RULE.DEEP_IMPORT, 
         '深路径导入 vendor/vima-ui-h5/dist/…：组件已全局注册（main.ts 的 app.use），'
           + "模板直接写 <VmNavbar>；函数式 API 从 '@ui' 入口具名导入（toast / confirmAsync）",
       );
     }
     if (/(?:^|[^.\w])(?:window\.)?(?:confirm|alert)\s*\(/m.test(text)) {
-      problems.push(
+      flag(RULE.NATIVE_DIALOG, 
         "使用了原生 confirm()/alert()：请改用 '@ui' 的 confirmAsync（Promise 化）与 toast"
           + '——原生弹窗样式不可控且在 iOS 上阻塞页面（见 docs/coding-standards.md 端规范：h5-mobile）',
       );
@@ -222,19 +307,19 @@ process.stdin.on('end', () => {
   }
   if (!isVmKind) {
   if (/from\s+["'][^"'\n]*(?:vendor\/vima-ui-admin\/dist|@vima-tech\/ui-admin\/dist)/.test(text)) {
-    problems.push(
+    flag(RULE.DEEP_IMPORT, 
       '深路径导入底层库（…/vima-ui-admin/dist/…）：组件已全局注册无需导入；' +
         '函数式 API 从包入口 @vima-tech/ui-admin 导入',
     );
   }
   if (/from\s+["']@vima\/ui["']/.test(text)) {
-    problems.push(
+    flag(RULE.PHANTOM_PKG, 
       '导入了不存在的包 @vima/ui（幻包名）：组件已全局注册直接使用；' +
         '函数式 API 从 @vima-tech/ui-admin 具名导入（见 docs/coding-standards.md）',
     );
   }
   if (/(?:^|[^.\w])(?:window\.)?(?:confirm|alert)\s*\(/m.test(text)) {
-    problems.push('使用了原生 confirm()/alert()：请改用 @/utils/feedback 的 confirmAsync/toast（见 docs/coding-standards.md）');
+    flag(RULE.NATIVE_DIALOG, '使用了原生 confirm()/alert()：请改用 @/utils/feedback 的 confirmAsync/toast（见 docs/coding-standards.md）');
   }
   }
 
@@ -251,13 +336,13 @@ process.stdin.on('end', () => {
     // H5 的 vm-page 在 App.vue 根（全局反馈组件也要在同一作用域内），
     // 因此 H5 的页面组件从 vm-body / vm-sheet 写起，再套一层 vm-page 会嵌套两个页面容器。
     if (pageM && isMp && !/class="[^"]*\bvm-page\b[^"]*"/.test(text)) {
-      problems.push(
+      flag(RULE.PAGE_ROOT, 
         `页面根缺少 vm-page 类：业务页面根必须是 <view class="vm-page" data-page="${pageM[1]}">` +
           '（令牌作用域与适老化的框架契约，见 docs/coding-standards.md 端规范：mp-native）',
       );
     }
     if (pageM && isH5 && !/class="[^"]*\bvm-(?:body|sheet)\b[^"]*"/.test(text)) {
-      problems.push(
+      flag(RULE.PAGE_ROOT, 
         `页面根缺少 vm-body / vm-sheet 类：H5 业务页从内容区写起`
           + `（<div class="vm-body" data-page="${pageM[1]}">），vm-page 在 App.vue 根上，`
           + '页面里不要再套一层（见 docs/coding-standards.md 端规范：h5-mobile）',
@@ -281,7 +366,7 @@ process.stdin.on('end', () => {
         }
       }
       if (colorHits.length > 0) {
-        problems.push(
+        flag(RULE.NAKED_COLOR, 
           `出现字面量色值（行 ${colorHits.join('、')}）：颜色只取框架 tokens 的 --vm-* 令牌`
             + `（${isMp ? 'vendor/vima-ui-mp/dist/tokens.wxss' : 'vendor/vima-ui-h5/dist/tokens.css'}）；`
             + '确需局部值时先定义 --x: …，属性值用 var(--x) 引用',
@@ -303,13 +388,13 @@ process.stdin.on('end', () => {
     if (vmBizStyle !== null) {
       const sizeHits = nakedSizeLines(vmBizStyle.split('\n'));
       if (sizeHits.length > 0) {
-        problems.push(
+        flag(RULE.NAKED_SIZE, 
           `业务页出现裸尺寸（行 ${sizeHits.join('、')}）：gap/padding/margin/font-size 只取 var(--vm-*) 或 0；` +
             '「再紧/再松一点」换密度档，确需局部值先定义 --x: … 再 var(--x) 引用',
         );
       }
       for (const o of pageRootOverrides(vmBizStyle)) {
-        problems.push(
+        flag(RULE.ROOT_OVERRIDE, 
           `页面私有样式覆写了页面根类 .${o.cls} 的 ${o.prop}：撑满/滚动由框架契约统一保证——删除该声明`,
         );
       }
@@ -319,7 +404,7 @@ process.stdin.on('end', () => {
   // ── 3. admin-web 业务页面规范（带 data-page 的 .vue 才检查；A6）──
   if (!isVmKind && pageM) {
     if (!/class="[^"]*\bvui-page\b[^"]*"/.test(text)) {
-      problems.push(
+      flag(RULE.PAGE_ROOT, 
         `页面根缺少 vui-page 类：业务页面根必须是 <div class="vui-page" data-page="${pageM[1]}">` +
           '（内边距/高度链/滚动的框架契约，见 docs/coding-standards.md）',
       );
@@ -334,7 +419,7 @@ process.stdin.on('end', () => {
       }
     }
     if (colorHits.length > 0) {
-      problems.push(
+      flag(RULE.NAKED_COLOR, 
         `业务页出现字面量色值（行 ${colorHits.join('、')}）：颜色只取 src/styles/tokens.css 的 --v-* 令牌；` +
           '确需局部值时先在选择器里定义 --x: …，属性值用 var(--x) 引用',
       );
@@ -342,14 +427,14 @@ process.stdin.on('end', () => {
     // A27：裸尺寸（间距/字号写死 px）——密度档与令牌是唯一取值出口
     const sizeHits = nakedSizeLines(lines);
     if (sizeHits.length > 0) {
-      problems.push(
+      flag(RULE.NAKED_SIZE, 
         `业务页出现裸尺寸（行 ${sizeHits.join('、')}）：gap/padding/margin/font-size 只取 var(--v-*) 或 0；` +
           '「再紧/再松一点」换密度档（vui-density-compact/loose），确需局部值先定义 --x: … 再 var(--x) 引用',
       );
     }
     // A27：页面根类不许被页面私有样式覆写 height/overflow（骨架契约是全站一致性的地基）
     for (const o of pageRootOverrides(text)) {
-      problems.push(
+      flag(RULE.ROOT_OVERRIDE, 
         `页面私有样式覆写了页面根类 .${o.cls} 的 ${o.prop}：撑满/滚动由骨架契约统一保证，` +
           '页面一覆写就回到「撑不满/被裁」的老路——删除该声明，滚动落点交给框架',
       );
@@ -359,7 +444,7 @@ process.stdin.on('end', () => {
       const isActionCol =
         /title:\s*(['"])操作\1/.test(line) || /(?:key|customSlot):\s*(['"])\w*[Oo]perator\1/.test(line);
       if (isActionCol && /width:\s*\d/.test(line)) {
-        problems.push(
+        flag(RULE.ACTION_COL, 
           `操作列手写了字面量 width（行 ${i + 1}）：宽度由 VTable 按行内按钮文案自动计算（L1 已吸收），` +
             '删除 width 字段即可',
         );
@@ -382,7 +467,7 @@ process.stdin.on('end', () => {
         const detail = [...bad]
           .map((n) => `${n}（近似候选：${nearestIcons(n, iconNames).join('、')}）`)
           .join('；');
-        problems.push(
+        flag(RULE.ICON_NAME, 
           `VIcon 使用了注册表中不存在的图标名：${detail}` +
             '——从候选中选用或查 docs/ui-framework/ICONS.md 全清单，不得杜撰图标名',
         );
@@ -391,6 +476,7 @@ process.stdin.on('end', () => {
   }
 
   if (problems.length > 0) {
+    journalGuards(root, guardHits); // A35 采集口②-2：规范命中（阻断才算 block）
     console.error(
       `编码规范检查未通过 —— ${rel}\n` +
         problems.map((p) => `  · ${p}`).join('\n') +
@@ -422,6 +508,7 @@ process.stdin.on('end', () => {
     if (pageList) {
       const page = pageList.find((p) => p && p.id === pageM[1]);
       if (!page) {
+        journalGuards(root, [RULE.PAGE_UNKNOWN]); // A35 采集口②-2
         console.error(
           `区块标记对账：${rel} 声明 data-page="${pageM[1]}"，但 prototype.manifest.json 中无此页面。\n` +
             `可能：spec 改动后未重跑 vima render-prototype，或页面 ID 拼错。`,
@@ -444,6 +531,7 @@ process.stdin.on('end', () => {
       if (extra.length) issues.push(`多出设计外区块标记 data-block：${extra.join('、')}（layout 词表见 manifest 该页）`);
       if (missModals.length) issues.push(`缺弹窗标记 data-modal：${missModals.join('、')}`);
       if (issues.length > 0) {
+        journalGuards(root, [RULE.BLOCK_MARK]); // A35 采集口②-2
         console.error(
           `区块标记对账未通过 —— ${rel}（${pageM[1]}，基线 prototype.manifest.json）\n` +
             issues.map((p) => `  · ${p}`).join('\n') +

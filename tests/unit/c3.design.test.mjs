@@ -516,3 +516,58 @@ test('design status：分级建议与声明不一致时列出来，但**不改�
   assert.equal(sg.suggested, 'D2');
   assert.equal(sg.declared, 'D0', '机器只建议，绝不改写声明');
 });
+
+// ── 分级建议必须进闸门（契约 §6.20）：只打在 status 的 stdout 上等于闸门看不见 ──
+
+/** 让 PAGE-01 的判据指向 D1（表格块给 shape: chart），声明级不动。 */
+async function makeSuggestD1(root) {
+  const p = path.join(root, 'docs/spec.md');
+  const text = await readFile(p, 'utf8');
+  await writeFile(p, text.replace(
+    '  - block: table\n    name: 设备表格',
+    '  - block: table\n    name: 设备表格\n    data: { shape: chart, of: Device }',
+  ));
+}
+
+test('design check：声明 D0 而判据建议 D1 → 闸门报告如实列出，且**恒不阻断**', async (t) => {
+  const root = await cloneGolden(t);
+  await makeSuggestD1(root);
+  const r = vima(root, 'design', 'check');
+  assert.equal(r.code, 0, 'D-A34-03：首次裁定人可选任意级别，升为 error 会违反该决策');
+  const rep = await readJson(root, '.vima/reports/design-check.json');
+  assert.deepEqual(
+    rep.fidelitySuggestions,
+    [{ id: 'PAGE-01', declared: 'D0', suggested: 'D1' }],
+    '「全项目声明 D0 → 跳过 DESIGNING」必须在闸门端可见，否则是 G2 换了个壳',
+  );
+  assert.equal(rep.counts.fidelitySuggestions, 1);
+  assert.equal(rep.pass, true, '不阻断');
+  assert.match(r.stdout, /声明 D0，按判据建议 D1/);
+});
+
+test('design check 否定用例：声明与判据一致时 fidelitySuggestions 为空（不制造永久噪声）', async (t) => {
+  const root = await cloneGolden(t);
+  const r = vima(root, 'design', 'check');
+  assert.equal(r.code, 0, r.stderr);
+  const rep = await readJson(root, '.vima/reports/design-check.json');
+  assert.deepEqual(rep.fidelitySuggestions, [], '恒响的警告会训练用户忽略整张清单');
+  assert.equal(rep.counts.fidelitySuggestions, 0);
+  assert.doesNotMatch(r.stdout, /按判据建议/);
+});
+
+test('design check：非 DESIGNING 阶段跑 → gateApplies=false 并显式标注为预览', async (t) => {
+  const root = await cloneGolden(t);
+  const preview = vima(root, 'design', 'check');
+  assert.equal(preview.code, 0, preview.stderr);
+  const rep = await readJson(root, '.vima/reports/design-check.json');
+  assert.equal(rep.phase, 'PLANNING');
+  assert.equal(rep.gateApplies, false, 'PLANNING 期拿到六项全绿极易被读成「设计已完成」');
+  assert.match(preview.stdout, /预览.*不是闸门判定/);
+
+  await setPhase(root, 'DESIGNING');
+  const gate = vima(root, 'design', 'check');
+  assert.equal(gate.code, 0, gate.stderr);
+  const rep2 = await readJson(root, '.vima/reports/design-check.json');
+  assert.equal(rep2.gateApplies, true, 'DESIGNING 出口才是真正的闸门判定');
+  assert.doesNotMatch(gate.stdout, /预览/);
+});

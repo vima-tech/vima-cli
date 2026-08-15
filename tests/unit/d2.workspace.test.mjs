@@ -823,3 +823,24 @@ test('post-write A27：业务页裸尺寸与页面根覆写被拦；密度档/�
     '<template><div class="vui-page" data-page="PAGE-02"><div data-block="table"><table><tr><td>手写表格</td></tr></table></div></div></template>');
   assert.equal(runHook(root, 'src/views/P02.vue').status, 0, '不检查是否使用组件——表达形式的选择权在页面');
 });
+
+test('A34 收口 C-A34-03：方向裁定按 A6 阶梯**显式登记 L5·人审**，不留作无执行者的措辞', async () => {
+  // 「Agent 不得自行选定胜者」是 A34 抗同质化的主杠杆，但 CLI 只能机检方向交付物齐全，
+  // 分辨不出选择出自人还是 Agent。A6 的口径是「落不到 L1/L3 的才上 L5」——
+  // 登记了才算数；不登记就是又一条「有承诺、无执行者」，正是 A34 立项要治的病型。
+  const designer = await readFile(
+    path.join(CLI_ROOT, 'templates/admin/workspace/agents/vima-designer.md'), 'utf8',
+  );
+  assert.match(designer, /不得自行选定胜者〔L5·人审〕/, '措辞必须带阶梯标签');
+  assert.match(designer, /selection\.md/, '人裁定的留痕载体必须点名');
+
+  const contracts = await readFile(path.join(CLI_ROOT, 'docs/internal-contracts.md'), 'utf8');
+  assert.match(contracts, /方向裁定按 A6 阶梯登记为〔L5·人审〕/, '契约阶段推进事件表须登记');
+});
+
+test('A34 收口 C-A34-01/02：分级建议与阶段可见性写进契约（闸门看得见才算堵住 G2）', async () => {
+  const contracts = await readFile(path.join(CLI_ROOT, 'docs/internal-contracts.md'), 'utf8');
+  assert.match(contracts, /fidelitySuggestions/, '§6.20 须定义该字段');
+  assert.match(contracts, /`fidelitySuggestions` 恒不阻断/, '恒不阻断的口径必须写死（D-A34-03）');
+  assert.match(contracts, /gateApplies/, '非 DESIGNING 阶段的预览语义必须可区分');
+});

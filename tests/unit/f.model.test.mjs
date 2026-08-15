@@ -14,6 +14,9 @@ import { loadSpec } from '../../lib/model/spec.mjs';
 import { loadContracts, apiKey } from '../../lib/model/contracts.mjs';
 import { loadManifest, saveManifest } from '../../lib/model/manifest.mjs';
 import {
+  tally, readJsonSafe, phaseDurations, collectReports, V_INT_RULES,
+} from '../../lib/model/journal.mjs';
+import {
   templatesRoot, listTemplates, loadTemplate, readProjectTemplateId,
 } from '../../lib/model/template.mjs';
 import { resolveApps, appOf, consumersOf } from '../../lib/model/apps.mjs';
@@ -565,4 +568,103 @@ test('appOf / consumersOf：声明优先；单端缺省 = 唯一端；多端缺�
   assert.deepEqual(consumersOf({ consumers: ['patient'] }, multi), ['patient']);
   assert.deepEqual(consumersOf({}, single), ['admin']);
   assert.equal(consumersOf({}, multi), null);
+});
+
+// ── lib/model/journal.mjs（A36 过程轨迹归集器；抽自 retro.mjs）────────────────
+
+test('journal.tally：按 key 聚数，空/null key 跳过', () => {
+  assert.deepEqual(tally([{ r: 'V-A' }, { r: 'V-A' }, { r: 'V-B' }], (x) => x.r), { 'V-A': 2, 'V-B': 1 });
+  assert.deepEqual(tally([{ r: null }, { r: '' }, {}], (x) => x.r), {});
+});
+
+test('journal.readJsonSafe：坏文件与缺文件一律 null（不抛）', async (t) => {
+  const root = await tempRoot(t);
+  assert.equal(await readJsonSafe(path.join(root, 'nope.json')), null);
+  await writeFile(path.join(root, 'bad.json'), '{ not json');
+  assert.equal(await readJsonSafe(path.join(root, 'bad.json')), null);
+  await writeFile(path.join(root, 'ok.json'), '{"a":1}');
+  assert.deepEqual(await readJsonSafe(path.join(root, 'ok.json')), { a: 1 });
+});
+
+test('journal.phaseDurations：两端齐全才算天数，缺一端 → null（不读系统时钟）', () => {
+  const out = phaseDurations({
+    phaseHistory: [
+      { phase: 'PLANNING', enteredAt: '2026-08-01T00:00:00.000Z', completedAt: '2026-08-03T12:00:00.000Z' },
+      { phase: 'DEVELOPING', enteredAt: '2026-08-03T12:00:00.000Z', completedAt: null },
+    ],
+  });
+  assert.deepEqual(out, [{ phase: 'PLANNING', days: 2.5 }, { phase: 'DEVELOPING', days: null }]);
+  assert.deepEqual(phaseDurations(null), []);
+  assert.deepEqual(phaseDurations({}), []);
+});
+
+test('journal.collectReports：报告目录缺失 → 全零对象，不抛', async (t) => {
+  const root = await tempRoot(t);
+  const agg = await collectReports(root);
+  assert.equal(agg.verification.reports, 0);
+  assert.equal(agg.runtime.errors, 0);
+  assert.equal(agg.batches.count, 0);
+  assert.deepEqual(agg.planning.ruleHits, {});
+  for (const r of V_INT_RULES) assert.equal(agg.convergence[r], 0, `${r} 归零`);
+});
+
+test('journal.collectReports：verifier 点位分类（未过/豁免/NG 越界）与坏报告跳过', async (t) => {
+  const root = await tempRoot(t);
+  const dir = path.join(root, '.vima', 'reports');
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'a-verifier.json'), JSON.stringify({
+    taskId: 'a',
+    round: 2,
+    points: [
+      { point: '按钮：保存', passed: true },
+      { point: '字段：手机号', passed: false },
+      { point: '字段：备注', passed: false, waived: true },
+      { point: 'NG-01 越界：导出报表', passed: false },
+    ],
+  }));
+  await writeFile(path.join(dir, 'b-verifier.json'), '{ 坏报告');
+  await writeFile(path.join(dir, 'c-builder.json'), JSON.stringify({ sharedChangeRequest: '需加公共分页组件' }));
+  await writeFile(path.join(dir, 'runtime-errors.jsonl'), '{"m":"1"}\n\n{"m":"2"}\n');
+
+  const agg = await collectReports(root);
+  assert.equal(agg.verification.reports, 1, '坏报告不计入（跳过而非崩）');
+  assert.equal(agg.verification.maxRound, 2);
+  assert.equal(agg.verification.points, 4);
+  assert.equal(agg.verification.failedPoints, 2, '未过 = 手机号 + NG 越界（NG 不算豁免）');
+  assert.equal(agg.verification.waived, 1);
+  assert.equal(agg.verification.ngViolations, 1);
+  assert.equal(agg.shared.changeRequests, 1);
+  assert.equal(agg.runtime.errors, 2, 'jsonl 空行不计');
+});
+
+test('journal.collectReports：convergence / batch-plan / planning-validation 三源聚合', async (t) => {
+  const root = await tempRoot(t);
+  const dir = path.join(root, '.vima', 'reports');
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'convergence.json'), JSON.stringify({
+    findings: [{ rule: 'V-INT-02' }, { rule: 'V-INT-02' }, { rule: 'V-INT-03' }, { rule: 'V-NOPE' }],
+    summary: { openPoints: 3, unmarkedDone: 1 },
+  }));
+  await writeFile(path.join(dir, 'batch-plan.json'), JSON.stringify({
+    maxParallel: 8,
+    batches: [
+      { layer: 'shared', level: 0, tasks: ['s1'] },
+      { layer: 'business', level: 1, tasks: ['b1', 'b2'] },
+    ],
+  }));
+  await writeFile(path.join(dir, 'planning-validation.json'), JSON.stringify({
+    errors: [{ rule: 'V-SPEC-04' }, { rule: 'V-SPEC-04' }],
+    warnings: [{ rule: 'V-TASK-07' }],
+    pendingConfirm: [{ where: 'PAGE-01' }],
+  }));
+
+  const agg = await collectReports(root);
+  assert.equal(agg.convergence['V-INT-02'], 2);
+  assert.equal(agg.convergence['V-INT-03'], 1);
+  assert.equal(agg.convergence['V-INT-01'], 0, '未命中的规则仍在且为 0');
+  assert.equal(agg.convergence.openPoints, 3);
+  assert.equal(agg.convergence.unmarkedDone, 1);
+  assert.deepEqual(agg.batches, { count: 2, maxParallel: 8, sizes: [1, 2], levels: 2 });
+  assert.deepEqual(agg.planning.ruleHits, { 'V-SPEC-04': 2, 'V-TASK-07': 1 });
+  assert.equal(agg.planning.pendingConfirm, 1);
 });

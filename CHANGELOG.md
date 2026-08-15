@@ -4,6 +4,119 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **journal 采集会污染任意目录（发版体检抓出，本轮引入即修）**：`lib/cli.mjs` 顶层的
+  `root` 对非 `PROJECT_SCOPED` 命令（`create`/`upgrade`/`version`/`help`）恒等于 cwd，
+  而采集判据写成了「root 非 null」——于是在**任意目录**里跑一次失败的 `vima create`，
+  就会往那个目录扔 `.vima/reports/journal.jsonl`。实测已污染 vima-cli 仓库自身。
+  判据改为「root 下确实存在 `.vima/`」——journal 是**项目产物**，判据必须落在
+  「这里是不是一个项目」上。`init` 成功后 `.vima` 已建成，其事件正常落进新项目，行为不变。
+  回归用例覆盖 `create`/`validate`/`doctor`/`version` 四条在非项目目录的路径。
+
+### 新增
+
+- **A35 过程轨迹 `journal.jsonl` 落地**（契约 §6.21）：全仓 20 个产物 schema 里此前只有
+  1 个是事件流（`runtime-errors.jsonl`，且只覆盖浏览器报错），其余全是「最新快照」。
+  本项给 A21 反哺回路补上时间维——立项理由不是新想法，是 `retro.mjs:353-357` 代码注释里
+  早就写下的自认：「某规则曾命中后来被修好」在只有最新快照的报告体系里不可得。
+
+  - **两个采集口，全程零 Agent 配合**：`lib/cli.mjs` 出口漏斗（**三个返回点全覆盖**）记
+    `cmd` 事件；`post-write.mjs` 记 `report`（子代理报告落盘，位置在早退门之前）与
+    `guard`（三处 `exit(2)` 之前）事件。
+  - **采集口径**（D-A35-01）：失败全记 + 成功仅白名单，且排除明确声明「不写盘」的 flag。
+    `retro` **刻意不在白名单**（D-A35-12 自我豁免）——否则 A21 的「连续两次 retro 字节一致」
+    判据当场失败。
+  - **五键封顶**（`ts`/`kind`/`ref`/`outcome`/`n`），`kind` 与 `outcome` 为封闭集，
+    单行 ≤ 1024 字节（POSIX 下 10 个 Builder 并发追加仍原子，D-A35-04）；
+    `guard` 的 `ref` 是 `post-write.mjs` 内的**封闭枚举**，禁止拼接命中现场——
+    journal 流向 retro，而 retro 产物要贴进公开 issue（D-A35-10）。
+  - **默认开启**，`VIMA_JOURNAL=0` 关闭（D-A35-07）；**不进退出码、不进任何校验规则**
+    （D-A35-05）；写失败一律吞掉，绝不改变命令退出码。
+  - **消费**：`vima retro` 新增「过程曲线」节（命中→修复曲线 / 验收轮次形态 / 失败命令分布）
+    与观察项 `OBS-guard-late`；`vima render-journal` 新增 ⑦ 过程轨迹区。
+    两个消费方共用 `lib/model/journal.mjs` 的 `loadJournal` / `journalMetrics`。
+  - **修正 A35 规格的一处遗漏**：A35 边界说明只排除了 `--check` / `--dry-run`，漏了
+    `update --scaffold-diff`——它同样明确声明不写盘，且由全项目指纹用例守着零写盘承诺。
+    现改为按「声明不写盘的 flag 一律排除」，并加**行为守卫用例**扫帮助面逐个实跑，
+    防止将来新增只读 flag 时再次静默踩雷。
+
+- **A36 过程轨迹视图（`vima render-journal`）**：给已有的溯源数据补上人类审核窗口。
+  出自用户要求「不仅要有可溯源功能，同时要有人类审核窗口 UI」（2026-08-15），
+  范围由用户当场裁定收窄为**只读**（不做批准按钮/本地服务）+ **只做 DEVELOPING 过程视图**
+  （不动既有六视图 / `--check` / approve 闸门）。
+
+  - **新产物 `.vima/reports/journal.html`**（契约 §11.1）：六区单文件 HTML——
+    阶段时间线 / 任务台账（只列重试·failed·blocked·running 残留）/ 验收点位 /
+    集成对账 V-INT / 规则命中分布 / 运行时与代码溯源，底部给出该敲的命令。
+    骨架复用 `planning/review.template.html`，不新增骨架文件。
+  - **抽出 `lib/model/journal.mjs` 归集器**（契约 §5）：`collectReports` / `phaseDurations` /
+    `readJsonSafe` / `tally` / `V_INT_RULES` 从 `retro.mjs` 移出，由 `retro` 与
+    `render-journal` 共用（D-A36-02：抽取由「出现第二个真实消费方」触发，非提前抽象；
+    A35 W3 的 journal 聚合也落这里）。**`retro` 行为零变化**——`c3.retro.test.mjs`
+    12 个既有用例零修改通过。
+  - **与规格类产物三点刻意不同**（契约 §11.1 决策表 D-A36-01，均为必然而非疏漏）：
+    ① 产物落 `.vima/reports/` 随数据源一并被 gitignore，不落进版本控制的 `docs/review/`；
+    ② 含时间戳，但全部取自输入文件已落盘的字段，渲染器不读系统时钟，字节确定性不破；
+    ③ **不提供 `--check`、不进 doctor 的 render-drift 体检**——过程数据每推进一个任务就变，
+    漂移机检会恒红。与 **D-A33-01** 同源同向。
+  - **改判 A35 一条**（D-A36-03）：A35「不做仪表盘 / TUI / `vima journal` 命令」的理由是
+    「消费方只有 retro 一个」，A36 引入第二个消费方后前提不成立。改判**只及于
+    「单开一条只读渲染命令」**；仪表盘、TUI、实时刷新、服务进程仍全部不做。
+    契约 §12 的 A35 条目「消费方只有 retro」同步改。
+
+
+### 修复
+
+- **A34 落地后收口三条（C-A34-01/02/03）**：对视觉轨道做对抗性复核，发现三处「机制建成了，
+  但 A34 自己声明的意图没有执行者或没有可见性」。三条均反查得到 A34 既有决策，
+  **不新增字段、命令与阶段**。
+
+  - **C-A34-01 「全项目声明 D0」曾是闸门看不见的降级通道**。`suggestFidelity` 的判据本就
+    确定性可算，但结果只打在 `vima design status` 的 stdout 上：`design-check.json` 无此字段，
+    `vima approve` 完全不消费（`grep -c suggest lib/commands/approve.mjs` = 0）。
+    实测——给黄金夹具 PAGE-01 的表格块加 `data.shape: chart`（判据 ⇒ D1）而声明保持 D0，
+    `design check` 六项派生全绿 exit 0 并打印「全页 D0：跳过 DESIGNING 发散轮」。
+    于是 A34 要治的 G2 只是从「不写 fidelity」换成了「全写 D0」，**成本从零变成几行字，
+    闸门端可见性仍然是零**。现 `deriveStates` 产出 `fidelitySuggestions`，进
+    `design-check.json`（含 `counts.fidelitySuggestions`）与 `vima approve` 的
+    DESIGNING→DEVELOPING 闸门输出。**恒不阻断**——D-A34-03 明确「首次裁定时人可选任意级别，
+    机器建议仅供参考」，升为 error 会直接违反该决策；这里要的是 A5 诚实分级的可见性。
+    **未批准页的降级由本条一并覆盖**（尚未 `design approve` 时改低 fidelity 无
+    `downgradeWaiver` 可留痕，但必然表现为「声明级 ≠ 判据建议级」），故不另设降级日志。
+  - **C-A34-02 `design check` 在任意阶段都返回「六项全绿」**，与 approve/verify/reconcile 的
+    `PHASE_TRANSITION` 守卫不一致；在 PLANNING 期拿到全绿极易被读成「设计已完成」。
+    报告增 `gateApplies`（= `phase === 'DESIGNING'`），非闸门阶段 stdout 显式标注
+    「预览，不是闸门判定」。**不加硬前置**——预览缺什么是正当用法，堵死它是另一种伤害。
+  - **C-A34-03 「Agent 不得自行选定胜者」无执行者也未登记**。它是 A34 抗同质化的主杠杆，
+    但 CLI 只能机检方向交付物齐全，分辨不出选择出自人还是 Agent。按 A6「落不到 L1/L3 的
+    才上 L5」**显式登记〔L5·人审〕**（契约 §6.2 阶段推进事件表 + `vima-designer.md`），
+    并要求 `selection.md` 写清用户口径而非 Agent 推荐结论。不登记就是又一条
+    「有措辞、无执行者」——正是 A34 立项要治的病型。
+
+- **A34 的 D1/D2 实质链路补端到端覆盖**：黄金夹具全页 D0，走的是 `d0Only` 空真路径，
+  DESIGNING 被确定性跳过——「方向包 → `design approve direction` → 逐页稿 →
+  `design approve pages` → `design check` 真检 → DEVELOPING 收口 `design verify`」
+  这条 A34 的核心链路此前**只有单元测试，端到端零覆盖**。新增 e2e ⑪ 用独立工程走全程，
+  并在两处闸门各验一次「真的会咬人」：缺稿时 `design check` exit 2 报 V-DSN-09；
+  缺验收报告时 `design verify` exit 2 报未覆盖；补齐后转绿；改设计稿后旧报告判 stale。
+
+- **certify 的 converged 级不再采信过期报告（A32 D-A32-05）**：`checkConverged` 原先只读磁盘上的
+  `.vima/reports/convergence.json` 判 `errors=0 && openPoints=0`，既不重跑也无 stale 检测——
+  报告生成之后 spec/契约/任务/代码再变，仍按旧报告认证为已收敛。同一文件里 `implemented` 级
+  对视觉证据早已是「重算 + 要求缓存与重算一致」（A34 D-A34-31），converged 级漏了同一标准。
+  现 `converge.mjs` 拆出只读评估器 `evaluateConvergence(root, {cliRoot})`（`run` 退为
+  「调评估器 + 写盘 + 打印」，行为不变），certify 复用它重算并与磁盘报告逐字节比对；
+  不一致即判过期、如实报缺。评估器抛 `VimaError` 时不使 certify 崩溃（exit 恒 0）。
+- **spec 里缺 `id` 的 `vima:page` 块不再静默消失（V-SPEC-03）**：`loadSpec` 会丢弃无 id 的 page 块，
+  而 validate 的 ID 唯一性检查对 `undefined` 直接早退，缺 id 校验又只覆盖弹窗/区块（V-DSN-11）——
+  结果是「写了页面、机检全绿、渲染无此页」。现按原文块逐块校验并附开栏行号，
+  `validatePages` 的复用方（render-review / render-prototype）一并受益。
+- **契约 §3 项目根定位口径对齐 §4**：正文仍是 v2.0 的「含 `docs/lifecycle.json` 或
+  `.vima/manifest.json` 的**当前目录**（不向上递归查找）」，而 A24 的 `findProjectRoot`
+  与 `NOT_IN_PROJECT` 早已改为**逐级向上**查找 `.vima/` 或 `docs/lifecycle.json`，
+  代码与 §4 一致、只有 §3 正文残留旧定义。已改正（文档修正，代码无改动）。
+
 ## [3.0.3] - 2026-08-14
 
 ### 新增

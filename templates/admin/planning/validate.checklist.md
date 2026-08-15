@@ -13,7 +13,8 @@
   `## 5. 业务规则`、`## 6. 权限设计`、`## 7. 技术栈`、`## 8. 关键决策记录`、
   `## 9. 本期不做`。
 - [ ] **V-SPEC-02**（error）：`vima:entities` 数据块存在；每个 entity 有非空 fields。
-- [ ] **V-SPEC-03**（error）：每个 `vima:page` 页面级粒度四要素齐全——
+- [ ] **V-SPEC-03**（error）：每个 `vima:page` 有非空 `id`（缺 id 的页面块不会进入
+  任何后续页面规则，等于整块消失，故按原文块单独报并附开栏行号）；页面级粒度四要素齐全——
   layout 非空、components 非空、apis 非空；每个交互 `action ∈ {nav, modal, api}`
   且字段匹配（nav/modal 带 target，api 带 api）。
 - [ ] **V-SPEC-04**（error）：layout 与 components[].block 用词

@@ -37,9 +37,11 @@ lib/commands/{validate,approve,trace,context,converge,retro,change,certify,mock,
                                                  change=维护期变更事务，A31；
                                                  certify=交付等级认证，A32；
                                                  mock=契约样本生成，A27；design=视觉真源兑现，A34）
-lib/commands/render-{review,prototype,matrix}.mjs
-templates/admin/planning/{audit-view,prototype}.mjs
+lib/commands/render-{review,prototype,matrix,journal}.mjs
+templates/admin/planning/{audit-view,prototype,journal-view}.mjs
 templates/admin/planning/{review,prototype}.template.html [C4] + tests/unit/c4.*.test.mjs
+                                                （render-journal=过程轨迹视图，A36；
+                                                 复用 review.template.html 骨架，不新增骨架文件）
 scripts/{dev.sh,sync.mjs}                      [开发工具：沙箱演练与模板→沙箱增量同步，不随 npm 包发布]
 scripts/gen-from-manifest.mjs                  [A6/A8 同源生成器：ai-manifest → ICONS.md + components.d.ts + llms-full.txt]
 tests/e2e.test.mjs tests/helpers.mjs README.md [集成阶段统一编写，agent 不写]
@@ -152,6 +154,12 @@ export async function ensureDir(dir)
 export async function fileExists(p)            // → boolean
 export async function atomicWriteFile(p, content)   // 自动 ensureDir(dirname)，tmp+rename
 export function stableStringify(value)         // 深度 key 排序、2 空格缩进、结尾 \n
+export const JOURNAL_MAX_LINE            // 1024——journal 单行硬上限（A35 D-A35-04）
+export function appendJsonLine(p, obj)   // 同步 O_APPEND 追加一行 JSON（A35 采集口）
+// ≤ JOURNAL_MAX_LINE 字节时 POSIX 保证写入原子（A18 允许 10 个 Builder 并发追加同一文件）；
+// 超长则**截 ref**（唯一变长字段），不换行不折行；截后仍超长 → 丢弃该行。
+// **任何异常一律吞掉**——采集是旁路，绝不改变命令退出码与 stdout/stderr（D-A35-02）。
+// 自动 mkdir -p。口径：采集端允许读时钟，消费端（渲染/校验/退出码）一律不得。
 export async function driftOf(pairs)           // [绝对路径,相对路径,期望内容][] → 漂移单行清单
                                                // （渲染 --check 与 approve 前置 2 共用，A12）
 export function sha256(text)                   // → hex string
@@ -228,6 +236,42 @@ export async function resolveApps(root, { cliRoot })
 // 全部消费方（validate/trace/context/render/guard/doctor）经本函数取端信息，禁止旁路硬编码。
 export function appOf(entry, roster)      // entry.app ?? 单端唯一 id ?? null（多端未声明 → 校验报错）
 export function consumersOf(api, roster)  // api.consumers ?? 单端 [唯一 id] ?? null
+
+// lib/model/journal.mjs（A36 过程轨迹归集器；由 retro 与 render-journal 共用）
+export async function readJsonSafe(p)     // 坏文件/缺文件一律 null（过程视图不因单个坏报告失败）
+export function tally(items, keyOf)       // 数组 → {key: n}；key 为空/null 的项跳过
+export const V_INT_RULES                  // ['V-INT-01'..'V-INT-05']，两个消费方同序呈现
+export function phaseDurations(lifecycle) // phaseHistory → [{phase, days|null}]；**不读系统时钟**
+export async function collectReports(root)
+// 聚合 .vima/reports/ 下的子代理报告与既有机检报告 →
+// { verification: { reports, maxRound, points, failedPoints, waived, ngViolations },
+//   shared: { changeRequests },
+//   runtime: { errors },                          // runtime-errors[.<appId>].jsonl 行数
+//   convergence: { V-INT-01..05, openPoints, unmarkedDone },
+//   batches: { count, maxParallel, sizes, levels },
+//   planning: { pendingConfirm, ruleHits },
+//   details: {                                   // **含 taskId**——见下方脱敏纪律
+//     openPoints: [{ taskId, point, kind: 'failed'|'waived'|'ng' }],  // 只收非 passed 点位
+//     findings:   [{ rule, level, key, message, owners: [] }] } }     // convergence findings 原样
+// 报告目录缺失 → 全零对象（不抛）。**本模块只读不写**，不碰系统时钟。
+// **脱敏纪律**：`details` 携带任务标识，只供**带标识**的消费方（render-journal）使用。
+// A21 默认脱敏的 retro **逐字段显式取值**（batches/convergence/verification/shared/
+// planning/runtime 六项），不得改成整体展开——否则 taskId 会漏进公开 issue 正文。
+// 该纪律由 c4.journal.test.mjs 的「details 不得污染 retro 脱敏产物」用例守住。
+
+export async function loadJournal(root)   // 读 §6.21 journal.jsonl → 事件数组
+// 未落地 / 未开启 / 换 clone → `[]`（消费方退化回无时间维行为，不报错，A35 局限 1）。
+// 坏行逐行跳过，不整份丢弃——并发追加理论上仍可能撕行，一条坏行不该毁掉整条曲线。
+// **顺序即文件行序**：调用方不得按 `ts` 重排（D-A35-11）。
+export function journalMetrics(events)    // 事件数组 → 派生指标（A35 规格 4）
+// → { events,
+//     guardCurve: [{ ref, hits, lastHalf: 'early'|'late' }],   // 命中→修复曲线，ref 升序
+//     verification: { tasks, r1Pass, recovered, neverPass },   // 验收轮次形态
+//     cmdFail: { <命令>: <非零退出次数> } }                     // 失败命令分布
+// **脱敏**：`report` 事件的 `ref` 含 taskId，本函数一律先剥掉再聚合（只留轮次与结果）；
+// 原始 `ts` 不出。A21 既有脱敏判据原样适用，不放宽。**不读系统时钟。**
+// 出处：原为 retro.mjs 私有实现，A36 因出现第二个消费方（render-journal）而抽出；
+// 抽取成本记在 A36 名下，retro 行为零变化（c3.retro 12 个用例为回归网）。
 ```
 
 ## 6. 文件格式 Schema
@@ -297,7 +341,7 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
 | 迁移 | 由谁推进 | 闸门 |
 |---|---|---|
 | PLANNING → DESIGNING | `vima approve --planning` | 独立校验 profile：spec/契约/权限/pendingConfirm + V-DSN-10/11/12，**不要求 V-TASK-\*/V-COV-01**（任务拆解发生在设计冻结之后）；同时建立 `.vima/changes/designing-baseline/` 快照 |
-| DESIGNING 内部 | `vima design approve direction` → `vima design reconcile`（仅当方向改了产品）→ `vima design approve pages` | 人工裁定 + 受控回写 |
+| DESIGNING 内部 | `vima design approve direction` → `vima design reconcile`（仅当方向改了产品）→ `vima design approve pages` | 人工裁定 + 受控回写。**方向裁定按 A6 阶梯登记为〔L5·人审〕**：CLI 只能机检方向交付物齐全（`brief.md`/三稿/`comparison.md`/`selection.md`）与摘要一致，**分辨不出选择出自人还是 Agent**——「Agent 不得自行选定胜者」（D-A34-14）落不到 L1/L3，故显式登记 L5 而非留作无执行者的措辞 |
 | DESIGNING → DEVELOPING | `vima approve` | 原三道前置 + **设计闸门六项派生全绿** |
 
 `currentPhase` 的消费方必须整体同步（漏一个即状态机分叉）：
@@ -663,6 +707,17 @@ docs/ui-framework）一律「标注跳过」不报错——存在性问题归 va
 跨任务集成对账报告。**每次扫描的确定性快照**——不含手工状态与豁免字段：
 修好了就扫不出来（A20「不做」第 2 条）。
 
+`lib/commands/converge.mjs` 的跨模块复用接口（A32 `certify` 的 converged 级消费，签名冻结）：
+
+```js
+export async function evaluateConvergence(root, { cliRoot })  // → 本节报告对象；只读，不写盘/不打印/不判退出码
+                                                              // 抛 VimaError('NO_TASKS') 当 docs/tasks/ 缺失
+```
+
+`converge` 与 `certify` 共用这一个评估器：前者把返回值写成本文件，后者重算后与本文件比对
+判新鲜度（§6.19 converged 行）。**同一输入两次调用必须字节一致**（无时间戳/随机数），
+否则 certify 会把稳定项目误判为过期。
+
 ```json
 { "schemaVersion": "1",
   "scope": { "markedBackendFiles": 12, "markedFrontendFiles": 30, "contractApis": 251,
@@ -881,7 +936,7 @@ export async function writeImpact(root, impact)         // → void；stableStri
 |---|---|
 | `spec-approved` | lifecycle `checklists.PLANNING.tasksApproved === true` |
 | `implemented` | shared+business 任务数 >0 且全 done；每个 done 的 business 任务有 `<taskId>-verifier.json` 且 `result: "pass"` |
-| `converged` | convergence.json 存在且 `summary.errors=0`、`summary.openPoints=0`（证据附该文件 sha256） |
+| `converged` | 复用 `evaluateConvergence`（§6.13）**重算**：`summary.errors=0`、`summary.openPoints=0`，**且**磁盘 convergence.json 与重算结果 `stableStringify` 一致（证据附该文件 sha256）。汇总文件只是缓存证据不是可信布尔值——报告生成后 spec/契约/任务/代码再变即判过期并如实报缺，与 `implemented` 级对视觉证据的做法同口径（A34 D-A34-31）。评估器抛 VimaError 时不使 certify 崩（exit 恒 0），按缺口如实列出 |
 | `pipeline-green` | ≥1 个 pipeline 任务且全部 done |
 
 `deliveryLevel` = 自底向上**连续**满足的最高级（跳级不算）。stdout 摘要须同时明示
@@ -956,6 +1011,83 @@ notCertified 行。**不写 lifecycle**（等级由证据推导，不落第二�
 `vima design check` 是 DESIGNING 出口，只看设计面（页面尚未实现，**不看任何实现期报告**）；
 `vima design verify --prepare` 只准备报告输入；无 `--prepare` 的 `vima design verify` 才是
 DEVELOPING 收口硬门，检查报告矩阵与 `implementationDigest`。
+
+**`.vima/reports/design-check.json`（`vima design check` 输出）**：
+
+```jsonc
+{
+  "schemaVersion": "1",
+  "phase": "DESIGNING",              // 运行时所处阶段；≠DESIGNING 时本次为预览而非闸门判定
+  "gateApplies": true,               // phase === 'DESIGNING'。false 时 pass 只代表「当前无阻塞项」
+  "designCapability": "a34",
+  "derived": { … },                  // 六项派生状态（D-A34-13），一律不落盘进 lifecycle
+  "findings": [], "directionFindings": [], "stale": [], "stageAMissing": [],
+  "fidelitySuggestions": [           // A5 诚实分级：声明级与 spec 判据建议级不一致的页面
+    { "id": "PAGE-01", "declared": "D0", "suggested": "D1" }
+  ],
+  "counts": { "pages": 2, "graded": 2, "needArtifacts": 0, "fidelitySuggestions": 1 },
+  "d0Only": true, "note": null, "pass": true
+}
+```
+
+**`fidelitySuggestions` 恒不阻断**（D-A34-03「首次裁定时人可选任意级别，机器建议仅供参考」——
+升为 error 会直接违反该决策）。它存在的理由是 A5 诚实分级：`suggestFidelity` 的判据本就
+确定性可算，把结果只打在 `vima design status` 的 stdout 上、而闸门端与批准端完全看不见，
+等于把「全项目声明 D0 从而确定性跳过 DESIGNING」变成一条**不可见**的降级通道——
+这正是 A34 立项要治的 G2，只是从「不写 fidelity」换成了「全写 D0」。故
+`design check` 报告与 `vima approve` 的 DESIGNING→DEVELOPING 闸门**必须如实呈报计数与逐条**，
+由人裁定。**未批准页的降级同由本项覆盖**：页面尚未 `design approve` 时改低 `fidelity` 按
+D-A34-03 本就合法且无 `downgradeWaiver` 可留痕，但它一定表现为「声明级 < 建议级」而被本项呈报。
+
+### 6.21 .vima/reports/journal.jsonl（A35 过程轨迹；内核 + hook 双采集口）
+
+JSON Lines，append-only，**五键封顶**，无 `schemaVersion`（与 §6.10 `runtime-errors.jsonl`
+同口径：逐行重复版本号是纯冗余，版本语义由本节承担）。**单文件不按端拆**——运行时错误是
+端的产物，过程事件是项目的过程。不做轮转/采样/压缩。
+
+```json
+{"ts":"2026-08-14T09:12:03.114Z","kind":"cmd","ref":"validate","outcome":"fail","n":2}
+{"ts":"2026-08-14T09:31:40.802Z","kind":"guard","ref":"A27/裸尺寸","outcome":"block"}
+{"ts":"2026-08-14T10:02:11.559Z","kind":"report","ref":"device-list-fe/verifier/r1","outcome":"fail","n":3}
+```
+
+| 键 | 类型 | 语义 |
+|---|---|---|
+| `ts` | ISO 8601 字符串 | 事件时刻。**仅供人读，不供排序**——顺序由行序保证（D-A35-11）|
+| `kind` | 封闭集 `cmd` \| `report` \| `guard` | 三个采集口各一，**不留扩展位**——要第四类先立需求 |
+| `ref` | 字符串 | 按 kind 分档受控，见下表 |
+| `outcome` | 封闭集 `ok` \| `fail` \| `pass` \| `block` | cmd 用 `ok`/`fail`；report 用 `pass`/`fail`（与 §6.9 `result` 同名同义）；guard 恒 `block` |
+| `n` | 整数，可省 | cmd＝`exitCode`（D-A35-09）；report＝未过 point 数；**guard 省略**（恒 1 无信息量）|
+
+**`ref` 的受控取值（D-A35-10 脱敏面）**
+
+| kind | 取值 | 含业务标识 |
+|---|---|---|
+| `cmd` | 命令名（`COMMANDS` 的键，封闭集）| 否 |
+| `report` | `<taskId>/<verifier\|builder>/r<轮次>` | **是**（taskId）|
+| `guard` | **规范条目名的封闭枚举**（`post-write.mjs` 内 `RULE` 常量表）| 否 |
+
+`guard` 的 `ref` **禁止**拼接文件路径、页面 ID、组件名或任何命中现场——它只回答
+「哪条规范被违反」，不回答「在哪违反的」（后者是 hook 当场给 Agent 的 stderr 反馈，
+不是复盘素材）。理由：journal 流向 `vima retro`，retro 产物要贴进**公开 issue**。
+跨端同规则合并为一个枚举值（如 admin 与 h5 的深路径导入）——分布要回答的是
+「哪条规范框架没讲清楚」，端别不改变这个答案。
+
+**采集口径（D-A35-01）**
+
+| 采集口 | 位置 | 记录条件 |
+|---|---|---|
+| ① `cmd` | `lib/cli.mjs` 出口漏斗（全仓唯一），**三个返回点全覆盖** | 项目外（无项目根）**不记**；`exitCode ≠ 0` **全记**；`exitCode = 0` 且 `cmd ∈ JOURNAL_ON_SUCCESS` 且 argv 不含 `--check`/`--dry-run` **记**；其余不记 |
+| ② `report` | `templates/*/workspace/hooks/post-write.mjs`，**早退门之前** | 写入路径匹配 `.vima/reports/<taskId>-{verifier,builder}.json` 时读回该文件；不可解析 → 不记（宁缺勿假）|
+| ③ `guard` | 同上，三处 `exit(2)` 之前 | 同一次写入内同条规范**去重后各记一条** |
+
+`JOURNAL_ON_SUCCESS = {init, update, sync, plan, validate, approve, converge, certify, change, design}`。
+**`retro` 刻意不在其中**（D-A35-12 自我豁免）：retro 读 journal 生成报告，若它自己也写一行，
+A21 既有判据「连续两次 retro 字节一致」当场失败。任何写 journal 的消费方都必须自我豁免。
+
+**开关**：默认开启；`VIMA_JOURNAL=0` 关闭（D-A35-07——默认关等于数据永远不存在，机制失效）。
+**不进退出码、不进任何 validate/converge 规则**（D-A35-05，同 `runtime-errors` 既定口径）。
+
 
 ## 7. spec 结构化数据块（唯一机器真源，§13.2/§13.3）
 
@@ -1355,10 +1487,44 @@ converge 不重复报同一件事。
   每个弹窗挂载点带 `data-modal="MODAL-xx"`。post-write.mjs 见 §14。
 - `--check`：内存渲染与磁盘现有文件逐字节比较，不一致 → exit 2（不写盘）；文件缺失 → exit 2。
 - 成功渲染后写回 lifecycle `reviewRendered/prototypeRendered = true`（lifecycle 存在时）。
+
+### 11.1 过程轨迹视图（A36；与上文规格类产物三点刻意不同）
+
+```js
+// templates/admin/planning/journal-view.mjs
+export function renderJournal(model) → htmlString
+// model = { projectName, phases,        // phaseDurations(lifecycle) 结果
+//           tasks,                      // loadTasks 后取 {id,title,layer,side,status,retryCount,updatedAt}
+//           agg,                        // collectReports(root) 结果
+//           trace }                     // .vima/reports/trace.json | null
+```
+
+六区中的 ③ 验收点位 / ④ 集成对账 / ⑥ 代码溯源**必须同时给出计数与明细**：
+计数回答「有几个」，明细回答「改哪个」。只给计数则审核者无法行动，等于没兑现
+A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」。明细不做截断——
+条数由项目规模决定，本产物是本地文件，静默截断比长表危险。
+
+产物 **`.vima/reports/journal.html`**（路径固定），命令 `vima render-journal`
+**不接任何选项**——既无 `--check`（见下表第 3 行），也无 `--output`：本视图是随数据源
+一并被忽略的本地产物，允许改写落点等于给「把每次都变的产物写进版本控制」开口子。
+骨架**复用**
+`planning/review.template.html`（仅 `{{TITLE}}`/`{{CONTENT}}` 两个占位符，与规格无关），
+不新增骨架文件。单文件零外部请求、禁 JS 完整可读、明暗主题——这三条与规格类产物同。
+
+**三点刻意不同，均为必然而非疏漏（D-A36-01）**：
+
+| # | 规格类产物（index/prototype/matrix） | 过程轨迹视图 | 理由 |
+|---|---|---|---|
+| 1 | 落 `docs/review/`，**进版本控制** | 落 `.vima/reports/`，**随 `_gitignore` 忽略** | 数据源（`.vima/reports/**`）本就不进版本控制。产物进 git 而数据源不进，会导致每次 `/go` 后工作树变脏，且换机器 clone 后视图显示的是**别人机器的过程数据** |
+| 2 | 单文件铁律含**「无时间戳」** | **含时间戳**（阶段时间线、任务 `updatedAt`） | 「无时间戳」防的是**渲染器自己读系统时钟**（破坏字节确定性）。本视图的时间戳全部来自**输入文件已落盘的字段**，渲染器同样禁止读系统时钟——同一输入仍字节一致 |
+| 3 | 提供 `--check`，且进 doctor 的 render-drift 体检 | **不提供 `--check`**，**不进** doctor 体检 targets | `--check` 的语义是「输入没变 → 产物字节不变」。过程数据每推进一个任务就变，`--check` 会恒红。这与 **D-A33-01**（任务切片刻意不含 `status`/`retryCount`/`updatedAt`，因「运行态入渲染产物会把 A12 新鲜度机检搅成常红」）**同源同向**：D-A33-01 约束的是**受 A12 新鲜度机检管辖的产物**；本视图不参与该机检，故消费运行态是正当的，且**必须**独立成产物——把运行态并进 `index.html` 才是违反 D-A33-01 |
+
+另：不写回 lifecycle 任何 checklist 键（它不是闸门前置，写回会给它不该有的闸门语义）；
+**不按端拆分**——与 A35 `journal.jsonl` 同口径（「运行时错误是端的产物，过程事件是项目的过程」）。
 - 参考移植（只读）：`/home/renmk/projects/PACT/pact/scripts/pact-book-html.mjs` 的
   单文件内联/明暗主题/锚点交叉引用手法。
 
-## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效；**A35 出自「能否增加 agent 那样的轨迹记录」用户提问**（docs/design/process-journal-proposal.md）——过程轨迹 journal.jsonl：给 A21 反哺回路补上时间维，内核出口 + post-write hook 双采集口，消费方只有 retro）
+## 12. 增补项（A1–A5 吸收自 PACT；A6–A7 吸收自 AI-First 评估；A8 吸收自市场对标；A9–A12 吸收自 mattpocock/skills 对标；A13 出自产品设计要素专题讨论；A14 出自 sustain-v3 分栏版面实战；A15 出自命令语义对调裁定；A16 出自多前端支持专题讨论；A17 出自 /go 批间阻塞排查裁定；A18 出自 sustain-v3 批次调度效率实测评估；A19 出自存量项目升级可达性核实；A20 出自「开发完成后的冲突与错误」用户反馈；A21 出自「开发完成后把项目经验反哺回 vima-cli」用户提议；A22 出自 sustain-v3 完整开发期实战反馈（四类机检盲区 + context 两条检索线）；A23 出自「自研企业 UI 框架」用户裁定（改判 A16 的 D-A16-02）；A25 出自「同步补齐 h5 的 UI 库」用户要求（H5 收编为 kind）；A27 出自 Design-First 前端体系七轮专题讨论的第一批落地；A28 出自 carelink-admin 验收实测（改判 D-A16-03）；A29 出自 carelink-admin 试点实证（Claude Design 视觉真源工序）；A30 出自「layout 与页面分开设计 + 产品风格取向」用户裁定（兑现 A27 延后项 P28）；A31–A33 出自 PACT 代际评估（docs/design/pact-vs-vima-generational-assessment.md）P0 三项经深评收敛后的共识落地（A31 变更事务并兑现 T2-8、A32 收敛版交付等级、A33 业务闭环视图），均见 v2.1-amendments.md；**A34 出自 Sustain 视觉退化取证 + codex 六轮评审收敛**（docs/design/sustain-vima-visual-regression-{analysis,solution}.md）——视觉真源的兑现机制：保真分级 D0/D1/D2 + Builder 三层授权 + DESIGNING 阶段与 A0 三方向发散 + 三类验收报告契约 + 批准摘要驱动失效；**A35 出自「能否增加 agent 那样的轨迹记录」用户提问**（docs/design/process-journal-proposal.md）——过程轨迹 journal.jsonl：给 A21 反哺回路补上时间维，内核出口 + post-write hook 双采集口，消费方为 retro 与 render-journal 两个（**A36 改判：原定「消费方只有 retro」**，故聚合实现落 lib/model/journal.mjs 而非 retro.mjs 私有）；**A36 出自「不仅要有可溯源功能，同时要有人类审核窗口 UI」用户要求**（2026-08-15）——过程轨迹视图 `vima render-journal` → `.vima/reports/journal.html`（§11.1），只读不批，并抽出 lib/model/journal.mjs 归集器供两个消费方共用）
 
 - **A1 代码级追溯**：`@vima <taskId>` 标注 + `vima trace`（§10）。Builder 角色模板必须要求写标注。
 - **A2 单一真源裁定**：前端任务 frontmatter 用 `page: PAGE-xx` 引用，任务文件不手写组件树（V-TASK-05）。

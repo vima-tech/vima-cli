@@ -112,7 +112,8 @@
     ],
     "renderers": {
       "review": "planning/audit-view.mjs",
-      "prototype": "planning/prototype.mjs"
+      "prototype": "planning/prototype.mjs",
+      "journal": "planning/journal-view.mjs"
     },
     "prototype": true,
     "kinds": {

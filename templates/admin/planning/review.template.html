@@ -1,6 +1,7 @@
 <!doctype html>
-<!-- 人类审计视图骨架（admin 模板资产；设计 §13.2）
-     由 vima render-review 从 docs/spec.md 结构化数据块确定性渲染，请勿手工修改。
+<!-- 通用视图骨架（admin 模板资产；设计 §13.2，契约 §11 / §11.1）
+     两个渲染器共用：audit-view.mjs（规格审计，vima render-review）与
+     journal-view.mjs（过程轨迹，vima render-journal，A36）。请勿手工修改产物。
      铁律：单文件零外部请求（href 仅 # 锚点）；禁 JS 完整可读（本骨架不含任何 JS）；
      明暗主题跟随 prefers-color-scheme。占位符为双花括号包裹的 TITLE 与 CONTENT
      （此注释刻意不写占位符原文，避免被渲染器的整串替换命中）。 -->
