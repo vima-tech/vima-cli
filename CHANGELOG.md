@@ -2,6 +2,93 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [3.1.0] - 2026-08-15
+
+### 新增
+
+- **`vima status` 运行状态可观测（A37）**。此前「跑到哪了、还要多久」在仓库里没有
+  任何一个位置能看到，只能人工翻四个文件交叉比对——立项实证是一次重建在 DEVELOPING
+  期跑了 2h24m，21 个任务 `status: done` 而 **0 个有轨迹证据**，四份状态源
+  （`lifecycle.taskStats` 说 0 / `batch-plan.json` 说 1 / frontmatter 说 21 /
+  `journal.jsonl` 说 0）各说各话且没有任何一处会主动报警。
+  - **证据强度三档进度**：`自称`（frontmatter `status: done`，Agent 写，可伪造）
+    ≥ `有轨迹` ≥ `已验收`（后两者取 `journal.jsonl` 的 report 事件，post-write hook
+    旁路采集；Agent 不能直改 journal，但报告输入仍由 Agent 产出，故不宣称独立防伪）。
+    当前验收态取最新 verifier 结果；首次 pass 另存为 ETA 历史样本，任务重开或后续 fail
+    不再残留为“已验收”。三档同屏并列，落差即信号。
+  - **分组任务量**：按 side（前端/后端/全栈）、layer、A16 端册分别给出总数/自称/验收/待办，
+    验收列与总表同口径取自 journal 而非 `status` 字段。
+  - **用时取真时间**：`lifecycle.phaseHistory` 已落盘的时间戳；当前阶段用 `now − enteredAt`。
+  - **ETA 拒绝无样本外推**：速率只用带真实 `ts` 的验收事件；样本 < 3 一律输出「不估算」
+    并说明还缺几个，**不给一个看起来很像数字的数字**。可估时给
+    〔最近窗口均速，全程均速〕区间并标注「假设并行度不变」；按 side 分别外推，
+    某 side 样本不足则退回全局速率并如实标注依据。
+    **刻意不用 frontmatter `updatedAt`**（D-A37-03）——它是 Agent 手写的，
+    实测 68 条被盖成同一时刻、6 条超前真实时钟 1–3.5 小时，项目越出问题它越虚构。
+  - **四个呈现口**：默认表格 / `--watch` 常驻（文件变化即重算、晚建目录动态补监听，
+    每秒重绘并以低频全量读盘兜底）/
+    `--json` / `--line` 单行。`settings.json` 注册 `statusLine: vima status --line`，
+    跑 /go 的会话底部常驻一行进度；它同时是一枚 **cwd 探针**——会话开在非项目根时
+    状态栏直接显示告警，正是上述实证里 2.5 小时无人察觉的那个故障。
+  - **硬约束**：只写 stdout、不产出任何仓库内文件（落盘会引入第 4 个状态源，正是要治的病）、
+    不接 `--out`/`--serve`（usage exit 3，不静默忽略）、**恒 exit 0**——差值只呈现不裁定，
+    判定归 `doctor`/`converge`（D-A37-02）。`--line` 在数据/运行异常下也必须 exit 0 输出单行
+    （参数用法错误仍为 exit 3），
+    否则状态栏只会一片空白、探针失效。
+  - 改判 A35/A36 的「不做实时刷新」（D-A37-01）：原禁令前提是「消费方只关心回看历史」，
+    本项消费方是运行中的人。改判**只及于实时刷新**——交互式 TUI、服务进程、
+    上报/联网/跨项目聚合仍然全部不做。
+  - 落点：`lib/model/progress.mjs`（新建）、`lib/commands/status.mjs`（新建）、
+    `lib/cli.mjs`（注册 + `JOURNAL_EXEMPT`）、`templates/admin/workspace/settings.json`、
+    契约 §2/§5/§6.21/§12、`tests/unit/c2.status.test.mjs`（含当前验收、未来时间、容错任务、
+    晚建目录 watch 等回归用例）。
+
+- **四个 Claude Code project skills + `vima go` 启动器（A38 追认登记）**——解决「`/go` 找不到 / 不稳定触发」。
+  - `.claude/skills/` 下安装 `go`、`check`、`design` 与全命令路由 `vima` 四个 skill，
+    均带自然语言触发描述。`/vima <command> [options]` 为任意 CLI 命令提供统一命名空间，
+    规避与 Claude 内置 `/doctor`、`/context`、`/help` 的名称冲突；路由以运行时 `vima help`
+    与 `docs/lifecycle.json` 为真源，不复制一份会漂移的命令清单。
+    `go`/`check`/`design` 三个 skill 读取 `.claude/commands/{go,check,design}.md` 的完整协议正文，
+    防长工作流双真源漂移；三份 command 自身保留 frontmatter description 作降级发现面。
+  - 每个 skill 校验 `${CLAUDE_SKILL_DIR}` 推出的项目根与 `${CLAUDE_PROJECT_DIR}` 一致，
+    不一致即停止——不在错误 cwd 执行，也不得以手工读写模拟确定性 CLI。
+  - 新增 **`vima go`**：从探测到的项目根启动全新 Claude Code 交互会话并自动发送 `/go`
+    （`--commit` 授权批次检查点提交，`--dry-run` 只打印不启动）。它按 `currentPhase`
+    分派、四个阶段通吃，是错误 cwd / 旧会话上下文膨胀 / 项目配置未加载的确定性逃生口。
+    新增错误码 `GO_SKILL_MISSING`、`CLAUDE_NOT_FOUND`（均 exit 4）。
+  - `vima doctor` ⑥ 升级为 **4 skills + 3 工作流正文 + 6 角色 + 3 hooks** 共 17 个文件，
+    且不只查存在——解析四份 skill 的 frontmatter：description 非空、未被
+    `disable-model-invocation` 关掉、项目根校验变量在位。存量项目 `vima update` 可补装。
+
+- **稳定触发面收口（A38）**：把「稳定触发」拆成四层并逐层认领——**L0 会话锚定** /
+  **L1 入口发现** / **L2 入口完整** / **L3 执行忠实**。同期落地的四个 project skills
+  （`go`/`check`/`design`/`vima` 路由）、`vima go` 启动器、`doctor` ⑥ 的 skill 有效性体检
+  覆盖 L1/L2，本项**追认登记**它们（此前反查不到任何 A#，违反「每处实现必须能反查到
+  §N 或 A#」硬约束），并补上 L3 与 L0 的缺口：
+  - **`AGENTS.md` 补三条跨工具红线**。此前 L3 的约束只写在项目宪法与四份 skill 正文里，
+    而这两处**都是 Claude Code 专属**；读 `AGENTS.md` 的工具（Cursor / Codex / Jules）
+    拿到的红线里没有一条说「确定性操作必须走 CLI」。新增：确定性操作一律调
+    `vima <command>`（不确定先 `vima help`，点名 `sync`/`plan`/`validate` 三件最常被
+    手工模拟的）；不手改任务 frontmatter 的 `status`/`updatedAt`；先确认工作目录是
+    项目根并给出可自查动作（跑 `vima status`，显示「非 vima 项目根」就停下切目录）。
+  - **`doctor` ⑬ 未来时间戳机检**（D-A38-03）：任务 `updatedAt` 晚于当前时钟（容差 5 分钟）
+    → error 并**指名文件**。内核写 `updatedAt` 一律用真实时钟，未来值只可能是手写的
+    ——这是「有人绕过 CLI 改了 frontmatter」唯一零假阳性的铁证，sustain-v4 实证里命中 6 次。
+    不进 `validate`、不拦 `/go`（成因可能只是机器时钟不准）。被否判据：
+    `taskStats.updatedAt` 对不上 journal 的 `sync` 事件——`.vima/reports/` 不进版本控制，
+    换 clone 后必然假阳性（单测守着这一条）。
+  - **L0 如实记为能力边界**（D-A38-01），不假装能修：会话 cwd 不在项目里时，
+    skills / hooks / statusLine / 宪法全部来自项目 `.claude/`，一个都不加载，
+    vima 在该会话内没有任何代码执行点。缓解只在入口侧（`vima go` 作为缺省启动路径，
+    按 `currentPhase` 分派、四阶段通吃）与会话外（另开终端 `vima status --watch`，
+    或用户自行把 `vima status --line` 挂进用户级 `~/.claude/settings.json`
+    ——**vima 不代写用户级配置**）。README 记载了做法。
+  - 顺带纠正 `docs/design/sustain-v4-truthsource-drift.md` 的一处表述：该文把
+    「未走 `/go` 编排」记为既定前提，而会话轨迹取证显示那**不是选择、是故障本身**
+    （transcript 全文 `/go` 出现 0 次、`Task` 调用 0 次，项目 `.claude/` 从未加载）。
+    这条区分决定修复方向——若是「选择手工」该补劝导，既然是「入口不存在」补劝导无效。
+    该文其余 8 条规划期缺陷的结论不受影响。
+
 ## [3.0.6] - 2026-08-15
 
 ### 变更
