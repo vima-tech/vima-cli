@@ -145,7 +145,7 @@ test('doctor：skill 无描述、禁用模型触发或缺项目根校验 → ⑥
   }
 });
 
-test('doctor --json：结构化输出（13 个检查项 + pass 标志，A38 增未来时间戳项）', async (t) => {
+test('doctor --json：结构化输出（14 个检查项 + pass 标志，A40 增资产可达性项）', async (t) => {
   const tmp = await makeProject(t);
   const proc = runCli(tmp, ['doctor', '--json']);
   assert.equal(proc.status, 0, `stdout: ${proc.stdout}`);
@@ -153,7 +153,7 @@ test('doctor --json：结构化输出（13 个检查项 + pass 标志，A38 增�
   assert.equal(report.schemaVersion, '1');
   assert.equal(report.vimaProject, true);
   assert.equal(report.pass, true);
-  assert.equal(report.checks.length, 13); // A16：⑪ 端册完整性；A38：⑬ 未来时间戳
+  assert.equal(report.checks.length, 14); // A16：⑪ 端册完整性；A38：⑬ 未来时间戳；A40：⑭ 资产可达性
   for (const c of report.checks) {
     assert.ok(['ok', 'warn', 'error'].includes(c.status), `非法 status: ${c.status}`);
     assert.equal(typeof c.detail, 'string');
@@ -279,4 +279,92 @@ test('doctor ⑬：5 分钟内的时钟偏差不算数（跨机协作容差）',
   await writeFile(p, text.replace(/^updatedAt: .*$/m, `updatedAt: ${soon}`));
   const line = lineOf(runCli(tmp, ['doctor']).stdout, '⑬ 任务 updatedAt');
   assert.match(line, /^✅/);
+});
+
+// ── A40 ⑭ Claude Code 资产可达性 ──────────────────────────────────────────
+// 立项实证：sustain-v4（2026-08-15）⑥⑦⑧ 全绿、doctor 报「体检通过」，而项目的
+// hooks/子代理/skills 在那条会话里一个都没注册——前六项查「在不在」，没有一项查「生效没生效」。
+
+/** 在夹具里写一份带 hooks 的 settings.json。anchored=false 时用会被 cwd 解析的相对路径。 */
+async function writeSettings(root, { anchored }) {
+  const cmd = anchored
+    ? 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/post-write.mjs"'
+    : 'node .claude/hooks/post-write.mjs';
+  await writeFile(path.join(root, '.claude/settings.json'), JSON.stringify({
+    hooks: { PostToolUse: [{ matcher: 'Write|Edit', hooks: [{ type: 'command', command: cmd }] }] },
+  }));
+}
+
+test('doctor ⑭：hook 命令未锚定项目根 → error 并指路 vima update', async (t) => {
+  const tmp = await makeProject(t);
+  await writeSettings(tmp, { anchored: false });
+  const proc = runCli(tmp, ['doctor']);
+  assert.equal(proc.status, 2, `stdout: ${proc.stdout}`);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.match(line, /❌/);
+  assert.match(line, /未锚定项目根/);
+  assert.match(line, /vima update/);
+});
+
+test('doctor ⑭：hook 命令已锚定 → 该项不报错', async (t) => {
+  const tmp = await makeProject(t);
+  await writeSettings(tmp, { anchored: true });
+  const proc = runCli(tmp, ['doctor']);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.doesNotMatch(line, /未锚定项目根/);
+});
+
+test('doctor ⑭：报告已落盘但 journal 无 report 事件 → error（post-write hook 未生效的指纹）', async (t) => {
+  const tmp = await makeProject(t);
+  await writeSettings(tmp, { anchored: true });
+  await mkdir(path.join(tmp, '.vima/reports'), { recursive: true });
+  await writeFile(path.join(tmp, '.vima/reports/task-1-builder.json'), '{"taskId":"task-1"}');
+  // journal 里只有命令事件——正是「hook 没接上」时的样子
+  await writeFile(path.join(tmp, '.vima/reports/journal.jsonl'),
+    '{"ts":"2026-08-15T00:00:00.000Z","kind":"cmd","ref":"validate"}\n');
+  const proc = runCli(tmp, ['doctor']);
+  assert.equal(proc.status, 2, `stdout: ${proc.stdout}`);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.match(line, /0 条 report 事件/);
+  assert.match(line, /post-write hook 未生效/);
+});
+
+test('doctor ⑭：采集链路通畅（报告 + journal report 事件）→ ✅', async (t) => {
+  const tmp = await makeProject(t);
+  await writeSettings(tmp, { anchored: true });
+  await mkdir(path.join(tmp, '.vima/reports'), { recursive: true });
+  await writeFile(path.join(tmp, '.vima/reports/task-1-verifier.json'), '{"taskId":"task-1"}');
+  await writeFile(path.join(tmp, '.vima/reports/journal.jsonl'),
+    '{"ts":"2026-08-15T00:00:00.000Z","kind":"report","ref":"task-1/verifier/r1","outcome":"pass"}\n');
+  const proc = runCli(tmp, ['doctor']);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.match(line, /✅/);
+  assert.match(line, /采集链路通畅/);
+});
+
+test('doctor ⑭：CLAUDE_PROJECT_DIR 指向别处 → error 指出资产整体未注册', async (t) => {
+  const tmp = await makeProject(t);
+  await writeSettings(tmp, { anchored: true });
+  const proc = spawnSync(process.execPath, [BIN, 'doctor'], {
+    cwd: tmp,
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PROJECT_DIR: path.dirname(tmp) },
+  });
+  assert.equal(proc.status, 2, `stdout: ${proc.stdout}`);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.match(line, /本会话的项目根是/);
+  assert.match(line, /全部未注册/);
+});
+
+test('doctor ⑭：hook 词元为绝对路径（无空格直执行 / 解释器在前）→ 均视为已锚定', async (t) => {
+  const tmp = await makeProject(t);
+  await writeFile(path.join(tmp, '.claude/settings.json'), JSON.stringify({
+    hooks: { PostToolUse: [{ matcher: 'Write|Edit', hooks: [
+      { type: 'command', command: `"${tmp}/.claude/hooks/post-write.mjs"` },          // 直执行，无空格
+      { type: 'command', command: `/usr/bin/node "${tmp}/.claude/hooks/guard-shared.mjs"` }, // 解释器绝对路径在前
+    ] }] },
+  }));
+  const proc = runCli(tmp, ['doctor']);
+  const line = lineOf(proc.stdout, '⑭');
+  assert.doesNotMatch(line, /未锚定项目根/, `绝对路径词元不应误报：${line}`);
 });

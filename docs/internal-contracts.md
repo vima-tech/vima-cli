@@ -1931,6 +1931,20 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
 - **doctor（A16 新增检查项）**：端册完整性——apps[].dir 在位、id 合法 slug、kind ∈
   planning.kinds、各端骨架完整性（preview kind 未生成骨架如实报告；进 DEVELOPING 前
   该项为 ❌ 阻断级）。
+- **doctor ⑭ Claude Code 资产可达性（A40）**：三条判据——
+  ① `settings.json` 中引用 `.claude/hooks/` 的命令必须锚定（含 `$CLAUDE_PROJECT_DIR` 或绝对路径），
+  否则 error 并指路 `vima update`；② `CLAUDE_PROJECT_DIR` 存在且 ≠ 项目根 → error（该会话内本项目
+  资产整体未注册）；③ `.vima/reports/*-{builder,verifier}.json` 已落盘但 journal `report` 事件为 0
+  → error（post-write hook 未生效的行为指纹）；开发期一份报告都没有 → warn。
+  本项兑现 D-A37-02 划给 doctor 的「差值成因判定」分工——在此之前该分工只存在于文档。
+- **Claude Code 资产落点锚定（A40 D-A40-01）**：`templates/*/workspace/settings.json` 的 hook 命令
+  一律写作 `node "$CLAUDE_PROJECT_DIR/.claude/hooks/<x>.mjs"`；四个 hook 脚本内部统一用
+  `resolveRoot(input, filePath)` 定位项目根，优先级 **被写文件路径向上回溯** → `CLAUDE_PROJECT_DIR`
+  → hook JSON `cwd` → 进程 `cwd`，判据与内核 `findProjectRoot` 同源
+  （文件路径先于 env：嵌套项目下会话根本身可能也是 vima 项目，env 先行会把内层文件判到外层根，
+  guard 对内层共享层静默放行——d2 的嵌套用例守着）；四源全落空返回 `null`，
+  调用方直接放行（不在 vima 项目里就不动作，禁止拿 cwd 硬凑根）。
+  `create` / `init` 在检测到 Claude 会话时向 stderr 打印资产未注册告警（D-A40-02）。
 - **status（A37）**：`vima status [--watch|--json|--line]` 运行状态可观测。
   三档进度口径：`claimed`＝任务 frontmatter `status: done`（Agent 写，可伪造）；
   `tracked`／`verified`＝§6.21 `report` 事件（post-write hook 旁路采集；禁止直改 journal，

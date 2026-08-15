@@ -517,6 +517,9 @@ const HOOK = path.join(ADMIN, 'workspace/hooks/post-write.mjs');
 async function markerProject(t, manifest) {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-marker-'));
   t.after(() => rm(root, { recursive: true, force: true }));
+  // A40：hook 只在「确实是 vima 项目」的树里动作（判据 .vima/ 或 docs/lifecycle.json），
+  // 落空即放行。夹具因此必须带项目标记——否则测的是「不在项目里」这个无关分支。
+  await mkdir(path.join(root, '.vima'), { recursive: true });
   await mkdir(path.join(root, 'src/views'), { recursive: true });
   if (manifest) {
     await mkdir(path.join(root, 'docs/review'), { recursive: true });
@@ -726,6 +729,7 @@ test('guard-shared A16：端册面拦 apps/<id>/ 共享层；无令牌 exit 2、
 test('A37 证据边界：Agent 的 Write/Edit 不能直接篡改 journal 账本', async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-journal-guard-'));
   t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, '.vima'), { recursive: true }); // A40 项目标记
   const blocked = runGuard(root, '.vima/reports/journal.jsonl');
   assert.equal(blocked.status, 2);
   assert.match(blocked.stderr, /过程账本写保护/);
@@ -991,4 +995,70 @@ test('契约示例引用的响应包装类型，必须在骨架 dto 里真实存
       `契约示例引用了骨架里不存在的类型 ${type}；骨架 dto 现有：${[...dtoNames].sort().join(', ')}`,
     );
   }
+});
+
+// ── A40 hook 项目根定位：cwd 漂到子目录 / 父目录时仍须命中正确的根 ─────────────
+// 立项实证：hook 命令与 hook 内部的根定位都按 cwd 解析，Agent 只要 `cd apps/admin`
+// 再写共享层文件，guard 就静默放行——**失效没有任何输出**，正是 A37/A40 要治的那类故障。
+
+/** 用指定 cwd 调 hook；file_path 传绝对路径（Claude Code 实际就是这么传的）。 */
+function runHookAt(cwd, absFile, script) {
+  const input = JSON.stringify({ cwd, tool_input: { file_path: absFile } });
+  return spawnSync(process.execPath, [script], { input, encoding: 'utf8' });
+}
+
+test('A40 根定位：cwd 在子目录时，guard 仍按项目根判定共享层（回归：曾静默放行）', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vima-d2-root-sub-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await mkdir(path.join(root, 'src/utils'), { recursive: true });
+  await mkdir(path.join(root, 'apps/patient/src/pages'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+
+  const shared = path.join(root, 'src/utils/request.ts');
+  const business = path.join(root, 'apps/patient/src/pages/booking.ts');
+  const subCwd = path.join(root, 'apps/patient'); // Agent `cd apps/patient` 之后
+
+  assert.equal(runHookAt(subCwd, shared, GUARD).status, 2, '子目录 cwd 下共享层仍须被拦');
+  assert.equal(runHookAt(subCwd, business, GUARD).status, 0, '业务目录仍须放行');
+});
+
+test('A40 根定位：cwd 在项目之外时，按被写文件路径回溯到正确的项目根', async (t) => {
+  const outer = await mkdtemp(path.join(tmpdir(), 'vima-d2-root-outer-'));
+  t.after(() => rm(outer, { recursive: true, force: true }));
+  const root = path.join(outer, 'proj');
+  await mkdir(path.join(root, '.vima'), { recursive: true });
+  await mkdir(path.join(root, 'src/utils'), { recursive: true });
+  await writeFile(path.join(root, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+
+  // 会话开在项目的父目录（本次实战的真实形态）
+  assert.equal(runHookAt(outer, path.join(root, 'src/utils/request.ts'), GUARD).status, 2,
+    '父目录 cwd 下仍须按文件所在项目判定');
+});
+
+test('A40 根定位：完全不在 vima 项目里 → 放行（hook 防误不防恶意，不拿 cwd 硬凑根）', async (t) => {
+  const bare = await mkdtemp(path.join(tmpdir(), 'vima-d2-root-bare-'));
+  t.after(() => rm(bare, { recursive: true, force: true }));
+  await mkdir(path.join(bare, 'src/utils'), { recursive: true });
+  const f = path.join(bare, 'src/utils/request.ts');
+  await writeFile(f, 'export const x = 1\n');
+  assert.equal(runHookAt(bare, f, GUARD).status, 0, '非 vima 项目不应被 guard 干预');
+  assert.equal(runHookAt(bare, f, HOOK).status, 0, '非 vima 项目不应触发写后巡检');
+});
+
+test('A40 根定位：嵌套项目下 CLAUDE_PROJECT_DIR 指向外层项目时，仍按被写文件所在的内层项目判（回归：曾静默放行）', async (t) => {
+  const outer = await mkdtemp(path.join(tmpdir(), 'vima-d2-root-nest-'));
+  t.after(() => rm(outer, { recursive: true, force: true }));
+  await mkdir(path.join(outer, '.vima'), { recursive: true }); // 外层本身也是 vima 项目
+  const inner = path.join(outer, 'inner');
+  await mkdir(path.join(inner, '.vima'), { recursive: true });
+  await mkdir(path.join(inner, 'src/utils'), { recursive: true });
+  await writeFile(path.join(inner, '.vima/manifest.json'), JSON.stringify(MULTI_VIMA_MANIFEST));
+
+  const input = JSON.stringify({ cwd: outer, tool_input: { file_path: path.join(inner, 'src/utils/request.ts') } });
+  const proc = spawnSync(process.execPath, [GUARD], {
+    input, encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PROJECT_DIR: outer }, // 会话根 = 外层项目
+  });
+  assert.equal(proc.status, 2, '内层共享层必须按内层项目判定并拦截，env 不得把根拉到外层');
 });

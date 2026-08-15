@@ -46,6 +46,27 @@ function findProjectRoot(from) {
 }
 
 /**
+ * 项目根定位（多源回退）：CLAUDE_PROJECT_DIR → hook JSON cwd → 进程 cwd。
+ * SessionStart 没有被写文件可用，故只有三源；含义与写入类 hook 的 resolveRoot 一致。
+ */
+function resolveRoot(input, filePath) {
+  const env = process.env.CLAUDE_PROJECT_DIR;
+  const candidates = [
+    // 被写文件路径排第一：文件在哪个项目里，就按哪个项目判。嵌套项目场景
+    // （会话根本身是 vima 项目、文件属于其中嵌套的另一个项目）下，env 先行会判到外层根，
+    // guard 对内层共享层静默放行——这与 A40 要治的病是同一株。
+    filePath ? findProjectRoot(path.dirname(path.resolve(filePath))) : null,
+    env ? findProjectRoot(env) : null,
+    input && input.cwd ? findProjectRoot(input.cwd) : null,
+    findProjectRoot(process.cwd()),
+  ];
+  for (const c of candidates) {
+    if (c) return c;
+  }
+  return null; // 四源都不在 Vima 项目里 → 由调用方退出，不拿 cwd 硬凑一个根
+}
+
+/**
  * 数未完成任务：只取 frontmatter 的 status，读不出的按未完成计（宁可多报也不漏工）。
  *
  * 文件筛选必须与内核 `lib/model/tasks.mjs` 逐字一致（`.md` + 非 `_` 前缀 + 非 README.md）——
@@ -89,7 +110,7 @@ process.stdin.on('end', () => {
   const source = typeof input.source === 'string' ? input.source : 'startup';
   if (source !== 'startup' && source !== 'clear') quiet();
 
-  const root = findProjectRoot(input.cwd || process.cwd());
+  const root = resolveRoot(input, null);
   if (!root) quiet(); // 不在 Vima 项目里：本 hook 不适用
 
   let lifecycle;

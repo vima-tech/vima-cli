@@ -19,7 +19,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/go-autostart.mjs" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/go-autostart.mjs\"" }
         ]
       }
     ],
@@ -27,7 +27,7 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/guard-shared.mjs" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-shared.mjs\"" }
         ]
       }
     ],
@@ -35,14 +35,14 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/post-write.mjs" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-write.mjs\"" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/go-continue.mjs" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/go-continue.mjs\"" }
         ]
       }
     ]

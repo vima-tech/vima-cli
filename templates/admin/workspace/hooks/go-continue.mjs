@@ -19,6 +19,56 @@
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+
+/**
+ * 项目根定位（多源回退）。**不能只用 cwd**：hook 进程的 cwd 是会话 cwd，
+ * 它可能是项目的子目录（Agent `cd apps/admin` 之后写文件）、也可能是项目的父目录
+ * （会话开在工作区根、项目建在子目录）。任一情形下按 cwd 解析都会算出错误的根，
+ * 后果是 guard 形同虚设、journal 写去别处——而且**静默**，正是 A37 立项要治的那类失效。
+ *
+ * 优先级：
+ *   1. 被写文件路径**向上**回溯（写入类 hook 最可靠的信号：文件在哪个项目里，就是哪个根，
+ *      嵌套项目下这是唯一不会判错的来源）；
+ *   2. `CLAUDE_PROJECT_DIR`（Claude Code 注入的会话项目根）——命中判据才采信；
+ *   3. hook JSON 的 `cwd` 向上回溯；
+ *   4. 进程 cwd 向上回溯。
+ * 判据与内核 findProjectRoot 一致（`.vima/` 或 `docs/lifecycle.json`），判据只能有一个真源。
+ * 全部落空 = 不在 Vima 项目里，返回 null 由调用方直接放行——hook 是「防误不防恶意」，
+ * 拿 cwd 硬凑一个根会让 guard 去比对不存在的共享目录、journal 写进用户的任意目录。
+ */
+function findProjectRoot(from) {
+  if (!from) return null;
+  let dir = path.resolve(from);
+  for (;;) {
+    for (const probe of ['.vima', path.join('docs', 'lifecycle.json')]) {
+      try {
+        statSync(path.join(dir, probe));
+        return dir;
+      } catch { /* 继续探下一个判据 */ }
+    }
+    const up = path.dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
+}
+
+function resolveRoot(input, filePath) {
+  const env = process.env.CLAUDE_PROJECT_DIR;
+  const candidates = [
+    // 被写文件路径排第一：文件在哪个项目里，就按哪个项目判。嵌套项目场景
+    // （会话根本身是 vima 项目、文件属于其中嵌套的另一个项目）下，env 先行会判到外层根，
+    // guard 对内层共享层静默放行——这与 A40 要治的病是同一株。
+    filePath ? findProjectRoot(path.dirname(path.resolve(filePath))) : null,
+    env ? findProjectRoot(env) : null,
+    input && input.cwd ? findProjectRoot(input.cwd) : null,
+    findProjectRoot(process.cwd()),
+  ];
+  for (const c of candidates) {
+    if (c) return c;
+  }
+  return null; // 四源都不在 Vima 项目里 → 由调用方退出，不拿 cwd 硬凑一个根
+}
+
 const MAX_CONSECUTIVE_RESUMES = 5; // 防死循环兜底（契约 §6.12）
 const STALE_MS = 10 * 60 * 1000; // 状态文件早于 10 分钟视为上次会话遗留，不据以续跑
 
@@ -37,7 +87,8 @@ process.stdin.on('end', () => {
   // Claude Code 已因本 hook 续跑过一次仍在停 → 放行，避免与内层循环叠加
   if (input && input.stop_hook_active === true) allow();
 
-  const root = (input && input.cwd) || process.cwd();
+  const root = resolveRoot(input, null);
+  if (!root) allow(); // 不在 Vima 项目里：不干预 Stop
   const statePath = path.join(root, '.vima', 'go-state.json');
 
   let state;

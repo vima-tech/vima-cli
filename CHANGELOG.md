@@ -2,6 +2,46 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [3.1.3] - 2026-08-15
+
+### 修复
+
+- **Claude Code 资产随项目位置失效，且 doctor 报「体检通过」**（A40）。三处叠加：
+  ① `settings.json` 的 hook 命令写的是相对路径 `node .claude/hooks/x.mjs`，按 **cwd** 解析
+  ——Agent 只要 `cd apps/admin` 再写文件，脚本就找不到，且失败**无任何输出**；
+  ② hook 内部同样用 `(input.cwd) || process.cwd()` 定位项目根，即便脚本被找到，
+  共享层比对与 journal 写入也会算到错误的根上；
+  ③ `doctor` 只查资产「在不在、能不能执行」，没有一项查它「生效没生效」。
+  sustain-v4 实证：会话开在项目父目录，4 个 hook、6 个子代理、4 个 skill 一个都没注册，
+  开发期跑完约 88 个任务（后端 662 个 `.java` 编译测试通过、前端 68 个视图构建通过），
+  而 `vima status` 三档显示 0/0/0、`doctor` 报「体检通过」。
+  现改为：hook 命令一律锚定 `$CLAUDE_PROJECT_DIR`；hook 内部改用四源回退
+  `resolveRoot`（**被写文件路径向上回溯** → `CLAUDE_PROJECT_DIR` → hook `cwd` → 进程 `cwd`），
+  全落空则放行而不拿 cwd 硬凑根；`doctor` 新增 ⑭「Claude Code 资产可达性」
+  （未锚定 / 会话根错位 / 报告已落盘但 journal 无 report 事件三条判据），
+  兑现 D-A37-02 划给 doctor 却一直没落地的「差值成因判定」分工。
+
+- **嵌套项目下 hook 根定位倒置**（A40 评审轮抓到）。`resolveRoot` 初版把
+  `CLAUDE_PROJECT_DIR` 排在被写文件路径之前——会话根本身也是 vima 项目、被写文件属于
+  其中嵌套的另一个项目时，根被判到外层，guard 对内层共享层**静默放行**（实测复现
+  exit 0）。修正为被写文件路径最优先：文件在哪个项目里，就按哪个项目判。配嵌套回归用例。
+- **doctor ⑭ 判据 a 的词元化**。原实现看整条命令判「是否锚定」，会被解释器绝对路径
+  （`/usr/bin/node …`）或无空格直执行形式带偏。改为只看引用 `.claude/hooks/` 的那个
+  词元本身（含 `$CLAUDE_PROJECT_DIR` 或去引号后以 `/` 开头即锚定）。
+
+### 新增
+
+- **`create` / `init` 在 Claude 会话内执行时当场告知资产未注册**（A40 D-A40-02）。
+  判据是一条永真事实：在已开着的会话里生成的 `.claude/`，在这条会话里必定不生效
+  ——它在会话启动那一刻还不存在。`CLAUDE_PROJECT_DIR` 与项目根不一致时进一步指出
+  「必须换目录重开」。提示走 stderr，只在 Claude 会话内打印，普通终端零噪声。
+  这补上了 D-A38-01「缓解只在入口侧」漏掉的最早那个入口——纠正成本在那一刻只有一条 `cd`。
+
+### 变更
+
+- 存量项目升级：`vima update` 会把 `.claude/settings.json` 迁移到锚定写法
+  （managed 文件走既有三方比较；已手改过的仍按冲突处理，不强制覆盖）。
+
 ## [3.1.2] - 2026-08-15
 
 ### 修复
