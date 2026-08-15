@@ -46,6 +46,15 @@ async function exists(p) {
   }
 }
 
+test('change：除 open 描述外，各子命令拒绝多余位置参数', async (t) => {
+  const root = await cloneGolden(t);
+  for (const args of [['list', 'extra'], ['impact', 'one', 'extra'], ['apply', 'one', 'extra'], ['close', 'one', 'extra']]) {
+    const r = vima(root, 'change', ...args);
+    assert.equal(r.code, 3, `${args.join(' ')} stderr: ${r.stderr}`);
+    assert.match(r.stderr, /多余的位置参数/);
+  }
+});
+
 /** 同 c3.converge：给黄金夹具 Controller 补 Spring 注解，使 4 个契约接口全部有实现。 */
 async function annotateController(root) {
   const p = path.join(root, CONTROLLER_REL);

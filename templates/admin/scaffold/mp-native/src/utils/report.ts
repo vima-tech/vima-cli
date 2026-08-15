@@ -1,6 +1,7 @@
 /**
  * A7 运行时证据（契约 §6.10）：把未捕获错误打到 console，
- * 由 `npm run runtime:collect`（miniprogram-automator 驱动开发者工具）采集落盘为
+ * 显式运行 `npm run runtime:setup` 后，由 `npm run runtime:collect`
+ *（miniprogram-automator 驱动开发者工具）采集落盘为
  * `.vima/reports/runtime-errors.<appId>.jsonl`，给不开开发者工具的 Agent 当眼睛。
  *
  * **诚实降级**：开发者工具不在场时不捕获，也不假装捕获——

@@ -162,9 +162,11 @@ test('mp-native 骨架的请求门面形状匹配 V-CODE-01 的扫描正则（�
   // 与 lib/commands/validate.mjs 的 checkFrontendCode 同款正则
   const re = /\brequest\s*\.\s*(get|post|put|delete|patch)\s*(?:<[^>(]*>)?\s*\(\s*(['"`])([^'"`\n]*)\2/g;
   assert.match(req, /export const request\s*=/, '必须导出名为 request 的门面对象');
-  for (const m of ['get', 'post', 'put', 'delete', 'patch']) {
+  // 微信 wx.request 的 method 联合类型不支持 PATCH；扫描器仍保留 patch 供其他 kind 使用。
+  for (const m of ['get', 'post', 'put', 'delete']) {
     assert.match(req, new RegExp(`\\b${m}:\\s*<T`), `门面缺少 ${m} 方法`);
   }
+  assert.doesNotMatch(req, /\bpatch:\s*<T/, 'mp-native 不得暴露平台不支持的 PATCH');
   // 门面示例调用（文档注释里的正例）应能被扫描正则命中
   const hits = [...`${req}`.matchAll(re)].map((m) => m[3]);
   assert.ok(hits.length > 0, '门面注释里的正例调用应能被 V-CODE-01 正则命中，否则约定与机检对不上');

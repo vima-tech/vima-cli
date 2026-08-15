@@ -24,3 +24,19 @@ jobs:
         run: npm test
       - name: 发布包内容自检
         run: npm pack --dry-run
+
+  stable-scaffold:
+    name: stable 模板真实构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: 生成 admin 三端项目
+        run: npm run test:scaffold

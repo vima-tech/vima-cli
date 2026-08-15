@@ -30,7 +30,7 @@ public class UserController {
     private static final List<String> EXPORT_HEADERS =
             List.of("ID", "用户名", "昵称", "邮箱", "手机", "状态", "部门", "创建时间");
     private static final List<String> IMPORT_HEADERS =
-            List.of("用户名*", "昵称*", "邮箱", "手机", "部门ID");
+            List.of("用户名*", "初始密码*", "昵称*", "邮箱", "手机", "部门ID");
 
     private final UserService userService;
 
@@ -57,7 +57,7 @@ public class UserController {
     public ApiResponse<UserDTO> create(@Valid @RequestBody UserDTO dto) {
         try {
             return ApiResponse.success(userService.createUser(dto));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -113,7 +113,7 @@ public class UserController {
     @GetMapping("/import-template")
     public void importTemplate(HttpServletResponse response) throws IOException {
         List<List<Object>> rows = List.of(
-                Arrays.asList("zhangsan", "张三", "zhangsan@example.com", "13800138000", 1L));
+                Arrays.asList("zhangsan", "ChangeMe-2026", "张三", "zhangsan@example.com", "13800138000", 1L));
         ExcelUtil.export(response, "用户导入模板", IMPORT_HEADERS, rows);
     }
 
@@ -138,6 +138,7 @@ public class UserController {
         for (Map<String, String> row : sheetRows) {
             String rowNum = row.getOrDefault(ExcelUtil.ROW_NUM_KEY, "?");
             String rowUsername = row.getOrDefault("用户名*", "");
+            String rowPassword = row.getOrDefault("初始密码*", "");
             String rowRealName = row.getOrDefault("昵称*", "");
             String rowEmail = row.getOrDefault("邮箱", "");
             String rowPhone = row.getOrDefault("手机", "");
@@ -149,6 +150,10 @@ public class UserController {
             }
             if (userService.usernameExists(rowUsername)) {
                 errors.add("第" + rowNum + "行：用户名「" + rowUsername + "」已存在");
+                continue;
+            }
+            if (rowPassword.length() < 8 || rowPassword.length() > 72) {
+                errors.add("第" + rowNum + "行：初始密码长度需在 8~72 位之间");
                 continue;
             }
             if (rowRealName.isEmpty()) {
@@ -167,6 +172,7 @@ public class UserController {
 
             userService.createImportedUser(
                     rowUsername,
+                    rowPassword,
                     rowRealName,
                     rowEmail.isEmpty() ? null : rowEmail,
                     rowPhone.isEmpty() ? null : rowPhone,

@@ -74,6 +74,14 @@ test('retro 自我豁免（D-A35-12）：成功不写自己的事件，否则 A2
   assert.equal(ev.filter((e) => e.ref === 'retro').length, 0, 'retro 不得记录自己');
 });
 
+test('plan --json 声明不落盘，因此不写 batch-plan 或 journal', async () => {
+  await rm(path.join(root, JOURNAL_REL), { force: true });
+  const r = vima(root, ['plan', '--json']);
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  assert.ok(!existsSync(path.join(root, '.vima', 'reports', 'batch-plan.json')));
+  assert.ok(!existsSync(path.join(root, JOURNAL_REL)));
+});
+
 test('项目外不落盘（journal 是项目产物）', async () => {
   const outside = await mkdtemp(path.join(tmpdir(), 'vima-jr-out-'));
   vima(outside, ['validate']);

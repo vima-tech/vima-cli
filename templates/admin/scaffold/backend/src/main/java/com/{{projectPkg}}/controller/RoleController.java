@@ -39,7 +39,7 @@ public class RoleController {
     public ApiResponse<Role> create(@RequestBody Role role) {
         try {
             return ApiResponse.success(roleService.createRole(role));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }

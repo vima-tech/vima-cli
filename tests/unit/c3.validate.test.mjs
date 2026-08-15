@@ -208,6 +208,31 @@ test('破坏：覆盖矩阵挖空单元格 → V-COV-01，exit 2', async (t) => 
   assert.ok(report.errors.some((e) => e.rule === 'V-COV-01'), JSON.stringify(report.errors));
 });
 
+test('破坏：覆盖矩阵数据行缺少末列 → V-COV-01，exit 2', async (t) => {
+  const root = await cloneGolden(t);
+  const rel = 'docs/coverage-matrix.md';
+  const p = path.join(root, rel);
+  const text = await readFile(p, 'utf8');
+  const rows = text.split('\n');
+  const index = rows.findIndex((line) => line.startsWith('|') && !/---/.test(line) && !/页面/.test(line));
+  assert.ok(index >= 0, '应找到覆盖矩阵数据行');
+  const cells = rows[index].slice(1, -1).split('|');
+  rows[index] = `|${cells.slice(0, -1).join('|')}|`;
+  await writeFile(p, rows.join('\n'));
+
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 2);
+  const report = await readReport(root);
+  assert.ok(report.errors.some((e) => e.rule === 'V-COV-01' && /列数/.test(e.message)));
+});
+
+test('V-COV-01：转义竖线属于单元格内容，不误判为额外列', async (t) => {
+  const root = await cloneGolden(t);
+  await mutate(root, 'docs/coverage-matrix.md', '设备可按名称', '设备 A \\| B 可按名称');
+  const r = vima(root, 'validate');
+  assert.equal(r.code, 0, `stderr: ${r.stderr}`);
+});
+
 test('spec 块加 pendingConfirm: true → 仍 exit 0，报告收集待确认项 + V-PEND-01 警告', async (t) => {
   const root = await cloneGolden(t);
   await mutate(root, 'docs/spec.md', 'id: PAGE-01\ntitle: 设备列表', 'id: PAGE-01\npendingConfirm: true\ntitle: 设备列表');

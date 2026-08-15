@@ -28,7 +28,7 @@ public class OnlineUserController {
         try {
             onlineUserService.kick(username, authentication.getName());
             return ApiResponse.success();
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(400, e.getMessage());
         }
     }

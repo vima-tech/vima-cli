@@ -32,7 +32,7 @@ App<{ globalData: GlobalData }>({
   },
 
   /** A7 运行时证据：未捕获的 Promise 拒绝 */
-  onUnhandledRejection(res: WechatMiniprogram.OnUnhandledRejectionCallbackResult) {
+  onUnhandledRejection(res: WechatMiniprogram.OnUnhandledRejectionListenerResult) {
     reportRuntimeError({
       kind: 'unhandledrejection',
       message: res && res.reason ? String(res.reason) : 'unhandled rejection',

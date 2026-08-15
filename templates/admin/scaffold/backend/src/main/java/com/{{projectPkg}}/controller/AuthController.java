@@ -21,7 +21,7 @@ public class AuthController {
             String userAgent = httpRequest.getHeader("User-Agent");
             LoginResponse response = authService.login(request, ip, userAgent);
             return ApiResponse.success(response);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             // 用 400 而非 401：401 在本项目里专指"登录态失效，请重新登录"，前端见到它会清态跳登录页。
             // 登录接口本身失败（账号不存在/密码错/被禁用）属业务错误，只该把 message 弹出来。
             return ApiResponse.error(400, e.getMessage());
@@ -41,7 +41,7 @@ public class AuthController {
         try {
             Object info = authService.getUserInfo(authentication.getName());
             return ApiResponse.success(info);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -51,7 +51,7 @@ public class AuthController {
         try {
             authService.changePassword(authentication.getName(), request);
             return ApiResponse.success();
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }

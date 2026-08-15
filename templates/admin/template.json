@@ -58,8 +58,8 @@
       ]
     },
     {
-      "id": "patient",
-      "name": "患者端",
+      "id": "mp",
+      "name": "小程序",
       "kind": "mp-native",
       "scaffold": "scaffold/mp-native",
       "uiDocs": "ui-docs-vm",

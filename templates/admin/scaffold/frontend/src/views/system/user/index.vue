@@ -45,7 +45,7 @@ const statusOn = intFlag(form, 'status')
 const rules = {
   username: [rule.required('请输入用户名'), rule.username()],
   realName: [rule.required('请输入真实姓名'), rule.length(2, 20)],
-  password: [rule.required('请输入密码')],
+  password: [rule.required('请输入密码'), rule.length(8, 72)],
   email: [rule.email()],
   phone: [rule.mobile()],
 }
@@ -99,11 +99,25 @@ const handleDelete = async (id: number) => {
   }
 }
 
-const handleResetPassword = async (row: any) => {
-  if (!(await confirmAsync(`确定要重置 ${row.username} 的密码吗？`))) return
+const resetPasswordVisible = ref(false)
+const resetPasswordTarget = ref<any>(null)
+const resetPasswordValue = ref('')
+
+const handleResetPassword = (row: any) => {
+  resetPasswordTarget.value = row
+  resetPasswordValue.value = ''
+  resetPasswordVisible.value = true
+}
+
+const handleConfirmResetPassword = async () => {
+  if (resetPasswordValue.value.length < 8 || resetPasswordValue.value.length > 72) {
+    toastError('新密码长度需在 8~72 位之间')
+    return
+  }
   try {
-    await resetPassword({ userId: row.id, newPassword: '123456' })
-    toastSuccess('密码已重置为: 123456')
+    await resetPassword({ userId: resetPasswordTarget.value.id, newPassword: resetPasswordValue.value })
+    toastSuccess('密码已重置，旧登录态已失效')
+    resetPasswordVisible.value = false
   } catch (error) {
     console.error(error)
   }
@@ -345,6 +359,21 @@ onMounted(() => {
       <template #footer>
         <VButton @click="dialogVisible = false">取消</VButton>
         <VButton type="primary" @click="handleSubmit">确定</VButton>
+      </template>
+    </VLayer>
+
+    <VLayer v-model="resetPasswordVisible" title="重置密码" area="440px">
+      <VForm label-width="90px">
+        <VFormItem label="用户">
+          <VInput :model-value="resetPasswordTarget?.username || ''" disabled />
+        </VFormItem>
+        <VFormItem label="新密码">
+          <VInput v-model="resetPasswordValue" type="password" placeholder="请输入 8~72 位新密码" />
+        </VFormItem>
+      </VForm>
+      <template #footer>
+        <VButton @click="resetPasswordVisible = false">取消</VButton>
+        <VButton type="primary" @click="handleConfirmResetPassword">确认重置</VButton>
       </template>
     </VLayer>
 

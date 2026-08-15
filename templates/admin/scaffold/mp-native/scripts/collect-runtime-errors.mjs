@@ -55,7 +55,7 @@ let automator;
 try {
   automator = (await import('miniprogram-automator')).default;
 } catch {
-  bail('miniprogram-automator 未安装（npm i 后重试）');
+  bail('miniprogram-automator 未安装（先显式运行 npm run runtime:setup；该旧工具链不进入默认依赖）');
 }
 
 /** 开发者工具 CLI：显式环境变量优先，其次按平台猜常见安装位置。Linux 无官方开发者工具。 */

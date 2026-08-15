@@ -44,14 +44,14 @@ public class ConfigService {
 
     public SysConfig createConfig(SysConfig config) {
         if (configRepository.existsByConfigKey(config.getConfigKey())) {
-            throw new RuntimeException("配置键已存在");
+            throw new IllegalArgumentException("配置键已存在");
         }
         return configRepository.save(config);
     }
 
     public SysConfig updateConfig(SysConfig config) {
         SysConfig existing = configRepository.findById(config.getId())
-                .orElseThrow(() -> new RuntimeException("配置不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("配置不存在"));
         existing.setConfigName(config.getConfigName());
         existing.setConfigValue(config.getConfigValue());
         existing.setRemark(config.getRemark());

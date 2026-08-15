@@ -75,7 +75,7 @@ public class MessageController {
 
     private Long getUserId(Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
         return user.getId();
     }
 }

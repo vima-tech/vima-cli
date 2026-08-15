@@ -46,6 +46,16 @@ test('app list：单端项目列出端册与后端，标注骨架在位', async 
   assert.match(r.stdout, /backend/);
 });
 
+test('app：list/add 拒绝多余位置参数', async (t) => {
+  const proj = await makeProject(t);
+  const list = vima(proj, 'app', 'list', 'extra');
+  assert.equal(list.status, 3);
+  assert.match(list.stderr, /多余的位置参数 "extra"/);
+  const add = vima(proj, 'app', 'add', 'patient', 'extra', '--kind', 'mp-native');
+  assert.equal(add.status, 3);
+  assert.match(add.stderr, /多余的位置参数 "extra"/);
+});
+
 test('app add：存量单端项目后补 mp 端 —— 混合布局 + 端册/基线/文档同步落账', async (t) => {
   const proj = await makeProject(t);
   const before = await readManifest(proj);

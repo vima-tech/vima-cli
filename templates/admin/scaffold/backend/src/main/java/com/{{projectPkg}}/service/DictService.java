@@ -41,14 +41,14 @@ public class DictService {
 
     public DictType createDictType(DictType dictType) {
         if (dictTypeRepository.existsByDictCode(dictType.getDictCode())) {
-            throw new RuntimeException("字典编码已存在");
+            throw new IllegalArgumentException("字典编码已存在");
         }
         return dictTypeRepository.save(dictType);
     }
 
     public DictType updateDictType(DictType dictType) {
         DictType existing = dictTypeRepository.findById(dictType.getId())
-                .orElseThrow(() -> new RuntimeException("字典类型不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("字典类型不存在"));
         existing.setDictName(dictType.getDictName());
         existing.setRemark(dictType.getRemark());
         existing.setStatus(dictType.getStatus());
@@ -62,7 +62,7 @@ public class DictService {
 
     public List<DictData> listDictDataByTypeCode(String dictCode) {
         DictType type = dictTypeRepository.findByDictCode(dictCode)
-                .orElseThrow(() -> new RuntimeException("字典类型不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("字典类型不存在"));
         return dictDataRepository.findByTypeIdAndStatusOrderBySort(type.getId(), 1);
     }
 
@@ -76,7 +76,7 @@ public class DictService {
 
     public DictData updateDictData(DictData dictData) {
         DictData existing = dictDataRepository.findById(dictData.getId())
-                .orElseThrow(() -> new RuntimeException("字典数据不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("字典数据不存在"));
         existing.setDictLabel(dictData.getDictLabel());
         existing.setDictValue(dictData.getDictValue());
         existing.setSort(dictData.getSort());

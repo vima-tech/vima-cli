@@ -29,7 +29,7 @@ public class DeptService {
 
     public Dept updateDept(Dept dept) {
         Dept existing = deptRepository.findById(dept.getId())
-                .orElseThrow(() -> new RuntimeException("部门不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("部门不存在"));
         
         existing.setName(dept.getName());
         existing.setParentId(dept.getParentId());

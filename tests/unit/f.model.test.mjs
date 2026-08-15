@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { VimaError, EXIT } from '../../lib/util/errors.mjs';
 import {
-  ensureDir, fileExists, atomicWriteFile, stableStringify, sha256, sha256File, walkFiles,
+  ensureDir, fileExists, atomicWriteFile, stableStringify, sha256, sha256File, walkFiles, findProjectRoot,
 } from '../../lib/util/fs.mjs';
 import { loadTasks, saveTaskFrontmatter } from '../../lib/model/tasks.mjs';
 import { defaultLifecycle, loadLifecycle, saveLifecycle } from '../../lib/model/lifecycle.mjs';
@@ -113,6 +113,12 @@ test('fs：walkFiles 相对路径稳定排序并支持 exclude 目录名', async
   ]);
 });
 
+test('findProjectRoot：普通 .vima 文件不是项目标记', async (t) => {
+  const root = await tempRoot(t);
+  await writeFile(path.join(root, '.vima'), 'not a directory');
+  assert.equal(await findProjectRoot(root), null);
+});
+
 // ---------------------------------------------------------------------------
 // lib/model/tasks.mjs
 // ---------------------------------------------------------------------------
@@ -173,6 +179,15 @@ test('loadTasks：缺 frontmatter 围栏抛 TASK_FM', async (t) => {
   const root = await tempRoot(t);
   await writeTask(root, 'bad.md', '# 没有 frontmatter 的任务');
   await expectVimaError(() => loadTasks(root), { code: 'TASK_FM', messageRe: /frontmatter/ });
+});
+
+test('loadTasks：重复 taskId 抛 TASK_FM，并指出两个任务文件', async (t) => {
+  const root = await tempRoot(t);
+  await writeTask(root, 'a.md', taskDoc({ taskId: 'same-task' }));
+  await writeTask(root, 'b.md', taskDoc({ taskId: 'same-task' }));
+  await expectVimaError(() => loadTasks(root), {
+    code: 'TASK_FM', messageRe: /same-task.*docs\/tasks\/a\.md/,
+  });
 });
 
 test('saveTaskFrontmatter：整体重写 frontmatter 并保留 body 原文', async (t) => {
@@ -505,6 +520,19 @@ test('resolveApps：manifest v2 端册原样归一返回（multi/缺省补齐）
   // templateId 指向不存在的模板 → 静默用内置 kinds（防误不防恶意）
   assert.ok(roster.kinds['admin-web']);
   assert.equal(roster.kinds['admin-web'].regions, true);
+});
+
+test('resolveApps：拒绝绝对路径与逃逸项目根的端册路径', async (t) => {
+  const root = await tempRoot(t);
+  await saveManifest(root, {
+    schemaVersion: '2.0',
+    templateId: 'admin',
+    apps: [{ id: 'admin', kind: 'admin-web', dir: '../outside', codeDir: 'src', sharedDirs: [] }],
+    backend: { dir: '/tmp/backend', sharedDirs: [] },
+  });
+  await expectVimaError(() => resolveApps(root), {
+    code: 'APP_PATH', exitCode: EXIT.CHECK_FAILED, messageRe: /\.\.\/outside/,
+  });
 });
 
 test('resolveApps：v1 manifest + 旧三键模板 → 合成单端 admin 端册', async (t) => {

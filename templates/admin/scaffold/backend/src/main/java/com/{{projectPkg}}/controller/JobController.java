@@ -28,7 +28,7 @@ public class JobController {
     public ApiResponse<SysJob> create(@RequestBody SysJob job) {
         try {
             return ApiResponse.success(jobService.createJob(job));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -38,7 +38,7 @@ public class JobController {
     public ApiResponse<SysJob> update(@PathVariable Long id, @RequestBody SysJob job) {
         try {
             return ApiResponse.success(jobService.updateJob(id, job));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -56,7 +56,7 @@ public class JobController {
         try {
             jobService.runOnce(id);
             return ApiResponse.success();
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -66,7 +66,7 @@ public class JobController {
     public ApiResponse<SysJob> toggle(@PathVariable Long id) {
         try {
             return ApiResponse.success(jobService.toggleJob(id));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }

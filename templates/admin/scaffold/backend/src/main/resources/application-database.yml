@@ -36,7 +36,7 @@ spring:
 #     url: jdbc:kingbase8://localhost:54321/{{projectPkg}}
 #     driver-class-name: com.kingbase8.Driver
 #     username: system
-#     password: 123456
+#     password: ${KINGBASE_PASSWORD}
 #   jpa:
 #     database-platform: org.hibernate.dialect.PostgreSQLDialect
 #     # 人大金仓兼容 PostgreSQL 方言

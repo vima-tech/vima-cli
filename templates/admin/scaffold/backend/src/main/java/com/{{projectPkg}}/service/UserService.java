@@ -53,18 +53,21 @@ public class UserService {
 
     public UserDTO getUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
         return toDTO(user);
     }
 
     public UserDTO createUser(UserDTO dto) {
         if (userRepository.existsByUsername(dto.getUsername())) {
-            throw new RuntimeException("用户名已存在");
+            throw new IllegalArgumentException("用户名已存在");
+        }
+        if (dto.getPassword() == null || dto.getPassword().isBlank()) {
+            throw new IllegalArgumentException("初始密码不能为空");
         }
 
         User user = new User();
         user.setUsername(dto.getUsername());
-        user.setPassword(passwordEncoder.encode("123456"));
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setRealName(dto.getRealName());
         user.setEmail(dto.getEmail());
         user.setPhone(dto.getPhone());
@@ -83,7 +86,7 @@ public class UserService {
 
     public UserDTO updateUser(UserDTO dto) {
         User user = userRepository.findById(dto.getId())
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
         user.setRealName(dto.getRealName());
         user.setEmail(dto.getEmail());
@@ -118,8 +121,11 @@ public class UserService {
     }
 
     public void resetPassword(Long userId, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 72) {
+            throw new IllegalArgumentException("新密码长度需在 8~72 位之间");
+        }
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         // 管理员重置了密码，旧登录态一并作废，逼其用新密码重登
@@ -150,12 +156,15 @@ public class UserService {
 
     /**
      * 导入：创建单个用户。
-     * 初始密码 123456——与 DataInitializer 种子数据及登录页提示文案保持一致（种子约定）。
+     * 导入密码由模板显式提供，禁止使用所有账号共享的固定默认密码。
      */
-    public void createImportedUser(String username, String realName, String email, String phone, Long deptId) {
+    public void createImportedUser(String username, String password, String realName, String email, String phone, Long deptId) {
         User user = new User();
         user.setUsername(username);
-        user.setPassword(passwordEncoder.encode("123456"));
+        if (password == null || password.length() < 8 || password.length() > 72) {
+            throw new IllegalArgumentException("初始密码长度需在 8~72 位之间");
+        }
+        user.setPassword(passwordEncoder.encode(password));
         user.setRealName(realName);
         user.setEmail(email);
         user.setPhone(phone);

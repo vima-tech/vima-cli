@@ -32,12 +32,11 @@ npm run dev
 > `spring.data.redis` 即可。换用 MySQL / 人大金仓等其他数据库见
 > `backend/src/main/resources/application-database.yml`。
 
-## 默认账号
+## 初始账号
 
-| 账号 | 密码 | 角色 |
-|---|---|---|
-| `admin` | `admin123` | 超级管理员（权限通配 `*`） |
-| `test` | `test123` | 普通用户 |
+- 管理员账号为 `admin`。启动前建议设置 `VIMA_INITIAL_ADMIN_PASSWORD`（至少 12 位）；未设置时后端会在首次初始化时生成 20 位随机密码并输出一次。
+- 默认不创建测试账号。需要演示普通角色时设置 `VIMA_SEED_TEST_USER=true` 和 `VIMA_INITIAL_TEST_PASSWORD`。
+- 新增、导入和重置用户密码时都必须显式提供 8~72 位密码，不使用共享默认密码。
 
 ## 开发辅助地址（后端启动后）
 

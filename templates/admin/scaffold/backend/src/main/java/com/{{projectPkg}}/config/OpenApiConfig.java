@@ -22,7 +22,7 @@ public class OpenApiConfig {
                         .title("{{projectName}} API")
                         .version("0.0.1")
                         .description("{{projectName}} 后台管理接口文档。"
-                                + "默认账号：admin / admin123（管理员，全部权限），test / test123（测试用户，仅列表权限）。"
+                                + "管理员初始密码通过 VIMA_INITIAL_ADMIN_PASSWORD 配置，未配置时查看首次启动日志。"
                                 + "先调用 POST /api/auth/login 获取 token，再点右上角 Authorize 填入。"))
                 .components(new Components()
                         .addSecuritySchemes(bearerScheme, new SecurityScheme()

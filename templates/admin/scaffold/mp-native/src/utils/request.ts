@@ -19,7 +19,7 @@ import { clearToken, getToken } from './auth';
  *        契约侧同样用 `{id}` 声明，两边归一后才对得上）
  */
 
-type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 /** 后端统一响应包装（与 admin 端同形状）。 */
 interface ApiEnvelope<T> {
@@ -77,7 +77,6 @@ export const request = {
   post: <T = unknown>(path: string, data?: unknown) => call<T>('POST', path, data),
   put: <T = unknown>(path: string, data?: unknown) => call<T>('PUT', path, data),
   delete: <T = unknown>(path: string, data?: unknown) => call<T>('DELETE', path, data),
-  patch: <T = unknown>(path: string, data?: unknown) => call<T>('PATCH', path, data),
 };
 
 export default request;

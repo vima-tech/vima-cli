@@ -235,3 +235,20 @@ test('computeBatches：conflictsWith 指向不存在的任务 → PLAN_CONFLICT 
     (err) => err.code === 'PLAN_CONFLICT' && /ghost/.test(err.message),
   );
 });
+
+test('computeBatches：拒绝逆层依赖，避免固定层序违反 dependsOn', () => {
+  assert.throws(
+    () => computeBatches([
+      mkTask('shared-late', 'shared', ['business-first']),
+      mkTask('business-first', 'business'),
+    ]),
+    (err) => err.code === 'PLAN_LAYER_DEP' && /shared-late.*business-first/.test(err.message),
+  );
+  assert.throws(
+    () => computeBatches([
+      mkTask('business-late', 'business', ['pipeline-first']),
+      mkTask('pipeline-first', 'pipeline'),
+    ]),
+    (err) => err.code === 'PLAN_LAYER_DEP' && /business-late.*pipeline-first/.test(err.message),
+  );
+});

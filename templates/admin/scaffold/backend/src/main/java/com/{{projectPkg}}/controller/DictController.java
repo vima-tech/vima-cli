@@ -32,7 +32,7 @@ public class DictController {
     public ApiResponse<DictType> createType(@RequestBody DictType dictType) {
         try {
             return ApiResponse.success(dictService.createDictType(dictType));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }

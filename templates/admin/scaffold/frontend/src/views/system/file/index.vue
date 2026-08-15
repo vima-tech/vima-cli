@@ -83,8 +83,18 @@ const handleDelete = async (id: number) => {
   fetchData()
 }
 
-const handleDownload = (url: string) => {
-  window.open(url)
+const handleDownload = async (row: any) => {
+  try {
+    const res: any = await request.get(`/system/file/${row.id}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = row.originalName || 'download'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error: any) {
+    toastError(error?.message || '下载失败')
+  }
 }
 
 const fetchData = async () => {
@@ -143,7 +153,7 @@ onMounted(fetchData)
           <span>{{ formatDateTime(row.createTime) }}</span>
         </template>
         <template #operator="{ row }">
-          <VButton size="sm" @click="handleDownload(row.fileUrl)">下载</VButton>
+          <VButton size="sm" @click="handleDownload(row)">下载</VButton>
           <VButton v-auth="'system:file:remove'" size="sm" type="danger" @click="handleDelete(row.id)">删除</VButton>
         </template>
       </VTable>

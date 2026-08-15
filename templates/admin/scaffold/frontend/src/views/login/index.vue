@@ -113,7 +113,7 @@ const handleLogin = async () => {
 
           <p class="login-hint">
             <VIcon name="info" size="13" />
-            默认账号 admin / admin123，首次登录后请立即修改密码。
+            管理员初始密码由 VIMA_INITIAL_ADMIN_PASSWORD 注入；未配置时查看后端首次启动日志中的随机值。
           </p>
         </div>
       </section>

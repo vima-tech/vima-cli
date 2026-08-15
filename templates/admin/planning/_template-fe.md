@@ -8,7 +8,7 @@ dependsOn: [shared-base]
 retryCount: 0
 contract: docs/contracts/example-api.md
 page: PAGE-01
-# app: patient —— A16 多端项目必填（side=frontend|fullstack，∈ 端册；单端可省略；backend 任务禁带）
+# app: mp —— A16 多端项目必填（side=frontend|fullstack，∈ 端册；单端可省略；backend 任务禁带）
 updatedAt: 2026-01-01T00:00:00Z
 ---
 

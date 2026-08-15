@@ -12,7 +12,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@/*": ["src/*"],
+      "@ui": ["vendor/vima-ui-h5/dist/index.ts"],
+      "@ui/*": ["vendor/vima-ui-h5/dist/*"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "vendor/**/*.ts", "vendor/**/*.vue"],
   "exclude": ["node_modules", "dist"]

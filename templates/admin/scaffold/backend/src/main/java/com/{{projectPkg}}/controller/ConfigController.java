@@ -36,7 +36,7 @@ public class ConfigController {
     public ApiResponse<SysConfig> create(@RequestBody SysConfig config) {
         try {
             return ApiResponse.success(configService.createConfig(config));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }

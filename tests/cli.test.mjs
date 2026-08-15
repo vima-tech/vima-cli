@@ -147,6 +147,12 @@ test('parseArgs 中文翻译：未知选项 / 缺少取值 / 多余位置参数�
   const positional = runCli(['validate', 'extra'], { cwd: dir }); // validate 不收位置参数
   assert.equal(positional.status, 3);
   assert.match(positional.stderr, /多余的位置参数 "extra"/);
+
+  for (const cmd of ['plan', 'sync', 'doctor', 'render-review', 'render-prototype', 'render-matrix']) {
+    const extra = runCli([cmd, 'extra'], { cwd: dir });
+    assert.equal(extra.status, 3, `${cmd} 应拒绝多余位置参数，stderr: ${extra.stderr}`);
+    assert.match(extra.stderr, /多余的位置参数 "extra"/);
+  }
 });
 
 test('错误码矩阵（契约 §3.1）：项目内的前置错误以稳定 code 输出到 stderr', async (t) => {
@@ -247,4 +253,44 @@ test('A24：大于管道缓冲区的 stdout 不被截断（process.exit 会丢�
   assert.notEqual(bytes, 8192, '恰好 8192 字节 = 被管道缓冲区截断');
   assert.ok(r.stdout.trimEnd().endsWith('```') || /\n$/.test(r.stdout), '输出须完整收尾');
   assert.ok(r.stdout.includes('## 编码规范'), '末尾分节须完整出现（截断时它会消失）');
+});
+
+// ── 交互面（A8 吸收的最近邻手法 + 帮助面可读性）────────────────────────────
+
+test('顶层 help 分组：每条命令恰好出现一次，分组表与 TOPICS 无差集', () => {
+  const help = runCli(['help']).stdout;
+  const listed = [...help.matchAll(/^ {2}([a-z][a-z-]*) {2,}/gm)].map((m) => m[1]);
+  const uniq = new Set(listed);
+  assert.equal(listed.length, uniq.size, `有命令被列了两次：${listed.filter((c, i) => listed.indexOf(c) !== i)}`);
+  // 与 vima help <cmd> 可达性对账：列出来的必须都能查到用法
+  for (const c of uniq) {
+    assert.equal(runCli(['help', c]).status, 0, `${c} 列在总表里却查不到用法`);
+  }
+  // 兜底组存在即说明有命令漏进分组表——分组表是呈现，TOPICS 才是真源，但不该漏
+  assert.ok(!/^其他:\n(?: {2}(?!version|help)[a-z])/m.test(help), '有命令漏进分组表，落进了「其他」兜底');
+});
+
+test('顶层 help 一览表不超 80 显示列（标准终端不折行）', () => {
+  // 度量必须是**显示列宽**：中文在终端占 2 列，用 String.length（码元）或 awk 数字符
+  // 都会把 80 列的行误判成合规——本用例初版就踩过，实测 12 条超宽被漏报成 2 条。
+  const width = (str) => [...str].reduce(
+    (n, ch) => n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1),
+    0,
+  );
+  const rows = runCli(['help']).stdout.split('\n').filter((l) => /^ {2}[a-z][a-z-]* {2,}/.test(l));
+  assert.ok(rows.length >= 20, `前置：应解析出命令行，实际 ${rows.length}`);
+  const over = rows.filter((l) => width(l) > 80).map((l) => `${l.trim().split(/\s+/)[0]}(${width(l)}列)`);
+  assert.deepEqual(over, [], '这些命令的一览描述过长会折行，请把细节移进 intro（vima help <cmd> 里仍完整可见）');
+});
+
+test('拼错命令给近似候选；毫不相干时不硬给（与图标最近邻同款口径）', () => {
+  const near = runCli(['valdate']);
+  assert.equal(near.status, 3);
+  assert.match(near.stderr, /未知命令 "valdate"/);
+  assert.match(near.stderr, /你是不是要 vima validate/, '相近命令必须给候选');
+
+  const far = runCli(['zzzzzzzz']);
+  assert.equal(far.status, 3);
+  assert.match(far.stderr, /运行 vima help 查看全部命令/, '毫不相干时退回通用提示');
+  assert.doesNotMatch(far.stderr, /你是不是要/, '不得给风马牛不相及的候选');
 });

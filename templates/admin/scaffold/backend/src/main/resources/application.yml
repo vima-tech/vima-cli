@@ -58,6 +58,14 @@ app:
   # 权限缓存存活秒数：username → perms/menuPaths/menuIcons 在 Redis 的 TTL。
   # 用户/角色/菜单变更时由 PermissionService.evict* 主动失效，TTL 只是兜底。
   perm-cache-ttl: 1800
+  # 首次启动建议显式注入；未配置时生成 20 位随机值并只在首次初始化日志中显示。
+  initial-admin-password: ${VIMA_INITIAL_ADMIN_PASSWORD:}
+  # 测试账号默认不创建；需要演示普通角色时显式开启并单独配置密码。
+  seed-test-user: ${VIMA_SEED_TEST_USER:false}
+  initial-test-password: ${VIMA_INITIAL_TEST_PASSWORD:}
+  cors:
+    # 凭据型 CORS 禁止通配；多个可信前端源用逗号分隔，生产环境通过 APP_CORS_ALLOWED_ORIGINS 覆盖。
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 auth:
   # 登录态存活毫秒数（默认 24h）。每次带 token 的请求都会滑动续期，见 TokenAuthFilter。
@@ -65,4 +73,3 @@ auth:
 
 file:
   upload-dir: ./uploads
-  base-url: http://localhost:8080

@@ -122,7 +122,7 @@
 
 ## 覆盖矩阵（docs/coverage-matrix.md）
 
-- [ ] **V-COV-01**（error）：文件存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。
+- [ ] **V-COV-01**（error）：文件存在，表格 ≥3 列，每行列数须与表头一致，任何数据行不得有空单元格或 `TODO`（缺口）。
   产物由 `vima render-matrix` 从 spec/契约/任务确定性生成，**不要手改**；
   `vima render-matrix --check` 可验漂移。
 

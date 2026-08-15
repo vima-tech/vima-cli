@@ -124,6 +124,15 @@ test('create admin：目录结构齐全、变量替换无 {{ 残留、manifest �
   });
 });
 
+test('create：数字开头项目名生成合法 Java 包名', async (t) => {
+  const box = await sandbox(t);
+  const r = vima(box, 'create', '123-app', '--template', 'admin', '--no-git', '--no-install');
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  const app = path.join(box, '123-app', 'backend', 'src', 'main', 'java', 'com', 'app123app', 'Application.java');
+  assert.ok(await fileExists(app));
+  assert.match(await readFile(app, 'utf8'), /^package com\.app123app;/);
+});
+
 test('create --apps 双端（A16/A23）：两端骨架各落 apps/<id>/、端册入 manifest、mp 端共享层含 src/vendor', async (t) => {
   const box = await sandbox(t);
   const r = vima(box, 'create', 'nutri', '-t', 'admin',

@@ -4,6 +4,7 @@ import com.{{projectPkg}}.utils.ValidFormat;
 import com.{{projectPkg}}.utils.ValidateUtil;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -19,6 +20,10 @@ public class UserDTO {
     @NotBlank(message = "用户名不能为空")
     @ValidFormat(ValidateUtil.Format.USERNAME)
     private String username;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Size(min = 8, max = 72, message = "密码长度需在 8~72 位之间")
+    private String password;
 
     @NotBlank(message = "真实姓名不能为空")
     @Size(min = 2, max = 20, message = "真实姓名长度需在 2~20 之间")

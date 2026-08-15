@@ -39,7 +39,7 @@ public class MenuService {
 
     public Menu updateMenu(Menu menu) {
         Menu existing = menuRepository.findById(menu.getId())
-                .orElseThrow(() -> new RuntimeException("菜单不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("菜单不存在"));
 
         menu.setPerms(normalizePerms(menu.getPerms()));
         existing.setName(menu.getName());

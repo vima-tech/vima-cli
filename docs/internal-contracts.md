@@ -97,6 +97,7 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | DIR_EXISTS | 4 | create | 目标目录已存在且未加 --force |
 | TEMPLATE_MISMATCH | 4 | create | --force 重跑时目录已有 manifest 且 templateId 不同（A16：防端册/生成物清单被覆写） |
 | APP_EXISTS | 4 | app add | 端 id 已存在于端册（A16 Wave 3） |
+| APP_PATH | 2 | model/apps | 端册 dir/codeDir/sharedDirs 使用绝对路径或逃逸项目根 |
 | NOT_INITIALIZED | 4 | app | 缺 .vima/manifest.json，项目尚未完成 init |
 | TEMPLATE_PREVIEW | 4 | init | preview 模板拒绝 init（A5 能力诚实分级） |
 | ALREADY_INIT | 4 | init | 已初始化且未加 --force |
@@ -127,6 +128,7 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | TASK_FM | 2 | model/tasks | 任务 frontmatter 缺字段/取值非法（§6.1） |
 | YAML_PARSE | 2 | util/yaml、util/md（vima:* 块） | YAML 受限子集解析失败（含行号） |
 | PLAN_DEP | 2 | plan computeBatches | dependsOn 指向不存在的任务 |
+| PLAN_LAYER_DEP | 2 | plan computeBatches | dependsOn 违反 shared → business → pipeline 固定层序 |
 | PLAN_CONFLICT | 2 | plan computeBatches | conflictsWith 指向不存在的任务（A8） |
 | PLAN_CYCLE | 2 | plan computeBatches | 依赖成环（message 含环路径） |
 | PLAN_PARALLEL | 2 | plan | --max-parallel 取值非整数或不在 1–10（A18） |
@@ -289,7 +291,7 @@ dependsOn: [shared-base]      # 可为空数组
 retryCount: 0
 contract: docs/contracts/device-api.md   # admin 业务任务必填；pipeline 可省
 page: PAGE-01                 # A2：前端页面任务引用 spec 页面块（可选字段）
-app: patient                  # A16：任务归属端。多端项目 side=frontend|fullstack 必填（∈ 端册）、
+app: mp                  # A16：任务归属端。多端项目 side=frontend|fullstack 必填（∈ 端册）、
                               # side=backend 禁止携带；单端项目可省略（= 唯一端）。V-TASK-10
 conflictsWith: [user-list-fe] # A8 可选：与这些任务共享代码路径，plan 保证不同批并行；
                               # 字符串数组，引用必须存在（V-TASK-04 / PLAN_CONFLICT）
@@ -368,7 +370,7 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
     { "id": "admin", "name": "管理后台", "kind": "admin-web", "default": true,
       "scaffold": "scaffold/frontend", "uiDocs": "ui-docs", "codeDir": "src",
       "sharedDirs": ["src/components", "src/utils", "vendor"] },
-    { "id": "patient", "name": "患者端", "kind": "mp-native",
+    { "id": "mp", "name": "小程序", "kind": "mp-native",
       "scaffold": "scaffold/mp-native", "uiDocs": "ui-docs-vm", "codeDir": "src",
       "sharedDirs": ["src/components", "src/utils"] }
   ],
@@ -1174,7 +1176,7 @@ design:                      # 页面级设计声明
   mustPreserve:              # D2 必填（V-DSN-11）：不得被降级掉的交互事实
     - id: live-preview-sync  #   id 页内唯一，报告按 id 逐条对账
       kind: interaction      #   ∈ visual|interaction|runtime —— **类型即执行者路由**
-      statement: 编辑字段后患者端预览即时同步
+      statement: 编辑字段后小程序预览即时同步
       verifier: experience   #   visual→design；interaction/runtime→experience（相容性强制）
   # 设计目录**不在这里声明**：路径由 pageId 推导为 docs/review/design/<PAGE-id>/
   # （A34 D-A34-02——路径既已固定，字段就是可推导冗余，留着只多一个能与真源不一致的写入口）
@@ -1296,7 +1298,7 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-SPEC-05 | error | nav target 指向存在的 PAGE-xx；modal target 在本页 modals 中定义；PAGE/MODAL/ROLE/MENU/FLOW/RULE/NG ID 全文档唯一（后两类 A13） |
 | V-SPEC-06 | error | 每个 role.menus 非空且指向存在的 MENU；无角色覆盖且未标 `uncovered: true` 的菜单 → error |
 | V-SPEC-07 | error | 每页 apis ⊆ 契约 apis（跨文件交叉引用） |
-| V-SPEC-08 | error | 菜单功能点接口闭环：menu.features[].api（存在时）必须 ∈ 契约 apis（「功能点→接口→契约」链条机检，§13.2 视图②）；多端项目该接口的 consumers 还须含 menu.app（A16，与 V-CON-07 同口径——患者端菜单挂后台专属接口同属越权） |
+| V-SPEC-08 | error | 菜单功能点接口闭环：menu.features[].api（存在时）必须 ∈ 契约 apis（「功能点→接口→契约」链条机检，§13.2 视图②）；多端项目该接口的 consumers 还须含 menu.app（A16，与 V-CON-07 同口径——小程序菜单挂后台专属接口同属越权） |
 | V-SPEC-09 | error | 业务规则结构化（A13）：vima:rules 块存在且 rules 非空；每条 rule 四要素齐全——`id` 匹配 `RULE-\d{2}`、`type` ∈ {validation,transition,calculation,constraint}、`entity` 非空且 ∈ vima:entities[].name、`desc` 非空 |
 | V-SPEC-10 | error | 规则接口闭环（A13）：rule.apis（存在时）每条归一后必须 ∈ 契约 apis（跨文件交叉引用，归一同 V-SPEC-07） |
 | V-SPEC-11 | error | 本期不做显式声明（A13）：第九章 vima:non-goals 块存在且含 `non-goals` key（**空清单须显式 `non-goals: []`**，省略块 → error）；每条 `id` 匹配 `NG-\d{2}` 且 `desc` 非空 |
@@ -1342,7 +1344,7 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-DSN-10 | error | **custom 的诚实标注三件套（A34）**：`design.pattern: custom` 必须同时带非空 `design.intent` 与 `fidelity: D2`。沿用 A27 `shape: freeform` 口径——承认某些页面就是独特的，好过继续扩枚举（10 词词表仍装不下三栏设计器） |
 | V-DSN-11 | error | **保真级的必填声明（A34）**：D1/D2 必填 `design.primaryTask`（唯一回答「这页为何存在」的键）；D2 再必填 `design.mustPreserve` 非空数组，每条四键齐全（`id` 页内唯一 / `kind` ∈ {visual,interaction,runtime} / 非空 `statement` / `verifier` ∈ {design,experience}），且 **kind↔verifier 相容**：visual→design，interaction·runtime→experience。带类型而非字符串数组的理由：「配置与预览同步」「切换患者不重挂载」无法靠一张截图裁定，无 kind 就无执行者（违反 A6） |
 | V-DSN-12 | error | **保真级必须显式声明（A34）**：每个页面须有 `design.fidelity`；**`designCapability: legacy` 的存量项目整体豁免**（D-A34-18）。A27 的「未声明零影响」口径适用于增量润色，**不适用于一条以「堵逃生口」为目的的机制**——不写 fidelity → 不是 D1/D2 → 跳过全部设计流程、全绿进开发，正是 A34 要治的洞。派生状态 `fidelityClassified` 由本规则计算，不是人工布尔 |
-| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
+| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，每行列数与表头一致，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
 | V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
 | V-CODE-01 | error | 代码↔契约对账·前端（A6，A16 端化）：**带 `@vima` 标注**的端册各端 `<dir>/<codeDir>` 文件（弃字面量 `'src'`）中 `request.<get\|post\|put\|delete\|patch>(路径字面量)` 归一后必须 ∈ 契约 apis，**且该接口的 consumers 须含文件归属端**（否则报越权调用）。归一：非 `/api` 开头补 `/api` 前缀（request baseURL）；模板串 `${expr}` 与契约 `{id}` 都归一为 `{*}`。请求门面 `request.<verb>(path)` 是各 kind 骨架契约（mp-native 为 wx.request 同签名封装），一条正则通吃全部端。单向对账（防野生接口）；实现完整性归 Verifier。无标注文件（底座/共享层）不参与 |
@@ -1388,16 +1390,18 @@ converge 不重复报同一件事。
 
 0. `docs/tasks/` 目录不存在 → VimaError('NO_TASKS', exit 4)，不写任何报告
    （防在非 vima 项目静默产出空计划并凭空创建 .vima/reports/）。
-1. loadTasks；dependsOn 引用不存在 → exit 2（V-TASK-04 同源检查）；
+1. loadTasks（taskId 重复 → TASK_FM exit 2）；dependsOn 引用不存在 → exit 2（V-TASK-04 同源检查）；
    conflictsWith 引用不存在 → PLAN_CONFLICT exit 2（A8）。
-2. 环检测（全图 DFS）：发现环 → stderr 输出环路径，exit 2。
+2. 固定层序只允许任务依赖同层或更早层；逆层依赖 → PLAN_LAYER_DEP exit 2。随后做环检测
+   （全图 DFS）：发现环 → stderr 输出环路径，exit 2。
 3. 批次 0..k：layer=shared 任务按拓扑序，**每任务单独一个 serial 批**，`level` = 组内拓扑序号。
 4. business 任务按 dependsOn 做拓扑分层（依赖只算 business+shared；shared 视为已满足）；
    层内按任务 id 排序做**贪心首适应**切批：批容量 ≤ `maxParallel` 且批内任务互不 conflictsWith
    （A8 声明式冲突——两任务合法共享代码路径时不同批，补文件所有权模型盲区）。
    同一层切出的全部子批 `level` 相同（A18：同 level ⇒ 批间无依赖 ⇒ 可流水线化）。
 5. pipeline 任务按拓扑序放末尾，每任务一个 serial 批，`level` = 组内拓扑序号。
-6. 任务在批内按 id 排序；写 §6.5 至 .vima/reports/batch-plan.json（--json 时输出 stdout）。
+6. 任务在批内按 id 排序；写 §6.5 至 .vima/reports/batch-plan.json（--json 时只输出 stdout，
+   不写 batch-plan 或 journal）。
    plan 是只读命令（报告文件除外）。
 7. `--max-parallel <N>`（A18）：整数 1–10，缺省 **8**；越界或非整数 → VimaError
    `PLAN_PARALLEL`（exit 2）。取值写入报告 `maxParallel` 供追溯。
@@ -1569,7 +1573,7 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   V-CON-07、V-TASK-10，端化 V-SPEC-04/12、V-CON-03、V-CODE-01、V-COV-01（§8）；
   kind 词表/外壳/成熟度配置化（§6.3 `planning.kinds`）；原型按端渲染（§6.7/§11）；
   请求门面 `request.<verb>(path)` 为各 kind 骨架契约；A7 证据按端拆文件（§6.10）；
-  guard/trace/context 全部改读端册（§10/§14）。选型（用户裁定）：患者端 kind=mp-native
+  guard/trace/context 全部改读端册（§10/§14）。选型（用户裁定）：小程序 kind=mp-native
   （微信原生+TS，vendored Vant Weapp）；~~N=1 保持根布局~~（A28 改判：create 一律
   `apps/<id>/`，存量根布局仍合法）；consumers 多端必填。
   三波次交付与验收判据见 v2.1-amendments.md A16。
@@ -1661,7 +1665,7 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   其余 pending。
 - 多端夹具 `tests/fixtures/golden-multi/`（A16 Wave 1）：双端（admin-web + mp-native）
   最小项目——manifest v2 端册、双端 page/menus（含 tabbar 菜单）、带 consumers 的契约
-  （≥1 个仅 patient 可见接口，供 V-CON-07/V-CODE-01 越权用例）、双端任务（含 app 字段）。
+  （≥1 个仅 mp 可见接口，供 V-CON-07/V-CODE-01 越权用例）、双端任务（含 app 字段）。
   单端黄金夹具随 A28 迁至 `apps/admin/` 布局（此前「保持不动充当 N=1 兼容回归」的使命
   改由存量形态承接：手写 manifest（dir `"."`）的单测夹具覆盖旧布局寻址分支）。
 - 单测不得依赖网络；可执行 `node bin/vima.mjs`（用 `node:child_process` spawnSync）。
@@ -1801,7 +1805,7 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
 - **create**：`-i/--interactive` 强制进入交互选单（即使给了 `--template`）；
   无 `--template` 且非 TTY → usage exit 3；`--force` 允许在已存在目录中创建并
   覆盖同名文件，**不清空目录**。
-  **A16**：`--apps <id:kind,...>`（如 `--apps admin:admin-web,patient:mp-native`）声明
+  **A16**：`--apps <id:kind,...>`（如 `--apps admin:admin-web,mp:mp-native`）声明
   端册；缺省 = 模板 `apps[].default` 端；布局一律 `apps/<id>/`（A28，含单端；
   改判前的存量单端项目为 `dir "."`，仍合法）。id 须唯一且匹配 `^[a-z0-9][a-z0-9-]*$`（同 taskId 词法）、
   kind ∈ `planning.kinds`（非法 → usage exit 3）；
@@ -1819,7 +1823,7 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   口径。`vima app list` 打印端册（id/kind/dir/骨架在位状态）。
 - **context（A16 端化）**：组件文档切片按 `docs/ui-framework/<task.app>/` 取
   （平铺旧路径回退兼容存量单端项目）；coding-standards 按 kind 分节切片注入
-  ——患者端任务不再被注入后台组件文档。
+  ——小程序任务不再被注入后台组件文档。
 - **doctor（A16 新增检查项）**：端册完整性——apps[].dir 在位、id 合法 slug、kind ∈
   planning.kinds、各端骨架完整性（preview kind 未生成骨架如实报告；进 DEVELOPING 前
   该项为 ❌ 阻断级）。

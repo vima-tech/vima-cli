@@ -2,6 +2,7 @@ package com.{{projectPkg}}.config;
 
 import com.{{projectPkg}}.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     /** 参数校验失败的业务错误码（契约约定 40001）。 */
@@ -57,7 +59,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 兜底：500 + 异常消息。
+     * 兜底：记录完整异常，客户端只收到稳定通用文案，避免泄漏内部路径与数据库细节。
      * <p>
      * 响应已 committed 时返回 null（Spring 视为"已处理、无响应体"）而不是硬写 JSON：
      * SSE 长连接被关页面/刷新掐断、文件流下载写到一半客户端断开，都是常态而非故障，
@@ -70,8 +72,9 @@ public class GlobalExceptionHandler {
         if (response.isCommitted()) {
             return null;
         }
+        log.error("未处理的服务端异常", e);
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage()));
+            .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR.value(), "服务器内部错误"));
     }
 }

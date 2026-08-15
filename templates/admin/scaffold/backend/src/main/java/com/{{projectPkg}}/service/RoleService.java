@@ -50,14 +50,14 @@ public class RoleService {
 
     public Role createRole(Role role) {
         if (roleRepository.existsByRoleKey(role.getRoleKey())) {
-            throw new RuntimeException("角色标识已存在");
+            throw new IllegalArgumentException("角色标识已存在");
         }
         return roleRepository.save(role);
     }
 
     public Role updateRole(Role role) {
         Role existing = roleRepository.findById(role.getId())
-                .orElseThrow(() -> new RuntimeException("角色不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("角色不存在"));
         
         existing.setRoleName(role.getRoleName());
         existing.setSort(role.getSort());
@@ -72,7 +72,7 @@ public class RoleService {
 
     public void deleteRole(Long id) {
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("角色不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("角色不存在"));
         // roleKey=admin 是 PermissionService 写死的超管通配标识，删掉它系统就没有超管了。
         // updateRole 不复制 roleKey（改不掉），删除是唯一能碰掉它的口子，必须堵上。
         if (PermissionService.ADMIN_ROLE_KEY.equals(role.getRoleKey())) {
@@ -84,13 +84,13 @@ public class RoleService {
 
     public List<Long> getRoleMenuIds(Long roleId) {
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new RuntimeException("角色不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("角色不存在"));
         return role.getMenus().stream().map(Menu::getId).collect(Collectors.toList());
     }
 
     public void assignRoleMenus(Long roleId, List<Long> menuIds) {
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new RuntimeException("角色不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("角色不存在"));
         
         List<Menu> menus = menuRepository.findAllById(menuIds);
         role.setMenus(new HashSet<>(menus));

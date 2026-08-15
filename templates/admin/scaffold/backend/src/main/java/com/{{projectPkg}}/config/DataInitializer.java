@@ -5,6 +5,7 @@ import com.{{projectPkg}}.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.security.SecureRandom;
 
 @Slf4j
 @Component
@@ -21,6 +23,8 @@ import java.util.Set;
 // initJobs() 种下的任务当次不会被调度，要等下一次重启才生效。
 @Order(0)
 public class DataInitializer implements CommandLineRunner {
+    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final MenuRepository menuRepository;
@@ -30,6 +34,15 @@ public class DataInitializer implements CommandLineRunner {
     private final SysConfigRepository sysConfigRepository;
     private final SysJobRepository sysJobRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.initial-admin-password:}")
+    private String configuredAdminPassword;
+
+    @Value("${app.seed-test-user:false}")
+    private boolean seedTestUser;
+
+    @Value("${app.initial-test-password:}")
+    private String configuredTestPassword;
 
     @Override
     public void run(String... args) {
@@ -240,9 +253,10 @@ public class DataInitializer implements CommandLineRunner {
         userRole = roleRepository.save(userRole);
 
         // 创建用户
+        String adminPassword = initialPassword("admin", configuredAdminPassword);
         User admin = new User();
         admin.setUsername("admin");
-        admin.setPassword(passwordEncoder.encode("admin123"));
+        admin.setPassword(passwordEncoder.encode(adminPassword));
         admin.setRealName("管理员");
         admin.setEmail("admin@example.com");
         admin.setPhone("13800138000");
@@ -253,18 +267,20 @@ public class DataInitializer implements CommandLineRunner {
         admin.setRoles(adminRoles);
         userRepository.save(admin);
 
-        User testUser = new User();
-        testUser.setUsername("test");
-        testUser.setPassword(passwordEncoder.encode("test123"));
-        testUser.setRealName("测试用户");
-        testUser.setEmail("test@example.com");
-        testUser.setPhone("13800138001");
-        testUser.setDeptId(techDept.getId());
-        testUser.setStatus(1);
-        Set<Role> testRoles = new HashSet<>();
-        testRoles.add(userRole);
-        testUser.setRoles(testRoles);
-        userRepository.save(testUser);
+        if (seedTestUser) {
+            User testUser = new User();
+            testUser.setUsername("test");
+            testUser.setPassword(passwordEncoder.encode(initialPassword("test", configuredTestPassword)));
+            testUser.setRealName("测试用户");
+            testUser.setEmail("test@example.com");
+            testUser.setPhone("13800138001");
+            testUser.setDeptId(techDept.getId());
+            testUser.setStatus(1);
+            Set<Role> testRoles = new HashSet<>();
+            testRoles.add(userRole);
+            testUser.setRoles(testRoles);
+            userRepository.save(testUser);
+        }
 
         // 初始化字典
         initDicts();
@@ -273,8 +289,22 @@ public class DataInitializer implements CommandLineRunner {
         initConfigs();
 
         log.info("数据初始化完成！");
-        log.info("管理员账号: admin / admin123");
-        log.info("测试账号: test / test123");
+        log.info("管理员账号已初始化：admin（密码来自环境配置或本次启动生成值）");
+    }
+
+    private String initialPassword(String username, String configured) {
+        if (configured != null && !configured.isBlank()) {
+            if (configured.length() < 12) {
+                throw new IllegalArgumentException(username + " 初始密码至少 12 位");
+            }
+            return configured;
+        }
+        StringBuilder value = new StringBuilder(20);
+        for (int i = 0; i < 20; i++) {
+            value.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(PASSWORD_CHARS.length())));
+        }
+        log.warn("未配置 {} 初始密码，已安全随机生成；请立即保存并首次登录后修改：{}", username, value);
+        return value.toString();
     }
 
     /** 建一条页面型菜单（type=2）：path 须与前端路由及 Sidebar 静态项一致，perms 承载页面级查询权限。 */

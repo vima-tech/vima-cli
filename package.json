@@ -34,11 +34,13 @@
   },
   "scripts": {
     "test": "node --test",
-    "prepublishOnly": "npm test"
+    "test:scaffold": "node scripts/check-stable-scaffold.mjs",
+    "prepublishOnly": "npm test && npm run test:scaffold"
   },
   "files": [
     "bin",
     "lib",
+    "scripts/check-stable-scaffold.mjs",
     "templates",
     "README.md"
   ]

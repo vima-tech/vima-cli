@@ -47,7 +47,7 @@ public class JobService {
 
     public SysJob updateJob(Long id, SysJob job) {
         SysJob existing = sysJobRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("任务不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("任务不存在"));
         job.setId(id);
         validate(job);
         existing.setName(job.getName());
@@ -73,7 +73,7 @@ public class JobService {
     /** 启停切换：0->1 登记调度，1->0 注销调度 */
     public SysJob toggleJob(Long id) {
         SysJob job = sysJobRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("任务不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("任务不存在"));
         if (job.getStatus() == 1) {
             job.setStatus(0);
             SysJob saved = sysJobRepository.save(job);
@@ -90,10 +90,10 @@ public class JobService {
     /** 立即执行一次，不影响既有调度计划 */
     public void runOnce(Long id) {
         SysJob job = sysJobRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("任务不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("任务不存在"));
         JobHandler handler = jobRegistrar.getHandler(job.getJobKey());
         if (handler == null) {
-            throw new RuntimeException("任务处理器不存在: " + job.getJobKey()
+            throw new IllegalArgumentException("任务处理器不存在: " + job.getJobKey()
                     + "，可选: " + jobRegistrar.availableKeys());
         }
         handler.execute();
@@ -101,19 +101,19 @@ public class JobService {
 
     private void validate(SysJob job) {
         if (!StringUtils.hasText(job.getName())) {
-            throw new RuntimeException("任务名称不能为空");
+            throw new IllegalArgumentException("任务名称不能为空");
         }
         if (!StringUtils.hasText(job.getCron())) {
-            throw new RuntimeException("cron 表达式不能为空");
+            throw new IllegalArgumentException("cron 表达式不能为空");
         }
         try {
             CronExpression.parse(job.getCron());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("cron 表达式非法: " + job.getCron() + "（" + e.getMessage() + "）");
+            throw new IllegalArgumentException("cron 表达式非法: " + job.getCron());
         }
         if (!StringUtils.hasText(job.getJobKey())
                 || jobRegistrar.getHandler(job.getJobKey()) == null) {
-            throw new RuntimeException("jobKey 未注册: " + job.getJobKey()
+            throw new IllegalArgumentException("jobKey 未注册: " + job.getJobKey()
                     + "，可选: " + jobRegistrar.availableKeys());
         }
     }

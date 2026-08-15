@@ -20,5 +20,5 @@
   在结果摘要里提 `componentExtractionRequest`（要抽什么、哪几页会用、为什么该共用），
   由领域级 shared task 或补偿批统一创建——否则并行批次里同一个组件会被建出好几份。
 - 本目录**不进** `template.json` 的 `apps[].sharedDirs`：进了它，领域 shared task 自己也写不了。
-- 组件命名按域归拢（`features/patient/components/PatientContextBar.vue`），
+- 组件命名按域归拢（`features/order/components/OrderContextBar.vue`），
   跨域复用的先上收到 `src/components/`。

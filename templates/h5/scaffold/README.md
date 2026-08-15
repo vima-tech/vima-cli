@@ -14,7 +14,7 @@
 vima create <name> -t admin --apps <id>:h5-mobile
 
 # 新项目：多端并存
-vima create <name> -t admin --apps admin:admin-web,ph5:h5-mobile
+vima create <name> -t admin --apps admin:admin-web,h5:h5-mobile
 
 # 存量项目：后补一个 H5 端（落 apps/<id>/，既有端零迁移）
 vima app add <id> --kind h5-mobile

@@ -43,7 +43,7 @@ model: sonnet
   追加本任务标注，不删除既有标注
 - 禁止修改共享层目录（src/components/、src/utils/、vendor/
   与 backend 的 config/security 包；多端项目按 manifest 端册 sharedDirs 逐端计，
-  如 apps/patient/src/components/，A16）；确需修改时
+  如 apps/mp/src/components/，A16）；确需修改时
   不要动手，在结果摘要的 sharedChangeRequest 中声明：需要改什么、为什么改、影响范围
 - **领域组件层 `src/features/<domain>/components/`（A34 D-A34-09）**：**只读消费**。
   它不在 sharedDirs 里，但页面任务同样不自己建——发现某个结构该被多页共用时，

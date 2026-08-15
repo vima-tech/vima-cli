@@ -6619,7 +6619,7 @@ ${e.filter((i) => yt(i.name, i.label).required).map((i) => `  ${i.name}: [{ requ
 }
 
 const handleSubmit = () => {
-  console.log('提交数据:', formData)
+  // 在这里提交 formData；不要在生产控制台输出表单内容。
 }
 <\/script>`;
   return `${a}

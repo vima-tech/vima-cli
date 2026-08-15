@@ -40,7 +40,7 @@ public class MessageService {
 
     public void markAsRead(Long id) {
         Message message = messageRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("消息不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("消息不存在"));
         message.setStatus(1);
         messageRepository.save(message);
     }

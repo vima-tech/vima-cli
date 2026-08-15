@@ -289,6 +289,11 @@ test('错误携带 path 上下文', () => {
   assert.equal(err.path, 'docs/spec.md');
 });
 
+test('拒绝会改变对象原型的映射键', () => {
+  assertParseError('__proto__: { taskId: ghost }', 1);
+  assertParseError('{ constructor: { taskId: ghost } }', 1);
+});
+
 // ---------------------------------------------------------------------------
 // stringifyYaml：输出形态与 round-trip
 // ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ public class AuthService {
     private final TokenService tokenService;
     private final LogService logService;
     private final PermissionService permissionService;
+    private final LoginAttemptService loginAttemptService;
 
     /**
      * 账号密码登录，无论成败都落一条登录日志。
@@ -31,6 +32,7 @@ public class AuthService {
      * @param userAgent 请求的 User-Agent 头，用于解析登录日志的浏览器与操作系统
      */
     public LoginResponse login(LoginRequest request, String ip, String userAgent) {
+        loginAttemptService.assertAllowed(ip, request.getUsername());
         User user = userRepository.findByUsername(request.getUsername())
                 .orElse(null);
 
@@ -44,26 +46,30 @@ public class AuthService {
             loginLog.setStatus(0);
             loginLog.setMsg("用户不存在");
             logService.saveLoginLog(loginLog);
-            throw new RuntimeException("用户不存在");
+            loginAttemptService.recordFailure(ip, request.getUsername());
+            throw new IllegalArgumentException("用户名或密码错误");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             loginLog.setStatus(0);
             loginLog.setMsg("密码错误");
             logService.saveLoginLog(loginLog);
-            throw new RuntimeException("密码错误");
+            loginAttemptService.recordFailure(ip, request.getUsername());
+            throw new IllegalArgumentException("用户名或密码错误");
         }
 
         if (user.getStatus() != 1) {
             loginLog.setStatus(0);
             loginLog.setMsg("用户已被禁用");
             logService.saveLoginLog(loginLog);
-            throw new RuntimeException("用户已被禁用");
+            loginAttemptService.recordFailure(ip, request.getUsername());
+            throw new IllegalArgumentException("用户名或密码错误");
         }
 
         loginLog.setStatus(1);
         loginLog.setMsg("登录成功");
         logService.saveLoginLog(loginLog);
+        loginAttemptService.clear(ip, request.getUsername());
 
         String token = tokenService.generateToken(user.getUsername());
 
@@ -76,7 +82,7 @@ public class AuthService {
 
     public Map<String, Object> getUserInfo(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
         Map<String, Object> info = new HashMap<>();
         info.put("id", user.getId());
@@ -99,10 +105,10 @@ public class AuthService {
 
     public void changePassword(String username, ChangePasswordRequest request) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new RuntimeException("旧密码错误");
+            throw new IllegalArgumentException("旧密码错误");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));

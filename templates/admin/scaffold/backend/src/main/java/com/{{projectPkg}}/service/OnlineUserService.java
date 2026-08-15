@@ -25,7 +25,7 @@ public class OnlineUserService {
      */
     public void kick(String username, String operator) {
         if (username.equals(operator)) {
-            throw new RuntimeException("不能强退自己，请使用退出登录");
+            throw new IllegalArgumentException("不能强退自己，请使用退出登录");
         }
         tokenStore.removeTokenByUsername(username);
     }
