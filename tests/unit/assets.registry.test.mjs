@@ -182,3 +182,67 @@ test('checkAssets：坏主题 / 缺层块 / 缺席块 / 坏 id 各自说得出�
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// ── 「拿错端的块是机检项」（R11 判据第三条）──────────────────────────────
+
+test('sideMatchOf：三态——匹配 / 拿错端 / 没查，任一边说不出话就不判', async () => {
+  const { sideMatchOf } = await import('../../lib/assets/registry.mjs');
+
+  // 有交集 = 正常
+  assert.deepEqual(sideMatchOf({ sides: ['server', 'admin'] }, ['admin']),
+    { sides: ['admin', 'server'], sideMatch: 'match' });
+
+  // 两边都说得出话、交集为空 = 这才是「拿错端」
+  assert.equal(sideMatchOf({ sides: ['wechat'] }, ['admin', 'server']).sideMatch, 'mismatch');
+
+  // 项目还没登记端 —— 新项目的正常状态，不判
+  assert.equal(sideMatchOf({ sides: ['wechat'] }, []).sideMatch, 'unchecked');
+  // 块没声明 sides —— 资产仓的事，不是项目的错，不判
+  assert.equal(sideMatchOf({}, ['admin']).sideMatch, 'unchecked');
+  assert.equal(sideMatchOf({ sides: [] }, ['admin']).sideMatch, 'unchecked');
+  assert.equal(sideMatchOf(null, ['admin']).sideMatch, 'unchecked');
+
+  // sides 归一：去重 + 排序，脏值不进结果
+  assert.deepEqual(sideMatchOf({ sides: ['admin', 'admin', '', 3] }, ['admin']).sides, ['admin']);
+});
+
+test('checkAssets 带出适用端判定；未登记端时如实标 unchecked 而不是通过', async () => {
+  const root = await fixture({
+    'blocks/x/mp/block.json': { id: 'x/mp', sides: ['wechat'] },
+    'blocks/x/mp/L1.contract.md': '# 契约',
+    'blocks/x/mp/L2.backend.md': '# 后端',
+    'blocks/x/mp/L3.frontend.md': '# 前端',
+    'blocks/x/nosides/block.json': { id: 'x/nosides' },
+    'blocks/x/nosides/L1.contract.md': '# 契约',
+    'blocks/x/nosides/L2.backend.md': '# 后端',
+    'blocks/x/nosides/L3.frontend.md': '# 前端',
+  });
+  try {
+    const { checkAssets } = await import('../../lib/assets/registry.mjs');
+
+    // 项目只有 admin 端，装了个只供 wechat 的块 → mismatch
+    const wrong = await checkAssets(root, { blocks: ['x/mp'], apps: [{ id: 'a', kind: 'admin' }] });
+    assert.equal(wrong.blocks[0].sideMatch, 'mismatch');
+    assert.deepEqual(wrong.blocks[0].sides, ['wechat']);
+    assert.deepEqual(wrong.projectKinds, ['admin']);
+    assert.equal(wrong.blocks[0].ok, true, '端不对不等于块坏了——两件事分开报');
+
+    // 补上 wechat 端 → 立刻 match
+    const right = await checkAssets(root, {
+      blocks: ['x/mp'],
+      apps: [{ id: 'a', kind: 'admin' }, { id: 'b', kind: 'wechat' }],
+    });
+    assert.equal(right.blocks[0].sideMatch, 'match');
+
+    // 块没声明 sides → unchecked（不是 match，「没查」不能显示成通过）
+    const silent = await checkAssets(root, { blocks: ['x/nosides'], apps: [{ id: 'a', kind: 'admin' }] });
+    assert.equal(silent.blocks[0].sideMatch, 'unchecked');
+
+    // 项目未登记任何端 → 一律 unchecked
+    const fresh = await checkAssets(root, { blocks: ['x/mp'] });
+    assert.equal(fresh.blocks[0].sideMatch, 'unchecked');
+    assert.deepEqual(fresh.projectKinds, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

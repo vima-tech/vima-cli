@@ -397,7 +397,8 @@ test('接缝：代码里引用的每个 R#/C# 都在需求基线里存在', asyn
   // 现在基线写在 ARCHITECTURE.md 的「需求基线」一节，这条测试把引用与基线焊死：
   // 写了个不存在的 R12 会当场红，而不是变成一句没人查的话。
   const arch = await readFile(path.join(REPO, 'ARCHITECTURE.md'), 'utf8');
-  const section = /## 需求基线\n([\s\S]*?)\n---/.exec(arch);
+  // 标题允许带后缀（现为「需求基线（索引）」），但那一节必须在
+  const section = /## 需求基线[^\n]*\n([\s\S]*?)\n---/.exec(arch);
   assert.ok(section, 'ARCHITECTURE.md 里找不到「需求基线」一节——反查没有落点');
 
   // 基线表格里的 `**R5**` / `**C1**` 就是全部合法编号
@@ -442,6 +443,49 @@ test('接缝：代码里引用的每个 R#/C# 都在需求基线里存在', asyn
   }
   assert.deepEqual([...unknown.keys()], [],
     `这些编号在 ARCHITECTURE.md 的需求基线里不存在：\n${[...unknown.keys()].join('\n')}`);
+});
+
+test('接缝：需求基线的每条 R#/C# 都带非空判据，且正本在仓库里', async () => {
+  // 基线原文的立身之本是「每条附**判据**——怎么算满足，而不只是想要什么」。
+  // 而 ARCHITECTURE 的基线表是人从正本抄过来的摘要，抄的时候**判据整列被丢掉过**：
+  // 表里只剩「要点」。后果不是文档不好看——是 R5 的并发可观测、R7 的骨架不豁免自己、
+  // R11 的拿错端机检三条判据当时全是零实现，**而没有任何人发现**。
+  // 判据不在册，就没有人会发现它没做。所以这条把「判据必须在册」焊死。
+  const arch = await readFile(path.join(REPO, 'ARCHITECTURE.md'), 'utf8');
+
+  // 正本必须在仓库里（C3：真源可读可 diff 可 review）。只有摘要在册时，
+  // 最上游那份依据反而是仓库外的一个链接，谁也 review 不了它改没改。
+  const baselineRel = 'docs/requirements-baseline.md';
+  const baseline = await readFile(path.join(REPO, baselineRel), 'utf8').catch(() => null);
+  assert.ok(baseline, `需求基线正本 ${baselineRel} 不在仓库里——摘要不能当真源`);
+  assert.ok(arch.includes(baselineRel), `ARCHITECTURE.md 必须指向正本 ${baselineRel}`);
+
+  const section = /## 需求基线[^\n]*\n([\s\S]*?)\n---/.exec(arch);
+  assert.ok(section, 'ARCHITECTURE.md 里找不到「需求基线」一节');
+
+  // 表格行形如：| **R5** | 并行加速 | <判据> | <落地> |
+  // 判据 = 第三格。空、或只有占位符（—/待补/TODO），一律判红。
+  const rows = [...section[1].matchAll(/^\|\s*\*\*([RC]\d+)\*\*\s*\|([^\n]*)$/gm)];
+  assert.ok(rows.length >= 12, `基线表只解析出 ${rows.length} 行，表格结构变了？`);
+
+  const missing = [];
+  for (const [, id, rest] of rows) {
+    const cells = rest.split('|').map((c) => c.trim());
+    const criterion = cells[1] ?? '';                       // cells[0] 是需求名，cells[1] 是判据
+    if (criterion === '' || /^[—\-–]*$/.test(criterion) || /TODO|待补|待定/i.test(criterion)) {
+      missing.push(id);
+    }
+  }
+  assert.deepEqual(missing, [],
+    `这些条目没有判据（「怎么算满足」缺席）：${missing.join('、')}\n`
+    + `判据在 ${baselineRel} 里逐条写着，抄过来时不许只抄「要点」那一列——`
+    + '上一次丢掉判据的三条，实现也一并没人做。');
+
+  // 落地状态列也必须在：一条判据成立却没做，必须**看得见地欠着**，
+  // 不许悄悄从表里消失（同 ARCHITECTURE「已知未接线」那一节的纪律）。
+  const noStatus = rows.filter(([, , rest]) => (rest.split('|')[2] ?? '').trim() === '')
+    .map(([, id]) => id);
+  assert.deepEqual(noStatus, [], `这些条目没写落地状态：${noStatus.join('、')}——欠着可以，不许不写`);
 });
 
 test('接缝：apps/<id>/ 落点在 codeDirs 与 rulePaths 两处同口径', async () => {

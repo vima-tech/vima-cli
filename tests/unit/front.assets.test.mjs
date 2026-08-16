@@ -690,3 +690,93 @@ test('audit 报资产锁漂移——「装的资产不是取证时那一版」�
   assert.match(drift[0].message, /悬空/, '要说清后果：照着旧版取的证据不再作数');
   assert.match(drift[0].message, /upgrade --check/, '要给出下一步命令');
 });
+
+// ── 「拿错端的块是机检项」的接缝（R11 判据第三条）────────────────────────────
+//
+// registry.sideMatchOf 产出判定 → actions.audit 吃它。真 CLI、真资产仓、真块，
+// 不造夹具：夹具测的是自己的假设，不是拼起来的行为。
+
+test('audit 报 block-side-mismatch：块只供 wechat 而项目只有 admin 端', async () => {
+  const root = await tmpProject();
+  // 真块 admin/role-management 的 sides 是 ["server","admin"]，先登记一个对不上的端
+  await run(['app', 'add', '--id=mini', '--kind=wechat'], { cwd: root });
+  await run(['block', 'add', 'admin/role-management'], { cwd: root });
+
+  const d = JSON.parse((await run(['audit', '--json'], { cwd: root })).out);
+  const f = d.findings.find((x) => x.kind === 'block-side-mismatch');
+  assert.ok(f, '装了一个本项目没有任何端消费得了的块，audit 必须说出来');
+  assert.equal(f.severity, 'warn', '端对不上不挡交付——端可以后补');
+  assert.equal(f.subject, 'admin/role-management');
+  assert.deepEqual(f.detail.sides, ['admin', 'server']);
+  assert.deepEqual(f.detail.projectKinds, ['wechat']);
+  assert.ok(!d.findings.some((x) => x.kind === 'block-broken'),
+    '端不对不等于块坏了——两件事分开报，处置也不同');
+
+  // 补上对得上的端 → 发现立刻消失（检查是活的，不是一次性判词）
+  await run(['app', 'add', '--id=console', '--kind=admin'], { cwd: root });
+  const after = JSON.parse((await run(['audit', '--json'], { cwd: root })).out);
+  assert.ok(!after.findings.some((x) => x.kind === 'block-side-mismatch'));
+});
+
+test('block add 当场提示拿错端，但不拦——端可以后补（C4 不阻塞）', async () => {
+  const root = await tmpProject();
+  await run(['app', 'add', '--id=mini', '--kind=wechat'], { cwd: root });
+  const r = await run(['block', 'add', 'admin/role-management', '--json'], { cwd: root });
+  assert.equal(r.code, 0, '拿错端只提示不拦：装块与登记端谁先谁后是人的顺序');
+  const d = JSON.parse(r.out);
+  assert.ok(d.notes.some((n) => n.includes('适用端') && n.includes('wechat')),
+    `当场没提示就等于要人自己去跑 audit 才知道：${JSON.stringify(d.notes)}`);
+  assert.deepEqual(d.blocks, ['admin/role-management'], '提示归提示，块照样装上');
+});
+
+test('未登记端的新项目不报「没查」——每个新项目必亮的告警会训练人忽略整张表', async () => {
+  const root = await tmpProject();
+  await run(['block', 'add', 'admin/role-management'], { cwd: root });
+  const d = JSON.parse((await run(['audit', '--json'], { cwd: root })).out);
+  assert.ok(!d.findings.some((f) => f.subject === '(block-sides)'),
+    '项目还没登记端是正常中间态，不是缺陷');
+  // 但数据必须在——不报告警不等于把事实藏起来
+  assert.deepEqual(d.summary.assets.projectKinds, []);
+  assert.equal(d.summary.assets.blocks[0].sideMatch, 'unchecked', '如实标「没查」，不标 match');
+});
+
+// ── 实际并发可观测（R5 判据前半句）──────────────────────────────────────────
+//
+// 并发只能从租约算：事件流回答「发生过什么」，此刻谁在干活是租约的职责。
+// 这里走真 acquire、真 status，不合成租约对象——合成的那份测的是自己的假设。
+
+test('status 报实际并发：活租约计入、过期的不计，且边界与数字同屏', async () => {
+  const { acquire } = await import('../../lib/core/lease.mjs');
+  const root = await tmpProject();
+  const T0 = new Date('2026-08-16T00:00:00.000Z');
+
+  await acquire(root, 'claim-a', { actor: 'builder-1', worktree: 'wt-a', now: T0, ttlMs: 60_000 });
+  await acquire(root, 'claim-b', { actor: 'builder-2', worktree: 'wt-b', now: T0, ttlMs: 60_000 });
+  // 这一份故意短 TTL：到观测时刻它已经过期，不该算进并发
+  await acquire(root, 'claim-c', { actor: 'builder-3', worktree: 'wt-c', now: T0, ttlMs: 1_000 });
+
+  const { status } = await import('../../lib/front/actions.mjs');
+  const s = await status({ cwd: root, env: {}, now: new Date(+T0 + 30_000) });
+
+  assert.equal(s.concurrency.active, 2, '并发 = 此刻持有未过期租约的执行者数');
+  assert.equal(s.concurrency.expired, 1, '过期的要单列——「曾经有人领过」不是「现在有人在干」');
+  assert.deepEqual(s.concurrency.holders.map((h) => h.claimId), ['claim-a', 'claim-b']);
+  assert.deepEqual(s.concurrency.holders.map((h) => h.actor), ['builder-1', 'builder-2']);
+  assert.ok(/worktree/.test(s.concurrency.scope),
+    '适用条件必须随数字一起给：跨 worktree 的租约互不可见，'
+    + '一个不说明边界的并发数会被读成「并行已经做完了」');
+
+  // 人读面也要有——只进 --json 等于人看不到
+  const text = await run(['status', `--cwd=${root}`], { cwd: root });
+  assert.match(text.out, /并发\s+\d+ 个执行者在干活/);
+  assert.match(text.out, /互不可见/);
+});
+
+test('status 并发：一份租约都没有时报 0，不报「查不了」', async () => {
+  const root = await tmpProject();
+  const { status } = await import('../../lib/front/actions.mjs');
+  const s = await status({ cwd: root, env: {}, now: new Date() });
+  assert.equal(s.concurrency.active, 0);
+  assert.deepEqual(s.concurrency.holders, []);
+  assert.deepEqual(s.concurrency.corrupt, []);
+});
