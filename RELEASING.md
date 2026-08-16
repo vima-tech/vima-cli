@@ -68,8 +68,14 @@ gh release view vX.Y.Z -R vima-tech/vima-cli
       其中 `repository` 是 `npm publish --provenance` 的前提——release.yml 正是用它发布。
       这类丢失不会有任何测试报错，只会在真发布那一刻炸。
       **重写时「该带没带」和「不该带带进来」一样危险，而前者更难发现。**
-- [x] **`npm test` 已是 `node --test "tests/unit/*.test.mjs"`**——目录形参在 Node ≥24 上
-      会被当模块入口直接崩。
+- [x] **`npm test` 的 glob 必须由 shell 展开**，写作 `node --test tests/unit/*.test.mjs`
+      （**不加引号**）。三种写法各支持一半，改动前先读完这三行：
+      - `node --test tests/unit/`（目录）→ Node ≥24 把目录当模块入口，直接崩
+      - `node --test "tests/unit/*.test.mjs"`（引号）→ glob 原样传给 node，
+        Node ≥22 自己认，**Node 20 不认**，报 `Could not find`
+      - 不加引号 → npm 用 sh 跑脚本，sh 展开成文件列表，**所有版本都成立**
+      第二种写法在本地（Node 24）全绿而 CI 的 Node 20 job 当场红——
+      **本地跑得过不代表 engines 声明的下限跑得过**，这条是 v4 首发实测撞出来的。
 - [x] **打包产物实装可用**（实跑 tarball，不是 `--dry-run`）：解包后
       `init → compile → audit` 全通，`.claude/{agents,hooks,skills,rules}` 与 `.mcp.json`
       都随包落地。`--dry-run` 只查文件清单，查不出装出来能不能用。**首发前重跑这一遍**：

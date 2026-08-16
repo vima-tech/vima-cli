@@ -28,7 +28,7 @@
   "publishConfig": { "access": "public" },
   "files": ["bin", "lib", "assets", "templates", "README.md", "LICENSE"],
   "scripts": {
-    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "test": "node --test tests/unit/*.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "prepublishOnly": "npm test && npm run smoke"
   }
