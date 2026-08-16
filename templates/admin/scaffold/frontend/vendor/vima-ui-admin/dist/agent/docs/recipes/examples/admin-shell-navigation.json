@@ -1,1 +1,0 @@
-{"version":"1","name":"管理端","shell":{"title":"管理端","navigation":[{"label":"概览","route":"/overview","icon":"chart-bar"}]},"pages":[{"id":"overview","type":"dashboard","title":"概览","metrics":[{"key":"users","label":"用户数","value":128}]}],"routes":[{"path":"/overview","pageId":"overview"}]}

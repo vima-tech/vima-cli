@@ -1,0 +1,15 @@
+{
+  "id": "admin/role-management",
+  "title": "角色与权限管理",
+  "summary": "角色的增删改查、角色↔权限点授权、用户↔角色分配、数据范围设置。中后台几乎必装的一块。",
+  "sides": ["server", "admin"],
+  "tags": ["rbac", "system", "permission"],
+  "depends": {
+    "blocks": [],
+    "capabilities": [
+      "auth-session: 已登录且能拿到当前用户的权限点集合",
+      "org-tree: 数据范围选到部门时需要组织树（选 dept 范围才需要，不选则无此依赖）"
+    ]
+  },
+  "notes": "端点、错误码、权限点清单一律以 L1.contract.md 为准，此处不复制——两份清单必有一天对不上。"
+}

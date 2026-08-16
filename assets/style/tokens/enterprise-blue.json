@@ -1,0 +1,164 @@
+{
+  "$id": "enterprise-blue",
+  "$name": "企业蓝",
+  "$what": "中后台默认皮：克制、高信息密度、长时间盯着不累。一套皮 = 一个文件，整体可替换。",
+  "$discipline": [
+    "阶梯必须成档：每一组都是有限档位，取值只能落在档上，不许取档与档之间的数。",
+    "上一代的教训是圆角同时出现 7/8/9/10/11/12/13/14px——那不是阶梯，那是没有阶梯。",
+    "档不够用时回来加一档并说明它和相邻档的区别，不在页面里就地凑数。",
+    "颜色只用 role 里的语义名；直接引 palette 里的色号属于绕过语义层。"
+  ],
+  "palette": {
+    "$what": "原始色阶。除 role/status 之外不直接引用。",
+    "brand": {
+      "50": "#e9f0f7",
+      "100": "#c4d7ed",
+      "200": "#9fbee3",
+      "300": "#79a5d9",
+      "400": "#548ccf",
+      "500": "#2f73c5",
+      "600": "#2761a6",
+      "700": "#204e88",
+      "800": "#183c69",
+      "900": "#112c4f"
+    },
+    "neutral": {
+      "0": "#ffffff",
+      "50": "#f7f9fb",
+      "100": "#eef1f5",
+      "200": "#dfe4ea",
+      "300": "#c8cfd8",
+      "400": "#9aa4b2",
+      "500": "#6b7684",
+      "600": "#4d5766",
+      "700": "#363f4c",
+      "800": "#232b36",
+      "900": "#131920"
+    }
+  },
+  "role": {
+    "$what": "语义色。写页面只准用这一层。",
+    "bg": {
+      "page": "#f5f7fa",
+      "surface": "#ffffff",
+      "subtle": "#e9f0f7",
+      "hover": "#f0f4f9",
+      "selected": "#e9f0f7",
+      "inverse": "#232b36"
+    },
+    "border": {
+      "subtle": "#eef1f5",
+      "base": "#dfe4ea",
+      "strong": "#c8cfd8",
+      "focus": "#2f73c5"
+    },
+    "text": {
+      "primary": "#232b36",
+      "secondary": "#4d5766",
+      "muted": "#6b7684",
+      "disabled": "#9aa4b2",
+      "inverse": "#ffffff",
+      "link": "#2f73c5"
+    },
+    "accent": {
+      "base": "#2f73c5",
+      "hover": "#2761a6",
+      "active": "#204e88",
+      "subtle": "#e9f0f7",
+      "onAccent": "#ffffff"
+    }
+  },
+  "status": {
+    "$what": "四态各三档：soft 底 / base 主 / strong 强调。四态之外不新增状态色。",
+    "success": { "soft": "#e7f5ec", "base": "#2e9e5b", "strong": "#227a45" },
+    "warning": { "soft": "#fdf2e2", "base": "#d98613", "strong": "#a9660c" },
+    "danger": { "soft": "#fdecec", "base": "#d64545", "strong": "#a93636" },
+    "info": { "soft": "#e9f0f7", "base": "#2f73c5", "strong": "#2761a6" }
+  },
+  "space": {
+    "$what": "间距七档，单位 px。4-8-12-16-24 为主，32/48 用于区块与页面级留白。",
+    "$rungs": [4, 8, 12, 16, 24, 32, 48],
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius": {
+    "$what": "圆角六档，单位 px。控件 md、卡片 lg、浮层 xl、头像与标签 pill。",
+    "$rungs": [0, 2, 4, 8, 12, 9999],
+    "none": 0,
+    "xs": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
+    "pill": 9999
+  },
+  "size": {
+    "$what": "尺寸档，单位 px。控件高与表格行高各自成档，档间步长固定。",
+    "control": { "$rungs": [30, 38, 46], "sm": 30, "md": 38, "lg": 46 },
+    "table": { "$rungs": [34, 40, 44], "rowCompact": 34, "row": 40, "header": 44 },
+    "icon": { "$rungs": [14, 16, 20, 24], "xs": 14, "sm": 16, "md": 20, "lg": 24 },
+    "width": {
+      "$what": "内容宽度三档：表单收窄、常规定宽、表格铺满。",
+      "narrow": 720,
+      "standard": 1200,
+      "fluid": 0
+    },
+    "sidebar": { "$rungs": [56, 224, 280], "collapsed": 56, "base": 224, "wide": 280 }
+  },
+  "font": {
+    "family": {
+      "sans": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", \"Hiragino Sans GB\", sans-serif",
+      "mono": "\"SFMono-Regular\", Consolas, \"Liberation Mono\", Menlo, monospace",
+      "number": "\"SF Pro Display\", \"Helvetica Neue\", Arial, sans-serif"
+    },
+    "size": {
+      "$what": "字号六档，单位 px，比率约 1.2。正文 15。",
+      "$rungs": [12, 15, 18, 22, 26, 32],
+      "caption": 12,
+      "body": 15,
+      "subtitle": 18,
+      "title": 22,
+      "headline": 26,
+      "display": 32
+    },
+    "weight": { "$rungs": [400, 500, 600], "regular": 400, "medium": 500, "semibold": 600 },
+    "lineHeight": { "$rungs": [1.3, 1.6, 1.8], "tight": 1.3, "base": 1.6, "loose": 1.8 }
+  },
+  "elevation": {
+    "$what": "投影四档。中后台克制：卡片不投影，浮起来的才投影。",
+    "none": "none",
+    "sm": "0 1px 2px rgba(19, 25, 32, 0.06)",
+    "md": "0 2px 8px rgba(19, 25, 32, 0.08)",
+    "lg": "0 8px 24px rgba(19, 25, 32, 0.12)"
+  },
+  "motion": {
+    "$what": "动效三档，单位 ms。超过 slow 的动效在中后台一律视为噪音。",
+    "duration": { "$rungs": [120, 200, 320], "fast": 120, "base": 200, "slow": 320 },
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "enter": "cubic-bezier(0, 0, 0.2, 1)",
+      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+    }
+  },
+  "zIndex": {
+    "$what": "层级五档，档间留 1000 的空隙，禁止出现 z-index: 9999 这类就地发明。",
+    "$rungs": [0, 100, 1000, 2000, 3000],
+    "base": 0,
+    "sticky": 100,
+    "dropdown": 1000,
+    "modal": 2000,
+    "toast": 3000
+  },
+  "breakpoint": {
+    "$what": "断点四档，单位 px。中后台以 md 起步，sm 以下走 mobile-stack 外壳。",
+    "$rungs": [768, 1024, 1280, 1600],
+    "sm": 768,
+    "md": 1024,
+    "lg": 1280,
+    "xl": 1600
+  }
+}

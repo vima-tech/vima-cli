@@ -1,1 +1,0 @@
-{"id":"user-edit","type":"form","title":"编辑用户","fields":[{"key":"name","label":"姓名","dataType":"string","required":true},{"key":"birthday","label":"生日","dataType":"date"},{"key":"tags","label":"标签","dataType":"string","cardinality":"list"}],"submitLabel":"保存"}

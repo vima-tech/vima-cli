@@ -2,6 +2,138 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [4.0.0-alpha.1] - 2026-08-16
+
+> 以 `next` dist-tag 发布，**不占 `latest`**。装它要显式指定：
+> `npm i -g @vima-tech/cli@next`。`npm i -g @vima-tech/cli` 拿到的仍是 3.x。
+
+**整体重写。与 3.x 没有任何共同实现**，也没有升级路径——3.x 项目里的
+`docs/lifecycle.json`、任务文件、manifest 全部不被 v4 识别。
+
+写在最前面：v4 不是 3.x 的下一个版本，是**换了一套模型重做**。
+3.x 的模型是「任务 + 生命周期状态机 + 验收报告」，v4 的模型是
+「命题 + 证据 + append-only 事件」。前者的核心问题是报告由 Agent 自己写，
+实测出现过「43 个任务都写了单元测试验收项、实际覆盖 0/58、所有报告全绿」。
+
+### 新的模型
+
+- **三个概念**：命题 claim（事件流投影，不存盘，分 intent/spec/contract/impl/behavior 五层）·
+  证据 evidence（附着在命题上，取证方式必须可重放）· 事件 event（append-only，唯一写入口）。
+- **两条正交强度轴**：来源可信度 S（`fact` > `superseded` > `stated` > `ruled`）与
+  验证强度 E（`observed` > `executed` > `derived` > `claimed`）。分开记，
+  否则「来源可信但没实现」和「实现扎实但来源过期」在账上长得一样。
+- **agent 不能通过正式接口提交证据结论**：事件的「发生」由 agent 触发，「内容」由系统生成。
+  MCP 上的 `submit` 只收 claimId 不收自述，证据事件的 `actor` 恒为 `system`。
+  威胁边界：承诺 T0（意外可检测）+ T1（不采信自述），**不承诺 T2**（物理防篡改）。
+
+### 命令面
+
+`init` · `compile` · `sync` · `next` · `claim` · `submit` · `rule` · `ask` ·
+`status` · `audit` · `ui` · `mcp` · `mcp-install`。
+
+3.x 的 `create` / `plan` / `go` / `check` / `approve` / `validate` / `converge` /
+`certify` / `change` / `retro` / `design` / `mock` / `doctor` / `trace` / `upgrade`
+等命令**全部移除**。
+
+- `compile` 读 `docs/` 的 markdown（唯一真源），按层序自动排；批次 JSON 保留为旁路。
+- `sync` 重建 Claude Code 派生投影（`.claude/rules/` 与 `.mcp.json`）；
+  `--check` 不写盘只报漂移，漂了 exit 5，给 CI 用。
+
+### Claude Code 集成
+
+- **两个子代理**：`vima-builder`（`isolation: worktree`，并行编码靠隔离不靠约定）与
+  `vima-verifier`（`disallowedTools: Write, Edit`，物理只读，不可能边改边宣布验过了）。
+- **六个 hook**：SessionStart · UserPromptSubmit · PostToolUse · PostToolUseFailure ·
+  SubagentStart · SubagentStop。`PreToolUse` 刻意不用。
+- **SubagentStop 打回**是全系统唯一的否决点，两条判据：认领了却没达标 · 改了代码却没认领。
+  两条都留出口（记一条裁定说明为什么，照样能走）。
+- **规则两个触发面**：`vima next` 按任务维度主动下发，`.claude/rules/` 带 `paths` glob
+  按文件被动生效。互补，不能合并。
+- **四套 skill**：intake / adopt / harvest / reskin，正文用 `` !`vima status` `` 注入实时状态。
+
+### 明确不做
+
+- 不引任何运行时依赖（devDependencies 也不加）。
+- 不做「真跑界面」的采集设施——`observed` 接口留着，调用时如实返回未实现，
+  **绝不降级用 `executed` 冒充**。
+- 不做多人多会话协作、业务块版本兼容。
+- 不用 LLM 判定的 hook：闸门必须是确定性的。
+
+### codex 评估落地（docs/v4-optimization-recommendations.md，2026-08-16）
+
+- **变化分三类**（P0-1）：定义（layer/statement/from/impl）变化清证据并传播失效；
+  来源（trust/source）变化保留证据；门槛（need）变化保留证据、meets 实时反映。
+  此前 impl/layer 改了**不**失效（假绿）、need 提门槛却把跑绿的测试**清掉**（误杀）。
+- **声明集对账**（P0-1）：`vima compile` 全量编译时，docs 里消失的命题自动退休
+  （`payload.retired`，append-only 不删历史）；退休命题退出进度/待办/达标，
+  下游失效（上游没了 ≠ 上游满足了）；重新声明即复活、证据从零。
+  三条护栏：单批旁路不对账、有拒绝不对账、空 docs 不对账。
+- **二次裁决闭环**（P0-5）：`vima rule --overrides=<旧id>` 结构化改判；投影回填
+  `overriddenBy`（旧裁定转已复核）；关联命题自动修订、走同一条失效传播；
+  Web 生成的改判命令带 `--overrides`（原先把旧 id 写进 rationale 文案，投影不解析）。
+- **威胁模型校准**（P0-8）：承诺 T0（意外可检测）+ T1（官方接口不采信自述），
+  明确不承诺 T2（物理防篡改）；「agent 不能写事件」全仓改为
+  「agent 不能通过正式接口提交证据结论」。
+- **证据最小硬化**（P0-2 部分）：derived 校验落点（命题声明路径式 impl 时标注必须
+  落在范围内；证据记 scopeChecked）；executed 证据恒标 `adHoc:true`
+  （命令是现挑的不是预登记策略——策略机制落地前先把两类在数据上分开）。
+- 供料接线（P0-3/P1-4）：`vima app/theme/block` 受管写入口 + `next` 返回真实资产内容。
+- **文案与实现的漂移收口**（codex 复评第 3 条）：三处「实现已经变了、文案停在旧状态」。
+  MCP 运行时 instructions 从已废口径
+  「不能写事件」改为「不能通过正式接口提交证据结论」——文件头注释在 P0-8 时就改了，
+  真发给 agent 的那段漏了整整一轮；裁定台账不再说「CLI 目前没有 overrides 入参」，
+  改成如实描述 `--overrides` 的行为（跑完本条即转已复核）；ARCHITECTURE「已知未接线」
+  删掉两条已落地的（供料支柱没有出口 · `config.apps` 只有消费方），补上仍然成立的三条。
+  同时**给措辞加机检**：`z.seams` 扫 `lib/` · README · ARCHITECTURE · CHANGELOG ·
+  `templates/`，超承诺词默认判违规、同一句里带否认词才放行（威胁模型表要引用这些词
+  才说得清边界）。靠人眼「全仓统一措辞」这次已经证明会漏。
+### codex 二轮评估落地（研发阶段，不再为「怕影响」保留 one-way-door）
+
+- **正式假绿封死**（二轮问题 1，被列为最优先剩余风险）。`adHoc` 此前只是个标签，
+  `meets()` 不看它——`node -e "process.exit(0)"` 照样让 `need: executed` 变绿，
+  而**冒烟脚本自己就在这么演示**。三件事一起做才算修好：
+  - `meets()` 只认**正式证据**（`by.adHoc !== true`），并与 `best()` 分开：
+    best 回答「现在最强的证据是什么」（含 adHoc，观测面要如实显示），
+    meets 回答「够不够交付」。两个问题共用一个答案，就是假绿的由来。
+  - **预登记证据策略** `.vima/policies/<id>.json`：人写、可 review、进版本控制。
+    命题在 docs 里声明 `policy: <id>`，submit 只触发它、改不了它。
+    没有这一层，「adHoc 不算数」会让 `need: executed` 永远无法达成。
+  - **`expects` 必须非空**——只看退出码的策略等于没有策略（空过滤器、零用例、
+    被跳过的整个套件，退出码全是 0）。支持 stdoutMatch / minLines / artifact，
+    且退出 0 **之后**才轮到它：「跑成功了」和「验到了东西」是两件事。
+  - 声明了策略却自带 `--how` cmd → 不覆盖策略，走 adHoc。
+  - 渲染层新增 `blockedByAdHoc`：「强度够了却没达标」必须指名说清为什么，
+    否则人以为是 bug，然后去找绕过的办法。
+- **compile 成为真事务**（二轮问题 2）。此前逐批写入、事后对账，三条后果都是实测的：
+  原样重跑仍写入等价事件（2 条 → 4 条）、中途拒绝留下部分状态、没有 plan/validate/commit。
+  现在：内存里算完计划 → 全部校验 → 一次提交；有任何拒绝**整次零写入**；
+  与现状完全一致的命题不产生事件（**原样重跑 written=0、事件流不增长**）；
+  `--plan` 只算不写。旧冒烟那条「幂等」只断言了「没退休任何东西」——
+  **名字比保证强的测试比没有测试更糟**，已换成断言事件数与 written。
+- **`vima doctor`**（P1-3）。九项检查，每项问「它**生效**了吗」而不是「它**在**吗」：
+  hook 真起一次进程、命令是否锚在 `$CLAUDE_PROJECT_DIR`、MCP bin 跑不跑得通、
+  agent 的 `skills:` 引用是否存在、投影漂没漂。与 audit 分工明确：
+  audit 管**项目**符不符合规格，doctor 管**工具**装对没有。
+  v3 用「4 个 hook 一个都没注册而体检报通过」证明过这两者不是一回事。
+- **文案与实现的漂移收口**（二轮问题 3）+ 措辞机检：默认判违规、同句带否认词才放行；
+  豁免表配「过期检查」，改好当天它自己报红要求删除——**只出不进的临时账，不是白名单**。
+
+- 未做（按评估 8.1 属 one-way-door）：source units 与原文锚点（P0-7）、
+  work item lanes（P0-9 的完整形态）、交付等级 profile（P1-2）、
+  v3 迁移矩阵与 adopt dry-run（P1-1/P1-6）、真实项目基准（P1-5）。
+
+### 已知未完成
+
+- 未发布。CI 已随重写更新，`release.yml` 尚未复核，版本号没有测试锁（见 RELEASING.md）。
+- P0-8 措辞校准还差两处：`lib/core/events.mjs` 与 `lib/front/actions.mjs` 的文件头注释
+  仍是已废口径。它们在措辞机检里挂着显式豁免，而豁免本身有过期检查——改好之后
+  测试会要求把豁免删掉，不靠人记得。落账在 ARCHITECTURE「已知未接线」第 4 条。
+- `vima init --theme=<不存在的皮>` 仍不校验（只有 `theme set` 验）；`.vima/index/`
+  投影缓存只有落点没有实现；「ops 不碰时钟」仍无机检。同上，都在「已知未接线」。
+- `docs/v3-archive/` 保留 3.x 的设计册与实测记录——留的是判断，不是方案。
+
+---
+
 ## [3.1.3] - 2026-08-15
 
 ### 修复

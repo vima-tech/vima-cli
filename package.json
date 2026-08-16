@@ -1,7 +1,7 @@
 {
   "name": "@vima-tech/cli",
-  "version": "3.1.3",
-  "description": "vima-cli — AI 开发脚手架：vima create 多模板起盘 + vima init 部署 Claude Code 工作环境 + 确定性校验/渲染/调度命令",
+  "version": "4.0.0-alpha.1",
+  "description": "定形 · 供料 · 验形 —— 让 AI 生成的系统长得像同一个产品，并让做过的东西下次用得上",
   "type": "module",
   "license": "MIT",
   "author": "vima-tech",
@@ -15,33 +15,21 @@
   },
   "keywords": [
     "cli",
-    "scaffold",
     "claude-code",
     "agent",
+    "mcp",
     "ai-development",
     "spec-driven",
-    "vue",
-    "spring-boot"
+    "design-system",
+    "observability"
   ],
-  "bin": {
-    "vima": "bin/vima.mjs"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
+  "bin": { "vima": "bin/vima.mjs" },
+  "engines": { "node": ">=20" },
+  "publishConfig": { "access": "public" },
+  "files": ["bin", "lib", "assets", "templates", "README.md", "LICENSE"],
   "scripts": {
-    "test": "node --test",
-    "test:scaffold": "node scripts/check-stable-scaffold.mjs",
-    "prepublishOnly": "npm test && npm run test:scaffold"
-  },
-  "files": [
-    "bin",
-    "lib",
-    "scripts/check-stable-scaffold.mjs",
-    "templates",
-    "README.md"
-  ]
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "smoke": "node scripts/smoke.mjs",
+    "prepublishOnly": "npm test && npm run smoke"
+  }
 }

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vima": {
+      "command": "node",
+      "args": [
+        "/home/renmk/projects/vima-cli/.claude/worktrees/vima-v4-rewrite/bin/vima.mjs",
+        "mcp"
+      ]
+    }
+  }
+}

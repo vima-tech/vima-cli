@@ -1,0 +1,194 @@
+{
+  "$id": "interaction",
+  "$kind": "vocab",
+  "$closed": true,
+  "$what": "交互范式词表（骨）：一件事「怎么对用户交代」只能从这里选一个具名选项。校验 · 错误 · 空态 · 加载 · 失败 · 权限 · 危险操作 · 契约缺口。",
+  "$discipline": [
+    "这是上一代完全没有的一层，代价已经量出来了：89.8% 的页面错误提示对用户静默；同一个契约缺口出现四种处置而只有一种是诚实的；:rules 写了却不调 validate() 的页面 12/45。",
+    "缺的不是能力，是词——没有具名选项时，每个页面都会现场发明一个，然后没人对得上账。",
+    "封闭集合：没有 other / custom / 自由发挥。$forbidden 列出的是被点名禁止的处置，列出来是为了能被机检认出来，不是备选项。",
+    "每条页面规格必须为它涉及的每个 group 选定一个 term；没选 = 缺口，不是默认。",
+    "一切降级都必须对用户可见。对用户静默的处置一律非法，无论它在哪个 group 里。",
+    "引用一个 term 要写全 `group:term`：同名 term 会出现在不同 group（error-feedback:toast 与 success-feedback:toast 不是同一件事）。"
+  ],
+  "groups": {
+    "form-validation": {
+      "$what": "表单校验的触发时机。",
+      "$pick": "默认 on-blur-then-live；提交前一定要再全量校验一次，前端校验不替代后端校验。",
+      "terms": [
+        { "id": "on-submit", "name": "提交时校验", "what": "只在提交时统一校验并定位到第一个错误字段。", "when": "字段少于 5 个、或字段之间强耦合、单独校验没有意义时。", "vs": "与 on-blur 的区别：填写过程中不打断，代价是错误集中爆发。" },
+        { "id": "on-blur", "name": "失焦校验", "what": "离开字段时校验该字段。", "when": "常规表单的默认档。", "vs": "与 on-change-live 的区别：不在输入过程中报错，避免「刚打第一个字就飘红」。" },
+        { "id": "on-blur-then-live", "name": "失焦后实时", "what": "首次失焦校验；一旦出错，之后随输入实时复校直到通过。", "when": "绝大多数业务表单，尤其是有格式要求的字段。", "vs": "与 on-blur 的区别：错误态下给即时正反馈，改对了立刻消错。" },
+        { "id": "async-on-blur", "name": "远程校验", "what": "失焦后发请求校验（唯一性、可用性），期间字段显示校验中。", "when": "账号名、编码、手机号这类只有服务端知道答案的字段。", "vs": "与 on-blur 的区别：有中间态与失败态，必须处理请求失败本身。" },
+        { "id": "step-gate", "name": "分步闸门", "what": "每一步的「下一步」校验本步全部字段，未过不放行。", "when": "wizard 外壳。", "vs": "与 on-submit 的区别：校验分批发生，最后一步只校验最后一批。" }
+      ]
+    },
+    "error-feedback": {
+      "$what": "错误怎么让用户看见。",
+      "$pick": "字段级错误必须 field-inline；整体性失败用 form-summary 或 inline-banner；toast 只能用于非阻断的次要失败，不能是唯一渠道。",
+      "terms": [
+        { "id": "field-inline", "name": "字段就地", "what": "错误文案贴在出错字段下方，字段进入错误态。", "when": "任何能定位到具体字段的错误，含后端返回的字段级错误。", "vs": "与 form-summary 的区别：定位到字段，用户不需要自己找。" },
+        { "id": "form-summary", "name": "表单顶部汇总", "what": "表单顶部列出全部错误，每条可点击定位到字段。", "when": "长表单/分节表单一次提交出多个错误时，与 field-inline 同时使用。", "vs": "与 field-inline 的区别：解决「错误在折叠区或视口外看不见」。" },
+        { "id": "inline-banner", "name": "区块内提示条", "what": "在出错的区块顶部放一条常驻提示，说明失败原因与下一步。", "when": "整块数据加载或整次操作失败，且失败不归属某个字段。", "vs": "与 toast 的区别：常驻不消失，用户回头还能看见。" },
+        { "id": "page-error", "name": "整页错误态", "what": "整页替换为错误说明与恢复入口。", "when": "页面主数据拿不到，剩下的内容没有意义时。", "vs": "与 inline-banner 的区别：页面无可用内容，不假装还能用。" },
+        { "id": "toast", "name": "轻提示", "what": "短时浮出的提示，数秒后自动消失。", "when": "次要的、可忽略的失败，且同一信息在别处仍可见。", "vs": "与 inline-banner 的区别：会消失，因此不能承载用户需要照着做的信息。" }
+      ],
+      "$forbidden": [
+        { "id": "console-only", "name": "只打控制台", "why": "对用户完全静默。上一代 89.8% 的页面就死在这条上：请求失败只有 console.error，用户看到的是一个永远转不完的圈。" },
+        { "id": "swallow", "name": "吞掉错误", "why": "catch 住不做任何处置，界面停在旧状态，用户以为成功了。" }
+      ]
+    },
+    "empty-state": {
+      "$what": "没有数据时页面长什么样。四种空态成因不同，说辞与出口都不能混。",
+      "$pick": "先问「为什么是空的」：还没有 / 筛没了 / 看不了 / 没配好，四选一，不许用同一张空图糊过去。",
+      "terms": [
+        { "id": "first-run", "name": "还没有数据", "what": "说明这里将来会有什么，给出创建入口。", "when": "数据集本身为空且用户有创建权限。", "vs": "与 no-result 的区别：不是筛掉的，清空筛选也不会有。" },
+        { "id": "no-result", "name": "筛选无结果", "what": "回显当前筛选条件，给「清除筛选」入口。", "when": "有筛选条件且结果为 0。", "vs": "与 first-run 的区别：出口是改条件，不是去创建。" },
+        { "id": "no-permission", "name": "无权查看", "what": "说明需要什么权限、找谁申请。", "when": "接口返回无权限，或前端已知该数据范围不可见。", "vs": "与 first-run 的区别：不能暗示「这里没有数据」——那是在撒谎。" },
+        { "id": "not-configured", "name": "依赖未配置", "what": "说明缺少哪项前置配置，给出去配置的入口。", "when": "功能依赖的字典/模板/第三方账号尚未配置。", "vs": "与 first-run 的区别：出口在别的页面，不在本页创建。" }
+      ]
+    },
+    "loading": {
+      "$what": "等待期间界面怎么表现。",
+      "$pick": "首屏结构已知用 skeleton；局部刷新用 inline-spinner；由用户点击触发的写操作一律 button-pending。",
+      "terms": [
+        { "id": "skeleton", "name": "骨架屏", "what": "按最终结构渲染占位块。", "when": "首屏或整块加载，且结构可预知。", "vs": "与 inline-spinner 的区别：提前交代版面，减少内容到位时的跳动。" },
+        { "id": "inline-spinner", "name": "局部转圈", "what": "在区块内显示加载指示，其余部分保持可用。", "when": "局部刷新（换页、切筛选）。", "vs": "与 overlay-mask 的区别：不阻断页面其它操作。" },
+        { "id": "button-pending", "name": "按钮忙态", "what": "触发按钮进入 loading 且禁用，直到响应返回。", "when": "任何由按钮触发的写操作。", "vs": "与 overlay-mask 的区别：只锁住这一个动作，同时天然防重复提交。" },
+        { "id": "overlay-mask", "name": "遮罩阻断", "what": "半透明遮罩覆盖区域或整页，期间不可操作。", "when": "期间的任何其它操作都会导致状态不一致时。", "vs": "与 inline-spinner 的区别：明确阻断，代价是体感更重。" },
+        { "id": "optimistic", "name": "乐观更新", "what": "先按预期更新界面，失败时回滚并明确告知。", "when": "高频、低风险、可回滚的小操作（勾选、排序、点赞）。", "vs": "与 button-pending 的区别：不等响应；因此必须写明失败回滚怎么呈现。" }
+      ]
+    },
+    "load-failure": {
+      "$what": "加载失败之后怎么办。必须给用户一条出路，「一直转圈」不是出路。",
+      "$pick": "能局部重试就 retry-inline；主数据拿不到才 retry-page；用旧数据顶着必须挂 stale-with-notice。",
+      "terms": [
+        { "id": "retry-inline", "name": "区块内重试", "what": "在失败区块内给出原因与重试按钮，其它区块照常。", "when": "非主数据的区块加载失败。", "vs": "与 retry-page 的区别：不牵连整页。" },
+        { "id": "retry-page", "name": "整页重试", "what": "整页错误态 + 重试。", "when": "主数据失败，页面其余内容无意义。", "vs": "与 retry-inline 的区别：承认整页不可用。" },
+        { "id": "stale-with-notice", "name": "旧数据加提示", "what": "继续展示上次成功的数据，并明确标注「数据可能已过期」与刷新入口。", "when": "轮询/大屏这类断流也不该白屏的场景。", "vs": "与 retry-inline 的区别：有内容可看，但必须写明它是旧的——不标注就是欺骗。" },
+        { "id": "degrade-readonly", "name": "降级只读", "what": "保留可读部分，禁用依赖失败接口的操作并说明原因。", "when": "读成功写失败、或部分依赖不可用。", "vs": "与 stale-with-notice 的区别：数据是新的，能力是缺的。" }
+      ]
+    },
+    "row-action-visibility": {
+      "$what": "行内操作按钮按权限与状态的显隐规则。",
+      "$pick": "没权限 → hide-forbidden（不给用户看见他永远点不了的东西）；有权限但当前状态不允许 → disable-with-reason（用户必须知道为什么点不了）。这条界线不许各页各判。",
+      "terms": [
+        { "id": "hide-forbidden", "name": "无权限隐藏", "what": "缺少对应权限点时该操作完全不渲染。", "when": "权限缺失。", "vs": "与 disable-with-reason 的区别：权限是身份问题，展示了也变不了。" },
+        { "id": "disable-with-reason", "name": "状态不允许则禁用", "what": "按钮置灰，悬浮/长按给出为什么不能用。", "when": "有权限但对象状态不满足（已审批、已作废、非本人）。", "vs": "与 hide-forbidden 的区别：状态会变，用户需要知道要变成什么才能操作。" },
+        { "id": "always-guarded", "name": "始终可点后校验", "what": "按钮常在，点击后校验并给出明确拒绝原因。", "when": "前端判断不了是否允许，只有服务端知道。", "vs": "与 disable-with-reason 的区别：把判断交给服务端，代价是用户可能白点一次。" },
+        { "id": "overflow-menu", "name": "收进更多", "what": "主操作保留 1–3 个，其余收进「更多」菜单。", "when": "行操作超过 3 个。", "vs": "与前三者正交：解决「放不下」，不解决「能不能点」。" }
+      ]
+    },
+    "destructive-confirm": {
+      "$what": "危险操作的二次确认强度。",
+      "$pick": "按「能不能撤回」和「影响多少条」定档：可撤回用 soft-delete-undo；不可撤回单条用 modal-confirm；不可撤回批量或影响他人用 type-to-confirm。",
+      "terms": [
+        { "id": "inline-confirm", "name": "就地气泡确认", "what": "按钮旁弹出小气泡确认。", "when": "低风险、可撤回、单条（移除关联、取消勾选）。", "vs": "与 modal-confirm 的区别：不中断上下文，也承载不了详细后果说明。" },
+        { "id": "modal-confirm", "name": "弹窗确认", "what": "弹窗写明对象、后果、不可逆性，确认键用动词而不是「确定」。", "when": "不可逆的单条操作。", "vs": "与 inline-confirm 的区别：有空间讲清后果，且强制中断。" },
+        { "id": "type-to-confirm", "name": "键入名称确认", "what": "要求手动键入对象名称或数量后才可提交。", "when": "不可逆的批量操作、删除组织/租户级对象、影响他人数据。", "vs": "与 modal-confirm 的区别：防的是「顺手点确定」，代价是慢。" },
+        { "id": "soft-delete-undo", "name": "先执行给撤销", "what": "立即执行并提供一段时间内的撤销入口。", "when": "操作可完整回滚且用户可能高频执行。", "vs": "与 inline-confirm 的区别：不打断流程；前提是撤销真的能还原，还原不了就不许用这档。" }
+      ]
+    },
+    "contract-gap": {
+      "$what": "前端要的东西契约里没有时，怎么处置。",
+      "$pick": "四个选项的**共同前提是登记一条契约缺口命题**，差别只在界面上怎么表现。默认 block-and-declare；确定要继续往下做才在另外三个里选。同一个缺口在同一个产品里只能有一种处置。",
+      "terms": [
+        { "id": "block-and-declare", "name": "停手并登记", "what": "不写这段实现，登记契约缺口命题，把决定权交回规格层。", "when": "默认档。缺的是核心能力，糊过去只会把窟窿藏到验收之后。", "vs": "与 hide-affordance 的区别：连界面入口都不做，页面规格保持缺口可见。" },
+        { "id": "hide-affordance", "name": "隐藏入口", "what": "不渲染依赖该契约的入口，登记缺口。", "when": "缺的是次要能力，页面其余部分独立可用。", "vs": "与 mock-marked 的区别：不假装能用，用户看不到画饼。" },
+        { "id": "narrow-scope", "name": "缩小范围", "what": "把功能收敛到契约支持得了的子集，并在界面上写明当前只支持什么。", "when": "契约支持一部分（如只支持单条不支持批量）。", "vs": "与 hide-affordance 的区别：入口还在，但边界对用户明说。" },
+        { "id": "mock-marked", "name": "显式标注的假数据", "what": "用假数据占位，界面上带明显标记，代码里带可机检的标记，登记缺口。", "when": "只为让上下游能先联起来演示，且已确定何时替换。", "vs": "与 narrow-scope 的区别：数据是假的。因此标记不是可选项——不带标记的假数据等同于 silent-fake。" }
+      ],
+      "$forbidden": [
+        { "id": "silent-fake", "name": "静默编数据", "why": "写死假数据当真的用，没有标记、没有缺口登记。这是上一代同一缺口四种处置里最坏的一种，验收时才发现，且分不清哪些是真的。" },
+        { "id": "silent-swallow", "name": "静默吞掉", "why": "调用不存在的接口失败后 catch 住不处理，界面表现得像成功了。" },
+        { "id": "unilateral-extend", "name": "单方面扩契约", "why": "前端自行约定字段/端点当成既成事实往下写，后端并不知情，两边都以为对方会实现。" }
+      ]
+    },
+    "success-feedback": {
+      "$what": "操作成功怎么告知。",
+      "$pick": "界面上看得见变化就 inline-status，看不见才用 toast；离开当前页的用 redirect-with-toast。",
+      "terms": [
+        { "id": "inline-status", "name": "就地状态变更", "what": "被操作对象自身发生可见变化（状态标签、数值、行样式）。", "when": "变化就在用户视野里。", "vs": "与 toast 的区别：不需要额外提示，变化本身就是反馈。" },
+        { "id": "toast", "name": "轻提示", "what": "短时提示「已保存/已提交」。", "when": "结果不在视野内或没有可见变化。", "vs": "与 inline-status 的区别：额外一层告知，用完即散。" },
+        { "id": "redirect-with-toast", "name": "跳转并提示", "what": "跳到列表或详情，并在目标页提示结果。", "when": "创建/编辑完成需要回到上下文。", "vs": "与 stay-and-refresh 的区别：离开当前页，不适合连续录入。" },
+        { "id": "stay-and-refresh", "name": "留在原页刷新", "what": "保留在当前页，清空或保留表单以便继续。", "when": "连续录入、批量维护。", "vs": "与 redirect-with-toast 的区别：不打断节奏，需明确表单是清空还是保留。" }
+      ]
+    },
+    "unsaved-changes": {
+      "$what": "有未保存改动时离开页面怎么办。",
+      "$pick": "长表单用 autosave-draft；常规表单 warn-on-leave；只读为主、编辑罕见的页面用 explicit-save-only。",
+      "terms": [
+        { "id": "warn-on-leave", "name": "离开前提醒", "what": "路由跳转/关闭前弹确认，说明有未保存改动。", "when": "常规表单。", "vs": "与 autosave-draft 的区别：不落盘，用户可以选择丢弃。" },
+        { "id": "autosave-draft", "name": "自动存草稿", "what": "定时或失焦保存草稿，回到页面时提示恢复。", "when": "长表单、填写耗时长、易被打断。", "vs": "与 warn-on-leave 的区别：改动不会丢，代价是要有草稿的存储与清理规则。" },
+        { "id": "explicit-save-only", "name": "只认显式保存", "what": "不拦截离开，不存草稿，未保存即丢弃。", "when": "改动成本极低、重填只要几秒。", "vs": "与 warn-on-leave 的区别：不打扰，前提是丢了真的无所谓。" }
+      ]
+    },
+    "field-dependency": {
+      "$what": "上游字段变化后，下游联动字段怎么处理。",
+      "$pick": "下游取值域会变的一律 reset-downstream，别让用户带着一个已经非法的旧值提交。",
+      "terms": [
+        { "id": "reset-downstream", "name": "清空下游", "what": "上游一变即清空下游值并重新拉取候选集。", "when": "下游候选集依赖上游（省→市、分类→子类）。", "vs": "与 keep-and-revalidate 的区别：不保留旧值，避免非法组合。" },
+        { "id": "keep-and-revalidate", "name": "保留并复校", "what": "保留下游旧值，若在新候选集中不合法则标错。", "when": "旧值大概率仍然合法，清空会让用户白填。", "vs": "与 reset-downstream 的区别：把「是否还合法」显式校验出来。" },
+        { "id": "disable-until-upstream", "name": "上游未选则禁用", "what": "上游为空时下游禁用并说明先选什么。", "when": "下游在上游未定时完全没有意义。", "vs": "与 reset-downstream 的区别：管的是初始态，不是变更态。" }
+      ]
+    },
+    "duplicate-submit": {
+      "$what": "防重复提交。",
+      "$pick": "写操作至少要有 disable-until-response；涉及金额或不可逆的必须加 idempotency-key。",
+      "terms": [
+        { "id": "disable-until-response", "name": "响应前禁用", "what": "提交后按钮禁用直到响应返回或超时。", "when": "所有写操作的最低要求。", "vs": "与 idempotency-key 的区别：只防手快，防不了重发与网络重试。" },
+        { "id": "idempotency-key", "name": "幂等键", "what": "客户端生成幂等键随请求发出，服务端据此去重。", "when": "支付、发起流程、扣减库存等不可逆写操作。", "vs": "与 disable-until-response 的区别：真正保证「只发生一次」，需要契约配合。" },
+        { "id": "debounce", "name": "去抖", "what": "高频触发合并为一次。", "when": "搜索联想、实时筛选等只读请求。", "vs": "与前两者的区别：只适用于读，不能当写操作的防重手段。" }
+      ]
+    },
+    "bulk-operation": {
+      "$what": "批量操作的执行与结果处置。",
+      "$pick": "只要可能部分失败，就必须 per-item-report——「操作完成」四个字盖住 3 条失败是最常见的静默。选中范围跨页时必须显式告知实际影响条数。",
+      "terms": [
+        { "id": "all-or-nothing", "name": "全成或全不成", "what": "服务端事务化，一条失败整批回滚。", "when": "批内条目有整体一致性要求。", "vs": "与 per-item-report 的区别：结果只有两种，不需要逐条回执。" },
+        { "id": "per-item-report", "name": "逐条回执", "what": "逐条执行，结束后列出成功数、失败数与每条失败原因，失败项可导出或重试。", "when": "条目相互独立、允许部分成功。", "vs": "与 all-or-nothing 的区别：必须有承载逐条结果的界面，不能只报一个数。" },
+        { "id": "stop-on-first-failure", "name": "遇错即停", "what": "顺序执行，首次失败即停止并报告已完成的部分。", "when": "顺序有依赖，后续执行在前面失败后没有意义。", "vs": "与 per-item-report 的区别：剩余条目未执行，必须明确告知停在哪一条。" },
+        { "id": "background-job", "name": "转后台任务", "what": "提交后返回任务号，进度与结果在任务中心查看并通知。", "when": "条目多、耗时超过十几秒。", "vs": "与 per-item-report 的区别：用户不必守着页面，代价是要有任务中心这个落点。" }
+      ]
+    },
+    "long-task": {
+      "$what": "耗时操作的等待方式。",
+      "$pick": "预计超过 10 秒的一律不许让用户干等：要么 background-notify，要么 poll-status-panel。",
+      "terms": [
+        { "id": "blocking-progress", "name": "阻塞式进度", "what": "遮罩 + 进度条，完成前不可离开。", "when": "几秒到十几秒，且中断会导致不一致。", "vs": "与 background-notify 的区别：用户必须等着。" },
+        { "id": "background-notify", "name": "转后台并通知", "what": "立即返回，任务在后台跑，完成后通知。", "when": "耗时不可预期或很长（导出、批量导入、报表生成）。", "vs": "与 poll-status-panel 的区别：用户不需要盯着，通知来了再看。" },
+        { "id": "poll-status-panel", "name": "状态面板轮询", "what": "页面上有常驻的任务状态区，轮询刷新阶段与进度。", "when": "用户需要盯着过程（部署、同步、对账）。", "vs": "与 background-notify 的区别：过程本身是有信息量的，值得展示。" }
+      ]
+    },
+    "pagination": {
+      "$what": "长列表的加载与翻页方式。",
+      "$pick": "需要「第几页」「共多少条」的管理型表格一律 paged；只看不管的移动端流用 load-more。",
+      "terms": [
+        { "id": "paged", "name": "分页器", "what": "页码 + 每页条数 + 总条数。", "when": "中后台表格默认。", "vs": "与 load-more 的区别：可跳页、可回到同一页，是可核对的。" },
+        { "id": "load-more", "name": "加载更多", "what": "手动点击追加下一批。", "when": "移动端列表、条目顺序稳定。", "vs": "与 infinite-scroll 的区别：加载由用户决定，不会误触发。" },
+        { "id": "infinite-scroll", "name": "无限滚动", "what": "滚动到底部自动追加下一批，没有手动触发点。", "when": "浏览型信息流，用户不需要定位到具体条目。", "vs": "与 load-more 的区别：没有停顿点，也就没有页脚——页脚有内容时不许用。" },
+        { "id": "virtual-scroll", "name": "虚拟滚动", "what": "一次性数据集，只渲染视口内的行。", "when": "单次返回上千行且不能分页（如树、日志）。", "vs": "与 paged 的区别：数据不分批取，解决的是渲染性能不是传输量。" }
+      ]
+    },
+    "filter-persistence": {
+      "$what": "筛选条件的留存范围。",
+      "$pick": "默认 url-query——可分享、可后退、刷新不丢，这三点没有替代品。",
+      "terms": [
+        { "id": "url-query", "name": "写进地址", "what": "筛选、分页、排序同步到 URL 查询参数。", "when": "默认档。", "vs": "与 session-memory 的区别：能分享给同事，浏览器后退行为正确。" },
+        { "id": "session-memory", "name": "会话内记住", "what": "离开再回来保持上次条件，关掉会话即失效。", "when": "条件复杂且用户在多个页面间往返。", "vs": "与 url-query 的区别：链接分享出去别人看到的不是同一份，需与 url-query 配合而不是替代。" },
+        { "id": "reset-on-leave", "name": "离开即重置", "what": "每次进入都是干净条件。", "when": "误带旧条件会造成误判的场景（如告警处置台）。", "vs": "与 session-memory 的区别：宁可多筛一次，也不让用户以为自己在看全量。" },
+        { "id": "saved-views", "name": "具名视图", "what": "用户可保存若干套命名条件并切换。", "when": "同一列表有固定的几种看法且被反复使用。", "vs": "与 session-memory 的区别：显式命名、可长期存在、可共享。" }
+      ]
+    },
+    "permission-degradation": {
+      "$what": "权限不足时页面/功能怎么降级。",
+      "$pick": "整页无权用 no-permission 空态；页内某能力无权用 hide-entry；对象级不可操作用 disable-with-reason。别用一句「暂无权限」盖住所有情形。",
+      "terms": [
+        { "id": "hide-entry", "name": "隐藏入口", "what": "菜单项/按钮/页签不渲染。", "when": "用户永远不会有这个权限，或看见也无从申请。", "vs": "与 read-only-view 的区别：能力整体不存在，不是只读。" },
+        { "id": "read-only-view", "name": "只读视图", "what": "可看不可改，编辑控件全部禁用。", "when": "有读权限无写权限。", "vs": "与 hide-entry 的区别：内容仍有价值，隐藏反而丢信息。" },
+        { "id": "disable-with-reason", "name": "禁用并说明", "what": "保留控件，置灰并说明缺少什么权限。", "when": "同一页面里大多数人有权、少数人没有，隐藏会让界面在人与人之间不一致。", "vs": "与 hide-entry 的区别：暴露了「有这个功能」，因此只用于不敏感的能力。" },
+        { "id": "request-access", "name": "给申请入口", "what": "说明缺少的权限点并提供申请/联系入口。", "when": "权限可以申请到。", "vs": "与 hide-entry 的区别：把死路变成有出口的路。" }
+      ]
+    }
+  }
+}

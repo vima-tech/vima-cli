@@ -20,17 +20,22 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      # prepublishOnly 现在是 `npm test && npm run test:scaffold`，后者会生成三端项目
-      # 跑真实构建（含后端 Maven，release 21）。本 job 只装 Node 的话，npm publish
-      # 会挂在 "release version 21 not supported" —— v3.0.6 首次发布即栽在这里。
-      # CI 的 stable-scaffold job 有 setup-java，发布 job 必须同口径。
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
+      # v3 这里装过 Java 21：当时 prepublishOnly 会跑 `test:scaffold` 生成三端项目
+      # 做真实 Maven 构建，不装 Java 的话 npm publish 会挂在
+      # "release version 21 not supported"（v3.0.6 首发即栽在这里）。
+      # v4 没有 scaffold 这一步，Java 也就不需要了——留着只会白等几十秒，
+      # 并让读的人以为发布还依赖后端工具链。
+      #
+      # v4 的 prepublishOnly 是 `npm test && npm run smoke`：publish 与验证之间
+      # 必须有强制关系，否则「测试挂了但包发出去了」是可能的。
 
       - name: Run tests
         run: npm test
+
+      # 冒烟走真实 CLI 进程。单测 import 内部函数，绕过参数解析、退出码、
+      # 以及「模板装进新项目后能不能真的跑起来」——那恰恰是发出去的东西。
+      - name: Smoke
+        run: npm run smoke
 
       # 以 tag 为版本真源：package.json 版本自动与 tag 对齐，无需手动 bump
       - name: Sync version from tag
@@ -40,10 +45,20 @@ jobs:
           npm pkg set version="${TAG_VERSION}"
 
       # 幂等：该版本已在 npm 上则跳过 publish（重跑 workflow 不会失败）
+      # 顺带定 dist-tag：**npm 不看版本号里有没有 -alpha**，不显式给 --tag 就写 latest。
+      # 预发布版占了 latest 的后果不可撤销：每个 `npm i -g` 的老用户会被自动升到
+      # 一个没有迁移路径的版本，而 npm 不允许重发同一个版本号来补救。
+      # 判据只有一条：版本号里带 `-` 就是预发布 → next；否则 latest。
       - name: Check if already published
         id: check
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$TAG_VERSION" == *-* ]]; then
+            echo "dist_tag=next" >> "$GITHUB_OUTPUT"
+            echo "$TAG_VERSION 是预发布版 → dist-tag: next（不动 latest）"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
           if npm view "@vima-tech/cli@${TAG_VERSION}" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "@vima-tech/cli@${TAG_VERSION} already on npm, skipping publish"
@@ -53,7 +68,7 @@ jobs:
 
       - name: Publish to npm
         if: steps.check.outputs.published == 'false'
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag "${{ steps.check.outputs.dist_tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

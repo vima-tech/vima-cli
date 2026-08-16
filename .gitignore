@@ -7,9 +7,3 @@ tmp/
 # 本机工具产物，不入库
 .codegraph/
 .vscode/
-
-# scripts/dev.sh 的沙箱产物（按模板分目录）
-.sandbox/
-
-# 骨架模板在本机试跑 Maven 时产生的构建产物，不入库
-templates/*/scaffold/backend/target/

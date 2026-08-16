@@ -1,6 +1,0 @@
-node_modules/
-backend/target/
-uploads/
-.vima/reports/
-*.log
-.DS_Store
