@@ -53,13 +53,26 @@ async function markDone(root, ids) {
 }
 
 /** 写一份 Verifier 通过报告。 */
-async function verifierPass(root, taskId) {
+/**
+ * 落一份 verifier 通过报告。
+ * @param {string[]|Array<{cmd: string, exitCode: number}>} [commands] A43：命令留痕。
+ *   传 undefined 时整体不写该字段（存量形态）；pipeline 任务须传。
+ */
+async function verifierPass(root, taskId, commands) {
   await mkdir(path.join(root, '.vima', 'reports'), { recursive: true });
+  const rep = { taskId, round: 1, result: 'pass', checklist: [], points: [] };
+  if (commands !== undefined) rep.commands = commands;
   await writeFile(
     path.join(root, '.vima', 'reports', `${taskId}-verifier.json`),
-    JSON.stringify({ taskId, round: 1, result: 'pass', checklist: [], points: [] }),
+    JSON.stringify(rep),
   );
 }
+
+/** A43：pipeline 任务的标准绿报告（命令留痕齐全）。 */
+const GREEN_COMMANDS = [
+  { cmd: './mvnw -o -q test', exitCode: 0 },
+  { cmd: 'npm run build:check', exitCode: 0 },
+];
 
 /**
  * 给黄金夹具的 Controller 补上 Spring 注解，使 4 个契约接口全部有实现
@@ -128,7 +141,7 @@ test('等级 2 implemented：任务全 done 但缺 Verifier 通过报告 → 不
   assert.equal(report.deliveryLevel, 'implemented');
 });
 
-test('等级 3/4：converged 需重算零 error 且缓存与重算一致；pipeline-green 需流水线任务全 done', async (t) => {
+test('等级 3/4：converged 需重算零 error 且缓存与重算一致；pipeline-green 需 done + 报告 + 命令留痕（A43）', async (t) => {
   const root = await cloneGolden(t);
   await approve(root);
   await annotateController(root);
@@ -152,11 +165,61 @@ test('等级 3/4：converged 需重算零 error 且缓存与重算一致；pipel
   assert.match(levelOf(report, 'converged').evidence[0], /重算逐字节一致/);
   assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /full-test/);
 
-  // pipeline done → 最高级（pipeline 任务状态不进 convergence 报告，故不使其过期）
+  // A43 D-A43-02：pipeline done 但没有 Verifier 报告 → 不达成（此前只看 frontmatter status）
   await markDone(root, ['full-test']);
   vima(root, 'certify');
   report = await readReport(root);
+  assert.equal(report.deliveryLevel, 'converged', 'done 但无报告不得算 pipeline-green');
+  assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /缺 Verifier 通过报告.*full-test/);
+
+  // 有报告但无命令留痕 → 仍不达成：pipeline 任务的职责就是跑命令
+  await verifierPass(root, 'full-test');
+  vima(root, 'certify');
+  report = await readReport(root);
+  assert.equal(report.deliveryLevel, 'converged', '无 commands 不得算 pipeline-green');
+  assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /缺命令留痕.*full-test/);
+
+  // 命令留痕齐全但退出码非 0 → 不达成，且消息点名是哪条命令红的
+  await verifierPass(root, 'full-test', [{ cmd: './mvnw -o -q test', exitCode: 1 }]);
+  vima(root, 'certify');
+  report = await readReport(root);
+  assert.equal(report.deliveryLevel, 'converged', '退出码非 0 不得算 pipeline-green');
+  assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /退出码非 0.*mvnw.*exit 1/);
+
+  // 三条齐全 → 最高级（pipeline 任务状态不进 convergence 报告，故不使其过期）
+  await verifierPass(root, 'full-test', GREEN_COMMANDS);
+  vima(root, 'certify');
+  report = await readReport(root);
   assert.equal(report.deliveryLevel, 'pipeline-green');
+  assert.match(levelOf(report, 'pipeline-green').evidence.join(' '), /留痕命令 2 条，退出码全部为 0/);
+});
+
+test('A43：commands 形状不合即整体不采信——不做部分采信', async (t) => {
+  const root = await cloneGolden(t);
+  await approve(root);
+  await annotateController(root);
+  await markDone(root, ['shared-base', 'device-api-be', 'device-list-fe', 'full-test']);
+  await verifierPass(root, 'device-api-be');
+  await verifierPass(root, 'device-list-fe');
+  assert.equal(vima(root, 'converge').code, 0);
+
+  // exitCode 是字符串而非整数 → 整条 commands 不合形，等同没留痕（宁缺勿假）
+  await verifierPass(root, 'full-test', [{ cmd: './mvnw -o -q test', exitCode: '0' }]);
+  vima(root, 'certify');
+  let report = await readReport(root);
+  assert.equal(levelOf(report, 'pipeline-green').satisfied, false);
+  assert.match(levelOf(report, 'pipeline-green').missing.join(' '), /缺命令留痕/);
+
+  // 空 cmd 同理：一条不合形则整条不采信，不能只采信合形的那几条
+  await verifierPass(root, 'full-test', [{ cmd: 'npm test', exitCode: 0 }, { cmd: '   ', exitCode: 0 }]);
+  vima(root, 'certify');
+  report = await readReport(root);
+  assert.equal(levelOf(report, 'pipeline-green').satisfied, false);
+
+  await verifierPass(root, 'full-test', GREEN_COMMANDS);
+  vima(root, 'certify');
+  report = await readReport(root);
+  assert.equal(levelOf(report, 'pipeline-green').satisfied, true);
 });
 
 test('converged 不采信过期报告：报告生成后任务状态又变 → 掉级并提示重跑 converge', async (t) => {
@@ -188,6 +251,7 @@ test('连续性：跳级不算——低级不满足时高级即便证据齐全�
   await annotateController(root);
   assert.equal(vima(root, 'converge').code, 0);
   await markDone(root, ['full-test']);
+  await verifierPass(root, 'full-test', GREEN_COMMANDS); // A43：pipeline-green 现需报告 + 命令留痕
   vima(root, 'certify');
   const report = await readReport(root);
   assert.equal(report.deliveryLevel, 'none', '等级 1 未过 → 不得跳级');

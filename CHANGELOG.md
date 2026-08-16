@@ -2,6 +2,192 @@
 
 版本遵循语义化版本（SemVer）；未发布改动记录在 Unreleased 段，发版时移入对应版本。
 
+## [Unreleased]
+
+### A43 / A44 证据链的两处断点（增补项）
+
+以《vima 需求基线》（`docs/design/vima-requirements-baseline.html`，R1–R11 / C1–C4）为量尺
+对实现做冷读比对后立项。两条都是**既有机制自相矛盾**，不是缺功能。
+
+**A43：四级交付阶梯在最顶端刚性倒挂。** `certify` 的 `implemented` 级要求每个 done 的 business
+任务有 Verifier 通过报告、并对视觉证据重算防伪；而阶梯最高的 `pipeline-green` 只看
+frontmatter `status !== 'done'`，**不要求任何报告**——`evidence` 字段里那句话就是「全部 done」。
+名字读作「流水线绿」，语义是「代理写了 done」。同时 `_template-full-test.md` 早已要求
+「每步记录命令与结论」，而报告 schema 里**没有存放命令与退出码的字段**，于是项目里唯一一类
+「职责就是跑命令」的任务，跑没跑过在机器可读层面不存在。
+
+**A44：业务规则有身份证，没有承接。** `vima:rules` 有 `id`/`type`/`entity`/`apis` 与两道机检
+（V-SPEC-09 结构、V-SPEC-10 接口指向真实端点），但 `render-matrix` 引用 RULE **0 处**、
+`converge` 引用 rules **0 处**——一条规则可以合法地不被任何任务承接而全链路无人报告。
+另一半：渲染器把「没有任务承接」写成非空破折号串，V-COV-01 的「不得有空单元格」
+对它要抓的真缺口**恒不命中**——生成器把闸门的检查面填平了。
+
+### 新增
+
+- **verifier 报告可选字段 `commands: [{cmd, exitCode}]`**（A43 D-A43-01，契约 §6.9）。记录本轮
+  验收**实际执行过的命令**与退出码，原样写命令行以便他人重跑复核。可选——存量报告与不涉及命令的
+  任务（前端页面任务）不带该字段照常通过校验；做成必填会逼出占位命令，比没有更坏。
+  post-write hook 的 schema 校验接受该字段，形状不合（`cmd` 非非空字符串 / `exitCode` 非整数）
+  → **整条不记**，与既有空壳/冒名同口径；**不折进 journal 事件的 `n`**，事件五键封顶不变。
+- **`V-COV-02`**（A44 D-A44-03，`vima validate`，warn）。覆盖矩阵末列以「—」开头的行逐条点名
+  ——该需求/规则尚无任务负责。恒 warn 不为 error：PLANNING 期尚未派任务是正常中间态，
+  判 error 会阻断开工（C4 不阻塞）。
+- **`vima render-matrix` 增第二张表「业务规则承接」**（A44 D-A44-01）。列为
+  `规则 / 类型 / 实体 / 接口 / 承接任务`。承接判定**直接复用** `vima context` 的
+  `rulesForTask`，任务接口集算法与 context 同源（`contract.apis` 按 `task.apis` 切片 ∪ `page.apis`）
+  ——同一事实两套实现必然漂移。无 `apis` 的全局规则渲染为「全局（注入全部任务上下文）」，
+  按定义不构成缺口。不新开命令、不新增产物文件：规则承接是覆盖矩阵这张图上的一条边。
+- **`splitMarkdownTables`**（`lib/util/md.mjs`）。markdown 文本 → 逐张管道表格，
+  表边界由分隔行识别。`validate` 与 `retro` 共用一份实现。
+
+### 变更
+
+- **`certify` 的 `pipeline-green` 判据加严**（A43 D-A43-02，契约 §6.19）。每个 pipeline 任务须同时
+  满足三条：`status: done`、有 `<taskId>-verifier.json` 且 `result: "pass"`、报告 `commands` 非空且
+  **全部 `exitCode === 0`**。命令留痕只加在这一级：pipeline 任务的职责定义就是跑命令，
+  business 任务的证据形态是点位判定（B1），扩面即镀金。**内核仍不执行任何命令**——
+  守零运行时依赖与「确定性操作不留给概率性行为」，取的是「执行者留痕 + 机器校验形状与取值」这条路。
+  它不能防住蓄意造假（报告仍由 Agent 产出，同 §6.21 既有口径），但消灭了「一条命令都没被点名过」这个洞。
+- **`V-COV-01` 改逐表校验**（A44 D-A44-02）。此前把文件里**全部** `|…|` 行当成一张表
+  （首个非分隔行当表头、其余一律是数据行），文件出现第二张表时整片误报「列数不一致」。
+  这同时修掉一个既有隐患：任何人手工往矩阵里加一张小表，此前都会得到一片假错误。
+- **`vima retro` 的矩阵行数改逐表求和**。原「全部管道行 − 1」只扣一个表头，多一张表就多算一行。
+- **`coverage-matrix.example.md` 改写**：此前列为 `原始需求（来源 docs/raw/） | 承接接口 | …`，
+  与生成器实际产出的 `页面（需求） | 接口 | …` **口径不同**——两份在册资产各说各的，且无任何机检
+  发现。本轮把示例改到与生成器一致，并新增「已知口径缺口」一节如实写明：矩阵全绿只等于
+  「已经进了 spec 的那些都有人负责」，**不等于**「需求一条没丢」；「原始需求 → spec」这一段
+  仍靠人在评审时核对。要机检它需要给原始需求编稳定 ID 并逐条落盘，属新立项，本轮不做
+  （详见 A44「延后项」）。
+
+### A42 接缝对账（增补项）
+
+用 vima-cli 从零重建双端业务系统（sustain-v4：5730 行 spec / 22 份契约 / 298 端点 / 111 任务）
+并对**全部 111 个任务做验收**（2458 点位、未过 265 条）后立项。
+取证册 `docs/design/sustain-v4-full-run-findings.md`（33 条发现）。
+
+立项依据一句话：**四个最高影响面缺陷没有一条是「代码写错了」**——
+PAGE-03 主入口不可用、全端错误提示静默、消息中心恒空、复筛回流断链，
+全是接缝处的问题：两个正确的部件按各自正确的方式做完，合起来不通。
+按端分组的通过率梯度（mp 前端 100% / admin 前端 36% / 后端 0%）说明单部件质量与规格粒度强相关，
+而**跨部件一致性与规格粒度无关**——它不属于任何一个部件的规格，因此不属于任何一个任务的责任田。
+
+### 新增
+
+- **`V-INT-06` 被读的数据必须有人写**（A42 D-A42-03，`vima converge`，warn）。任务拆分以**端点**
+  为单位（`apis` 责任田），覆盖矩阵查「端点有人负责」、`V-INT-01` 查「接口零实现」——但数据的
+  生产者—消费者关系**跨端点**：「谁往 `mp_message` 写」不对应任何端点，于是不在任何任务的责任田里，
+  任何一层机检都不会喊。新规则拿契约声明的响应字段去比对同名 JPA `@Entity` 属性的**全仓写入点**
+  （Lombok setter 调用按变量声明解析接收者类型 / `@Builder` 链 / `new T(...)` / 实体自身
+  `@PrePersist` 裸赋值 / JPQL `update`），无写入点即报「该字段恒空」。整张表没有生产者时按实体报一条
+  （修复单位是「指派一个任务负责写」，不是逐列补赋值）。
+  零假阳性优先：接收者类型解析不出的链式 setter 按同名属性全局压制；`@RequestBody`/Jackson 绑定的
+  类型整类跳过；框架托管列与带初始化值的列不判；契约响应里没有同名字段（没有「有人读」的证据）不判。
+  写入点证据**不限 `@vima` 作用域**（底座写的一样让字段非空），但只对带标注的实体报告。
+  sustain-v4 实测 14 条、逐条复核零假阳性：`dispense_task`/`charge`/`mall_payment`/`kb_entry`
+  与四张 `his_*` 镜像表**全仓无任何写入方**（HIS「同步」只写 `his_sync_log`），
+  `prescription.his_visit_id`、`rescreen_backflow.plan_id`、`stock_txn.ref_id`、
+  `settlement_push.last_error` 有列无写——其中 `hisVisitId` 与人工 verifier 独立记下的
+  未过点位「响应字段 hisVisitId 有实际取值」完全吻合。
+
+- **`converge` 收口清单接入契约缺口**（A42 D-A42-04）。verifier 报告的 `contractGaps`
+  进 `convergence.json`（`summary.contractGaps` 计数 + 顶层 `contractGaps` 明细）、
+  stdout 摘要与 stderr 诊断分列呈现，**不并进 `openPoints`、不进 `byTask`、不计退出码**——
+  它记的是「规格本身有缺口，实现侧已做合规处置」，行动项是回契约补齐或立 `vima change`，
+  不是派回任务修。让正确的工程处置变成永远清不掉的 fail，正是 A42 立项要治的病。
+
+- **`V-CODE-03` 错误码对账**（A42 D-A42-02，`vima validate`，error）。带 `@vima` 标注的后端文件里
+  `BusinessException(ErrorCode.X)` 的数字码必须 ∈ 该任务 `contract` 指向契约的 `errors[].code` 全集。
+  **只做「实现抛了、契约没声明」一个方向**——反向（契约声明了、实现不抛）做不到零假阳性：
+  错误码常在 Service 深层抛、`@vima` 标注只到文件级、骨架的统一异常处理器又会集中转 40001/403，
+  反向判定会让模板自身满屏报错。实证反证：`MealService.deleteRecipe` 缺 40401 而**同一个 Service 的
+  `deleteMenuTemplate` 抛了 40401**，文件/模块级判定本就抓不到它。归属取契约 module 全集而非任务
+  `apis` 子集（Service 常被同模块兄弟子任务共用），对「附属文件标注错标」免疫。
+  找不到 `ErrorCode` 枚举时整条跳过——该枚举**不在 vima 骨架里**，是项目侧资产。
+- **`V-CODE-04` 权限点三面对账**（A42 D-A42-02，`vima validate`）。spec
+  `vima:menus[].features[].perms` 的每个权限点，须在**后端** `@perm.has('X')`（缺 = **error**，越权风险）
+  与该菜单归属端的**前端** `v-auth="X"`（缺 = **warn**，入口不设防、点下去才吃 403）各出现一次。
+  实测（sustain-v4）：41 个 perms 中 **14 个前端零命中**、49 个业务页中 18 页完全无 `v-auth`。
+  **不含菜单种子**——种子是项目自建产物，vima 无法通用定位，加第四面是镀金。
+  某一面没有任何带标注的业务代码时该面不判；未声明 `perms` 的项目完全不触发。
+  配套把 `features[].perms` 补进 internal-contracts §7 的 `vima:menus` 结构（此前未登记）。
+- **`V-SRC-02` 编号引用校验**（A42 D-A42-02，`vima validate`，error）。带 `@vima` 标注的业务代码
+  （含 `data-page`/`data-block` 属性与注释）里的 `PAGE-\d+`/`MODAL-\d+`/`RULE-\d+`/`NG-\d+`
+  必须存在于 spec 的结构化数据块。存在性只取结构化块不看正文，故 spec 声明为「空号/保留不复用」
+  的编号天然算不存在。**优先级不低于前两条**：A22 字段级机检、A34 保真验收、converge 点位对账
+  全都以 `data-page` 为锚——锚点指向不存在的页面时，这些机制不是报错，而是**静默地什么都不检**
+  （实证：九个 pane 的根节点写着 D-16 合并时已删的 `PAGE-41~49`）。它同时拦住 builder 编造编号
+  给自己发豁免——`WeChatCodeResolver` 引用 `NG-16` 作为「微信登录留桩」的依据，而 spec 止于 NG-15。
+- **verifier 报告增 `contractGaps` 通道**（A42 D-A42-04）。与 `contractViolations`（真越界，计 fail）
+  分开：`contractGaps` 记「规格本身有缺口，实现侧已做合规处置」，**不计 fail**，进 converge 收口清单。
+  一句话判据：**能靠改代码修好的是 violation，不改规格就修不好的是 gap**；不确定时填 `contractViolations`
+  （宁可误报 fail，也不要把真越界藏进免检区）。条目为单行三段式
+  `契约缺口：… | 处置：…（文件:行号）| 依据：…`，三段缺一段退回 `contractViolations`。
+  实证：`page-68-fe` 判 `result:"pass"`、checklist 全过、`missing` 为空，journal 却记 `fail`
+  ——builder 的处置完全正确（契约声明 `attachmentId?` 而 33 个端点里没有上传端点，
+  于是控件置灰 + 说明、不臆造端点），verifier 也判「处置恰当」，**但它没有别的字段可填**。
+  协议不对称是根因：builder 有 `sharedChangeRequest`，verifier 此前没有对应通道。
+  缺口条数**不折进 journal 事件的 `n`**（`n` 的原义是「未过 point 数」，折进去会出现
+  「`outcome=pass` 而 `n=3`」；且事件五键封顶、`kind` 三元封闭集、`ref` 被正则逐条解析，
+  加键/加类型/加后缀三条路都堵死），改为 hook 当场 stderr 登记。
+- **`vima web` 本地只读视图 + 追溯纵深**（A41）。定位一个问题此前要人肉 join 五处事实
+  （代码 `@vima` 标注、契约、任务 frontmatter、两份子代理报告、`journal.jsonl`）——
+  sustain-v4 实战里「进度为什么是 0」就是这么被拖了一整个开发期。
+  新增 `lib/model/traceability.mjs` 一次算出三张反查索引（`byTask` / `byEndpoint` / `byFile`），
+  `vima trace` 与 `vima web` 共用同一份，`trace.json` schemaVersion 升 `"2"`（构建失败降级回 `"1"`，
+  不阻断野生/虚报对账）。`vima web` 零依赖 `node:http`、只绑回环，四页：
+  实时进度（A37 三档 + 三切面，3 秒轮询）/ 按任务反查 / 按端点反查 / 审核产物索引。
+  实测：`DELETE /api/contraindications/{id}` → 一屏看到实现在
+  `ContraindicationController.java:45`（任务 `basedata-food-be`）、调用在 `contraindication/api.ts:39`。
+
+### 修复
+
+- **多处机检假定「一个页面 = 一个文件 / 一个任务」，合并页必然踩雷**（A42 D-A42-01）。
+  合并页（一页拆多个任务、区块分散到壳页子目录）是 vima 自己通过 A16 端册与 A22 字段级机检
+  支持的形态，两处判定却没跟上：
+  ① `V-TASK-07` 按单任务复选框数 vs 该页任务点数判定——实证 PAGE-03 五片
+  `24+22+28+32+27=133` 与页面点数**完全一致、双向差集为空**，却报 4 条 warn。改为按页聚合、每页一条。
+  ② post-write hook 的区块/弹窗对账逐文件做——PAGE-03 壳页只声明 4 个 `data-block`，
+  另 6 个与 25 个 `data-modal` 都在九个 pane 里，于是**编辑壳页必然 exit 2 而实现其实是完整的**。
+  「缺」改为按「被写文件 + 其目录树下不自带 `data-page` 的片段文件」聚合；「多」（词表外标记）
+  仍按被写文件判（越界标记的责任田是写它的那个文件）。片段判据取「不自带 `data-page`」
+  而非「同目录一切文件」——否则同目录另一个完整页面会把本页缺失掩掉，检查就成了永真。
+  两处的共同依据与 `V-TASK-11` 的 done 豁免同源：**永远无法清除的告警会训练人忽略整张告警表**
+  ——`validate.mjs` 里早已写下这条纪律，只是当初判定 V-TASK-07 不需要（假定它永远可执行）。
+- **骨架自身违反它要求业务代码遵守的宪法**（A42 D-A42-05）。项目宪法明令「禁止写死颜色/圆角/间距」，
+  而 `templates/admin/scaffold/frontend/src/` 有裸圆角 **35 处**（散落 7/8/10/11/12/14/22/24px，
+  不成阶梯）、`login/index.vue` 自建 27 条裸色值的 `--login-*` 私有调色板绕过令牌体系。
+  **builder 打开项目看到的第一批代码就在违反宪法，而 Agent 天然模仿上下文。**
+  现骨架前端零裸色值、零裸圆角（正圆 50% 与血滴形 42% 除外）；圆角阶梯补两档成
+  2/9/13/16/28/999，原有裸值全部落到最近既有档（未重新设计）；`--login-*` 迁进 `tokens.css`
+  并改名 `--v-login-*`（命名即声明「只此一页」）。**骨架不加 `@vima` 标注**——
+  `MARKER_RE` 要求 taskId 存在于 `docs/tasks/`，约定 id 会被 `trace --strict` 判野生标注，
+  而 code-audit 验收清单第 3 条正是「trace --strict 通过」，加了等于给每个项目埋一条永远清不掉的红项。
+- **`code-audit` 收尾流水线模板的扫描面未写明作用域**（A42 D-A42-05）。7 条验收项里有 4 条
+  没写扫描面，读的人容易默认「扫全仓」，于是审计会产出**审计者无权处理、修了反而算越界改共享层**
+  的违规。现新增「审计作用域」章，直引 `traceability.mjs` 已有的作用域纪律原话
+  （「底座/共享层没有标注，天然不参与」），4 条受影响验收项逐条加「**标注文件内**」限定，
+  开发步骤加「先用 `grep -rl '@vima '` 框出扫描面」，约束重申加「不报无人可接的违规→写进建议项」。
+- **`trace` SCAN_EXTS 漏小程序三件套**（A41）。A23 把 `mp-native` 收为一等端后，
+  页面产物是 `.wxml`/`.wxss`/`.wxs`，而扫描面长期只有 Web/Java 那几种
+  ——该端 `@vima` 标注**一条都扫不到**，且 `--strict` 下会把「产物以 wxml/wxss 为主」的
+  页面任务误判成「done 却无标注 = 虚报嫌疑」。实证：sustain-v4 mp 骨架 8 个文件，trace 命中 0。
+  同仓 `create.mjs` 的 TEXT_EXTS 与 post-write hook 早已认得这三种，唯独这里漏了。
+
+- **前端调用点识别连续三次漂移，收口为单一入口 `scanFeCalls`**（A41 D-A41-02）。
+  ① 同一条正则有**三份拷贝**（validate / converge / traceability），且都停留在
+  `<[^>(]*>` 这种会被嵌套泛型截断的旧式写法——`request.delete<any, ApiResponse<{...}>>(...)`
+  在第一个内层 `>` 处断裂，整条调用被静默跳过。实证：admin 端 281 个调用点里 216 个（77%）
+  是这个形状，V-CODE-01 与 V-INT-04 长期只覆盖不到 1/4 的调用面，**而两者都显示通过**
+  ——最危险的那种绿。改 `[^()]*?` 后 V-INT-04 误报 39 → 2。
+  ② 收成一份常量之后数字**仍然打架**：`trace` 报「无人调用 39」、`converge` 同一时刻报 2。
+  根因不在正则而在扫描方式——traceability 逐行 `matchAll`，另两处 `exec(text)` 走全文；
+  真实代码里泛型一长就被格式化器折行，方法名、泛型段、路径字面量分处三行，逐行一条都命中不了。
+  ③ 共享层 `request.ts` 文档注释里教「别这么写」的反例
+  （`❌ request.get(\`/mp/${kind}/list\`)`）被判为契约外调用，报 V-CODE-01 error。
+  现将**正则 + 全文扫 + 跳注释行 + 行号换算**四件事一起收进 `scanFeCalls(text)`，
+  三处消费者全部改调它；`FE_CALL_SOURCE` 仅供单测断言正则形状。
+  教训已写入内部契约 §6.6：判据的实现要单一真源，判据的**用法**也要单一真源。
+
 ## [3.1.3] - 2026-08-15
 
 ### 修复

@@ -249,14 +249,14 @@ export function consumersOf(api, roster)  // api.consumers ?? 单端 [唯一 id]
 // lib/model/journal.mjs（A36 过程轨迹归集器；由 retro 与 render-journal 共用）
 export async function readJsonSafe(p)     // 坏文件/缺文件一律 null（过程视图不因单个坏报告失败）
 export function tally(items, keyOf)       // 数组 → {key: n}；key 为空/null 的项跳过
-export const V_INT_RULES                  // ['V-INT-01'..'V-INT-05']，两个消费方同序呈现
+export const V_INT_RULES                  // ['V-INT-01'..'V-INT-06']，两个消费方同序呈现
 export function phaseDurations(lifecycle) // phaseHistory → [{phase, days|null}]；**不读系统时钟**
 export async function collectReports(root)
 // 聚合 .vima/reports/ 下的子代理报告与既有机检报告 →
 // { verification: { reports, maxRound, points, failedPoints, waived, ngViolations },
 //   shared: { changeRequests },
 //   runtime: { errors },                          // runtime-errors[.<appId>].jsonl 行数
-//   convergence: { V-INT-01..05, openPoints, unmarkedDone },
+//   convergence: { V-INT-01..06, openPoints, unmarkedDone },
 //   batches: { count, maxParallel, sizes, levels },
 //   planning: { pendingConfirm, ruleHits },
 //   details: {                                   // **含 taskId**——见下方脱敏纪律
@@ -629,6 +629,65 @@ shared/pipeline 每任务一批，level 取其组内拓扑序号（各不相同 
   "summary": { "markers": 3, "wildTaskIds": 0, "doneWithoutMarker": 1 } }
 ```
 
+**schemaVersion `"2"`（A41 追溯纵深）**：追溯图构建成功时升到 `"2"` 并在上面三个键之外
+增维；构建失败则降级回 `"1"`（trace 的底线职责是抓野生与虚报，不能因追溯图打不开而阻断）。
+增维部分**只增不改判**——`wild` / `unmarked` 与退出码仍由原逻辑算，避免同一结论出现第二个真源。
+
+```json
+{ "schemaVersion": "2",
+  "apps": [ { "id": "admin", "dir": "apps/admin", "codeDir": "src" } ],
+  "byTask":     { "<taskId>": { "status": "done", "layer": "business", "side": "frontend",
+                                "app": "admin", "files": ["..."], "markerCount": 3,
+                                "endpoints": ["GET /api/devices"],
+                                "reports": { "builder": {...}|null, "verifier": {...}|null },
+                                "journal": [ { "ts": "...", "ref": "...", "outcome": "pass" } ] } },
+  "byFile":     { "<file>": { "taskIds": ["..."], "app": "admin"|null } },
+  "byEndpoint": { "GET /api/devices": { "key": "...", "method": "GET", "path": "/api/devices",
+                                        "module": "device", "contractFile": "docs/contracts/...",
+                                        "consumers": ["admin"],
+                                        "implementedBy": [ { "file": "...", "line": 12, "taskIds": ["..."] } ],
+                                        "calledBy":     [ { "file": "...", "line": 8, "taskIds": ["..."], "app": "admin" } ] } },
+  "unknownCalls": [...], "unknownImpls": [...],
+  "orphanEndpoints": [...], "uncalledEndpoints": [...], "doubleImplemented": [...],
+  "summary": { "...原三项...": 0,
+               "tasks": 111, "tasksWithCode": 109, "tasksWithBuilderReport": 21,
+               "tasksWithVerifierReport": 21, "tasksWithJournal": 21,
+               "endpoints": 298, "endpointsImplemented": 298, "endpointsOrphan": 0,
+               "endpointsUncalled": 0, "endpointsDoubleImplemented": 0 } }
+```
+
+模型实现在 `lib/model/traceability.mjs`（`buildTraceability(root, { cliRoot, extraDirs })`），
+`vima trace` 与 `vima web` **共用同一份**——两条命令报出不同数字即为缺陷（见下条纪律）。
+
+**调用点扫描纪律（A41 D-A41-02，硬约束）**：前端请求门面调用点的识别，
+`lib/commands/validate.mjs` 导出的 **`scanFeCalls(text)` 是唯一入口**。
+`FE_CALL_SOURCE` 常量保持导出仅供单测断言正则形状，**业务代码不得直接使用**。
+理由是同一判据曾在此连续漂移三次：
+① 正则本身有三份拷贝（validate / converge / traceability），修一处另两处继续沉默；
+② 收成一份常量后，消费者各自决定「怎么喂它」——traceability 逐行扫、另两处按全文扫，
+真实代码里被格式化器折行的调用只有前者漏，于是 `trace` 报「无人调用 39」而 `converge` 报 2；
+③ 文档注释里教「别这么写」的反例被当成真实调用，报 V-CODE-01 error。
+`scanFeCalls` 把**正则 + 全文扫 + 跳注释行 + 行号换算**四件事一起收口：
+判据的实现要单一真源，判据的**用法**也要单一真源。
+新增消费者一律调它，不得自建 `new RegExp(FE_CALL_SOURCE, 'g')`。
+
+### 6.6b `vima web` 本地只读视图（A41）
+
+零依赖 `node:http`，**只绑 `127.0.0.1`**，默认端口 5178（`--port` 可改）。
+四页 + 两个出口，全部只读、不写盘、不改判：
+
+| 路由 | 内容 |
+| --- | --- |
+| `/` | 实时进度：A37 三档（自称/有轨迹/已验收）+ `byApp`/`bySide`/`byLayer` 三切面；3 秒轮询 `/api/status` |
+| `/trace` | 按任务反查：代码产物 / 负责端点 / 两份报告 / journal 事件同屏 |
+| `/endpoints` | 按端点反查：谁实现、谁调用、属哪个契约模块、授权给哪些端 |
+| `/artifacts` | 审核产物索引：`docs/review/`、`.vima/reports/`、设计稿 |
+| `/api/status`、`/api/trace` | 上述两张视图的 JSON 原始数据 |
+| `/file/*` | 只读出口，**必须做路径穿越防护**（解析后不在项目根内一律拒绝） |
+
+命令注册：`PROJECT_SCOPED`（需项目根）+ `JOURNAL_EXEMPT`（与 `status` 同列——
+它声明只读不落盘，且长驻进程一旦失败会把 journal 刷成噪声）。
+
 ### 6.7 docs/review/prototype.manifest.json（§13.3）
 
 ```json
@@ -673,8 +732,48 @@ admin-web 沿用桌面侧栏外壳；mp-native 为 375px 手机框 + 底部 tabb
 { "taskId": "...", "round": 1, "result": "pass|fail",
   "checklist": [{ "item": "...", "passed": true, "evidence": "文件:行号" }],
   "points":    [{ "point": "toolbar/新增 → modal MODAL-01", "passed": true, "evidence": "文件:行号" }],
-  "missing": ["..."], "contractViolations": ["..."] }
+  "missing": ["..."], "contractViolations": ["..."],
+  "contractGaps": ["..."],    // 可选，A42 D-A42-04；缺省 []，不计 fail
+  "commands": [{ "cmd": "./mvnw -o -q test", "exitCode": 0 }] }  // 可选，A43 D-A43-01
 ```
+
+**`commands` 的语义（A43 D-A43-01）**：本轮验收**实际执行过的命令**及其退出码，
+`cmd` 为非空字符串（原样记录命令行，便于任何人照着重跑复核），`exitCode` 为整数。
+**可选**——存量报告与不涉及命令的任务（前端页面任务）不带该字段照常通过校验；
+做成必填会逼出占位命令，比没有更坏。
+`layer: pipeline` 的任务是唯一被**强制**要求带该字段的一类（判据在 §6.19 的
+`pipeline-green` 一级，不在本 schema 层），因为它的职责定义就是跑命令。
+**内核不执行任何命令**（零运行时依赖 + 「确定性操作不留给概率性行为」），
+故本字段与 §6.21 的 report 事件同口径：它证明「执行者声明跑了什么、得到什么退出码」，
+不构成独立防伪；它消灭的是「一条命令都没被点名过」这个洞。
+
+**`contractViolations` 与 `contractGaps` 的分野（A42 D-A42-04）**：
+- `contractViolations` = **真越界**（调了未授权端点、越权访问他端接口等）。**计 fail**，原义不变。
+- `contractGaps` = **规格本身有缺口，实现侧已做合规处置**。**不计 fail**，进 converge 收口清单。
+- **不确定属于哪一类时填 `contractViolations`**——宁可误报 fail，也不要把真越界藏进免检区。
+- 一句话判据（与 `vima-verifier.md` 同源）：**能靠改代码修好的是 violation，不改规格就修不好的是 gap。**
+
+**条目格式**：单行三段式字符串
+`契约缺口：… | 处置：…（文件:行号）| 依据：…`
+三段缺一段即退回 `contractViolations`——没有处置证据的「缺口」与推卸责任无法区分。
+角色模板 `templates/admin/workspace/agents/vima-verifier.md` 的 schema 示例与本节**必须同形**；
+若日后改为对象形态（`{gap, handling, evidence}`），两处要一起改。
+
+立项实证：`page-68-fe` 的 verifier 判 `result:"pass"`、checklist 全过、`missing` 为空，
+journal 却记 `fail`。原因是它把一条**契约缺口**填进了 `contractViolations`——契约声明
+`POST /mp/consults/{id}/messages` 接受 `attachmentId?`、spec 本页也要求「发送图片」，
+但 33 个端点里**没有任何上传端点**。builder 的处置完全正确（控件置灰 + 说明文案，
+不臆造端点、不绕过请求门面，并比照 admin 端既有先例），verifier 也判「处置恰当」
+——**但它没有别的字段可填**。协议不对称是根因：builder schema 有 `sharedChangeRequest`，
+verifier schema 此前没有对应通道。
+
+**采集侧口径**：post-write hook 的 schema 校验接受可选 `contractGaps`
+（`undefined` 照常通过，存量报告向后兼容；存在但非数组 → 整条不记，与既有空壳/冒名同口径）；
+outcome 重算不计入 fail。**缺口条数不折进 journal 事件的 `n`**——`n` 的原义是
+「未过 point 数」（§6.21），折进去会出现「`outcome=pass` 而 `n=3`」，
+破坏人读 journal 曲线时的语义；且事件五键封顶、`kind` 为三元封闭集、`ref` 被
+`lib/model/progress.mjs` 用正则逐条解析，加键/加类型/加后缀三条路都堵死。
+改为 hook 当场以 stderr 登记条数（exit 0，只提示不阻断），收口通道是报告文件本身。
 
 **points 为逐任务点判定（B1）**：带 `page` 的前端任务**必填**——从
 prototype.manifest.json 该页条目逐点展开（components 的每个 item 与 rowAction、
@@ -819,7 +918,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
   "scope": { "markedBackendFiles": 12, "markedFrontendFiles": 30, "contractApis": 251,
              "skipped": null },
   "summary": { "errors": 2, "warnings": 1, "openPoints": 3, "runtimeErrors": 0,
-               "unmarkedDone": 0 },
+               "unmarkedDone": 0, "contractGaps": 0 },
   "findings": [
     { "rule": "V-INT-02", "level": "error", "key": "GET /api/food/list",
       "owners": ["food-api-be", "diet-api-be"],
@@ -827,6 +926,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
       "message": "接口 GET /api/food/list 在 2 处后端文件重复实现（…）" }
   ],
   "openPoints": [ { "taskId": "order-detail-fe", "point": "RULE-03 …", "kind": "failed" } ],
+  "contractGaps": [ { "taskId": "page-68-fe", "gap": "契约缺口：… | 处置：…（文件:行号）| 依据：…" } ],
   "unmarkedDone": ["shared-base"],
   "byTask": { "food-api-be": ["V-INT-02 GET /api/food/list"],
               "diet-api-be": ["V-INT-02 GET /api/food/list"] } }
@@ -834,10 +934,12 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
 
 | 字段 | 说明 |
 |---|---|
-| `scope.skipped` | `null` 或 `"no-marked-backend"`——带 `@vima` 标注的后端文件为 0 时 V-INT-01/02/03 整族跳过（纯前端项目 / 未开工项目不假红） |
+| `scope.skipped` | `null` 或 `"no-marked-backend"`——带 `@vima` 标注的后端文件为 0 时 V-INT-01/02/03/06 整族跳过（纯前端项目 / 未开工项目不假红） |
 | `findings[].owners` | 该 finding 归属的 taskId 数组（责任田判定见 §8 V-INT 组说明）；无法归属时为 `[]` |
 | `findings[].paths` | 相关文件相对项目根、`/` 分隔、升序 |
 | `openPoints` | 聚合 `.vima/reports/<taskId>-verifier.json` 的 points：`kind` ∈ `failed`（未过）/ `ng`（A13 `NG-xx 越界`，不计豁免）。**豁免（waived）不计入** |
+| `contractGaps` | 聚合各 `<taskId>-verifier.json` 的 `contractGaps`（§6.9）：`{ taskId, gap }`，按 taskId → gap 升序（与 `openPoints` 同排序口径）。字符串条目直取，对象条目取 `.issue`，两者都取不到则 `gap` 为空串。**不并进 `openPoints`、不进 `byTask`、不计退出码**——它记的是「规格有缺口、实现侧已合规处置」，行动项是**回契约补齐或立 `vima change` 变更事务**，不是派回任务修。让它变成阻断项就是 A42 D-A42-04 立项要治的病（`page-68-fe` 实证：正确的工程处置被记成永久 fail） |
+| `summary.contractGaps` | 顶层 `contractGaps` 数组的长度；缺省 0 |
 | `summary.runtimeErrors` | `runtime-errors.jsonl` 条数；**只报告不计退出码**（追加式历史含已修复旧条目） |
 | `summary.unmarkedDone` | 顶层 `unmarkedDone` 数组的长度 |
 | `unmarkedDone` | `status=done` 且 `layer ∈ {shared,business}` 却无任何 `@vima` 标注的 taskId（升序；§10 trace 同口径，内联计算不 shell out）。warn 语义，不计退出码 |
@@ -863,7 +965,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
              "retried": 9, "maxRetry": 2, "failed": 0, "blocked": 0,
              "declaredApis": 12, "conflictsWith": 3 },
   "batches": { "count": 11, "maxParallel": 8, "sizes": [1,8,8,6,2], "levels": 5 },
-  "convergence": { "V-INT-01": 0, "V-INT-02": 2, "V-INT-03": 1, "V-INT-04": 5, "V-INT-05": 0,
+  "convergence": { "V-INT-01": 0, "V-INT-02": 2, "V-INT-03": 1, "V-INT-04": 5, "V-INT-05": 0, "V-INT-06": 3,
                    "openPoints": 3, "unmarkedDone": 0 },
   "verification": { "reports": 40, "maxRound": 3, "points": 812, "failedPoints": 3,
                     "waived": 4, "ngViolations": 1 },
@@ -1033,7 +1135,7 @@ export async function writeImpact(root, impact)         // → void；stableStri
 | `spec-approved` | lifecycle `checklists.PLANNING.tasksApproved === true` |
 | `implemented` | shared+business 任务数 >0 且全 done；每个 done 的 business 任务有 `<taskId>-verifier.json` 且 `result: "pass"` |
 | `converged` | 复用 `evaluateConvergence`（§6.13）**重算**：`summary.errors=0`、`summary.openPoints=0`，**且**磁盘 convergence.json 与重算结果 `stableStringify` 一致（证据附该文件 sha256）。汇总文件只是缓存证据不是可信布尔值——报告生成后 spec/契约/任务/代码再变即判过期并如实报缺，与 `implemented` 级对视觉证据的做法同口径（A34 D-A34-31）。评估器抛 VimaError 时不使 certify 崩（exit 恒 0），按缺口如实列出 |
-| `pipeline-green` | ≥1 个 pipeline 任务且全部 done |
+| `pipeline-green` | ≥1 个 pipeline 任务，且**每个**同时满足三条（A43 D-A43-02）：`status: done`、有 `<taskId>-verifier.json` 且 `result: "pass"`、报告 `commands` 非空且**全部 `exitCode === 0`**。加严理由：本级判据此前只看 frontmatter `status`，是四级里唯一不要求任何报告的一级——阶梯在最顶端刚性倒挂，且 `pipeline-green` 这个名字宣称的正是「流水线绿」。命令留痕只加在本级：pipeline 任务的职责定义就是跑命令，business 任务的证据形态是点位判定（B1），扩面即镀金 |
 
 `deliveryLevel` = 自底向上**连续**满足的最高级（跳级不算）。stdout 摘要须同时明示
 templateMaturity 与 deliveryLevel 的语义区别（「模板 stable ≠ 项目 stable」）与
@@ -1324,11 +1426,16 @@ menus:
     page: PAGE-01
     features:
       - { name: 设备查询, api: GET /api/device/list }
+      - { name: 设备新增, api: POST /api/device, perms: [device:device:add] }
   - id: MENU-99
     name: 暂无角色的菜单
     page: PAGE-09
     uncovered: true        # 权限盲区必须显式声明才能过校验
 ```
+
+`features[].perms`（A42，可选，串或串数组）：该功能点的按钮级权限点，是 V-CODE-04
+三面对账的**声明面**——后端 `@PreAuthorize("@perm.has('X')")` 与前端 `v-auth="X"`
+必须与它一字不差。未声明 `perms` 的功能点完全不触发 V-CODE-04（存量零影响）。
 
 ### vima:flow（第五章「业务流程」小节，每条一块）
 ```yaml
@@ -1437,7 +1544,7 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-TASK-04 | error | dependsOn 与 conflictsWith（A8）引用的 taskId 均存在 |
 | V-TASK-05 | error | A2 单一真源：带 page 字段的任务 body 不得含「组件树」或「## 页面结构」手写段（页面结构以 spec 数据块+原型为准） |
 | V-TASK-06 | error | page 字段值存在于 spec pages；spec 缺失/不可解析而任务带 page 时同样报 error（不得静默跳过） |
-| V-TASK-07 | warn | 任务点覆盖度（B3）：带 page 的任务，验收清单复选框数 < 该页任务点数（交互数 [items 带 action + rowActions] + 弹窗字段数）→ 提醒清单可能漏点 |
+| V-TASK-07 | warn | 任务点覆盖度（B3）：**按 `page` 聚合判定**（A42 D-A42-01）——同一 page 的全部任务的验收清单复选框数**之和** < 该页任务点数（交互数 [items 带 action + rowActions] + 弹窗字段数）→ **每页报一条**，消息列出参与该页的任务 id 与各自条数。逐任务判定对「一页一任务」成立、对**合并页/切片任务**不成立，而合并页是 vima 自己支持并鼓励的形态（A16 端册 + A22 字段级机检）：实测 PAGE-03 被 5 个任务分片，`24+22+28+32+27=133` 与页面任务点数完全一致、双向差集为空，却报 4 条 warn。判据来源同 V-TASK-11 的 done 豁免——**永远无法清除的告警比不告警更有害**，它训练人忽略整张告警表。**只聚合本条**：V-TASK-06 等仍逐任务判定 |
 | V-TASK-08 | warn | 任务正文引用的接口须 ∈ 作用域（带 page 取该页 apis，否则取 contract 契约 apis）。V-TASK-07 只数复选框不看内容，产物重建后清单会长期停在旧端点上。含否定式措辞（真源无/已废弃/不请求…）的行不计入 |
 | V-TASK-09 | warn | 任务正文内嵌「契约声明的 N 个接口」与契约条目数一致（契约一改即漂，此前无规则覆盖） |
 | V-TASK-10 | error | 任务端归属（A16）：多端项目 side=frontend\|fullstack 任务必须带 `app` ∈ 端册；side=backend 禁止携带 app（任意 N）；带 page 的任务 task.app 必须 == 该页归属端 |
@@ -1448,11 +1555,15 @@ response 变体；一个 module 可同时服务多端，端点单一真源不拆
 | V-DSN-10 | error | **custom 的诚实标注三件套（A34）**：`design.pattern: custom` 必须同时带非空 `design.intent` 与 `fidelity: D2`。沿用 A27 `shape: freeform` 口径——承认某些页面就是独特的，好过继续扩枚举（10 词词表仍装不下三栏设计器） |
 | V-DSN-11 | error | **保真级的必填声明（A34）**：D1/D2 必填 `design.primaryTask`（唯一回答「这页为何存在」的键）；D2 再必填 `design.mustPreserve` 非空数组，每条四键齐全（`id` 页内唯一 / `kind` ∈ {visual,interaction,runtime} / 非空 `statement` / `verifier` ∈ {design,experience}），且 **kind↔verifier 相容**：visual→design，interaction·runtime→experience。带类型而非字符串数组的理由：「配置与预览同步」「切换患者不重挂载」无法靠一张截图裁定，无 kind 就无执行者（违反 A6） |
 | V-DSN-12 | error | **保真级必须显式声明（A34）**：每个页面须有 `design.fidelity`；**`designCapability: legacy` 的存量项目整体豁免**（D-A34-18）。A27 的「未声明零影响」口径适用于增量润色，**不适用于一条以「堵逃生口」为目的的机制**——不写 fidelity → 不是 D1/D2 → 跳过全部设计流程、全绿进开发，正是 A34 要治的洞。派生状态 `fidelityClassified` 由本规则计算，不是人工布尔 |
-| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，每行列数与表头一致，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16） |
+| V-COV-01 | error | docs/coverage-matrix.md 存在，表格 ≥3 列，每行列数与表头一致，任何数据行不得有空单元格或 `TODO`（缺口）。产物由 `vima render-matrix` 确定性生成；多端项目首列为「端」（A16）。**逐表校验**（A44 D-A44-02）：遇「表头行 + 分隔行」即开启新表，各表独立比对列数——文件含多张表（页面承接 + 业务规则承接）时不得混成一张 |
+| V-COV-02 | warn | 覆盖矩阵中「承接任务」列（末列）以 `—` 开头的行逐条点名（A44 D-A44-03）。**恒 warn 不为 error**：PLANNING 期页面尚未派任务是正常中间态，判 error 会阻断开工（违反 C4 不阻塞）。本规则补的是 V-COV-01 的盲区——渲染器把「尚无任务承接」写成非空破折号串，V-COV-01 的「不得有空单元格」对真缺口恒不命中 |
 | V-YAML-01 | warn | 跨产物 YAML 纪律：vima 块的 flow 上下文（`[...]`/`{...}` 内）不得有未加引号的花括号。路径参数须用 `{id}`（V-CODE 归一只认花括号），但 YAML 规范禁止 flow 内 plain scalar 含 `{`；本解析器容忍 flow 序列却在 flow 映射上报「键 X 后缺少 :」，形成「vima 能读、标准 YAML 读不了」的灰区。块级序列不在此列 |
 | V-PEND-01 | warn | 收集全部 pendingConfirm 条目进报告（approve 时升级为阻断） |
 | V-CODE-01 | error | 代码↔契约对账·前端（A6，A16 端化）：**带 `@vima` 标注**的端册各端 `<dir>/<codeDir>` 文件（弃字面量 `'src'`）中 `request.<get\|post\|put\|delete\|patch>(路径字面量)` 归一后必须 ∈ 契约 apis，**且该接口的 consumers 须含文件归属端**（否则报越权调用）。归一：非 `/api` 开头补 `/api` 前缀（request baseURL）；模板串 `${expr}` 与契约 `{id}` 都归一为 `{*}`。请求门面 `request.<verb>(path)` 是各 kind 骨架契约（mp-native 为 wx.request 同签名封装），一条正则通吃全部端。单向对账（防野生接口）；实现完整性归 Verifier。无标注文件（底座/共享层）不参与 |
 | V-CODE-02 | error | 代码↔契约对账·后端（A6）：**带 `@vima` 标注**的 backend/src *.java 中，类级 `@RequestMapping` 基路径 + `@Get/Post/Put/Delete/PatchMapping` 子路径拼接归一后必须 ∈ 契约 apis。Mapping 路径只认 value=/path=/首个位置字符串参数（仅 produces= 等具名属性视为无子路径）。仅 code 组全量校验时跑（--artifact 不含） |
+| V-CODE-03 | error / warn | **错误码对账（A42 D-A42-02）：实现抛了、契约没声明**。带 `@vima <taskId>` 标注的后端文件里 `BusinessException(ErrorCode.X)` 的数字码，必须 ∈ 该 taskId 的 `contract` 指向契约的 `errors[].code` 全集；不在 ⇒ 消费端拿到只能当未知错误。归属取**契约 module 全集**而非任务 apis 子集（Service 常被同模块兄弟子任务共用，且 `@vima` 标注在附属文件上系统性错标——模块级归属对这类错标免疫）。**四道零假阳性闸门，任一不满足即整体跳过**：① 后端目录下找不到 `ErrorCode.java`（该枚举与 `BusinessException` 是**项目自建约定、非 vima 骨架资产**，骨架只有 `GlobalExceptionHandler` + `ApiResponse.error(code,msg)`）；② 任务集为空；③ 标注找不到对应任务或该任务无 `contract`（共享层任务天然落此）；④ 枚举里查不到该名字。注释行里的示例不算抛点（同 V-CODE-01 扫描纪律）。**反向（契约声明了、实现不抛）本轮不做**——理由见 A42 D-A42-02 落地说明。**该码全项目零声明时降为 warn**：实证 40101 认证失效被抛而 22 份契约零声明是**有意的**（项目约定「由底座统一拦截，不进业务 errors[]」），报 error 即假阳性；但不能简单跳过——同轮 40902 同样零声明却是真缺陷。二者的区别写在项目自己的错误码约定文档里，而**那份文档不是 vima 的资产**（templates/ 与 lib/ 零引用），vima 无从通用判定，硬做就是发明一个它不拥有的约定。故按证据强度分级：别处契约声明过 ⇒ error（确是业务码、这里漏了）；全项目零声明 ⇒ warn 且消息把两种可能都摆出来 |
+| V-CODE-04 | error/warn | **权限点三面对账（A42 D-A42-02）**：spec `vima:menus[].features[].perms` ↔ 后端 `@PreAuthorize("@perm.has('X')")`（骨架 `security/PermChecker`）↔ 前端 `v-auth="X"`（骨架 `directives/auth.ts`，支持串与串数组）。缺后端 ⇒ **error**（接口不设防，任何登录用户可调用）；缺前端 ⇒ **warn**（入口不设防，点下去才吃 403）。前端面按菜单归属端（`menu.app`）取该端 `<dir>/<codeDir>`。**不含菜单种子**（种子是项目自建产物，vima 无法通用定位；三面已足够，加第四面是镀金）。零假阳性闸门：**某一面没有任何带 `@vima` 标注的业务代码 ⇒ 该面整体不判**（规格期代码尚未存在、某端还没开工都落在这里——一条「报缺失」的规则不设此闸会把每个权限点在 PLANNING 就报一遍）；spec 未声明 `perms` 的项目完全不触发 |
+| V-SRC-02 | error | **编号引用校验（A42 D-A42-02）**：带 `@vima` 标注的业务代码（前端 `.ts/.tsx/.vue/.js/.mjs` + 后端 `.java`，**含 `data-page`/`data-block` 属性与注释**）里的 `PAGE-\d+` / `MODAL-\d+` / `RULE-\d+` / `NG-\d+` 必须存在于 spec 对应章节。存在性集合**只取结构化数据块**（pages / 页面块 modals / vima:rules / vima:non-goals），不看正文——spec 里声明为「空号/保留不复用」的编号因而天然算不存在（空号被引用 = 悬空锚点）。同文件同编号只报一条。定 error 而非 warn：**A22 字段级机检、A34 保真验收、converge 点位对账全都以 `data-page` 为锚**，锚点悬空时它们不是报错而是**静默地什么都不检**；本条同时拦住 builder 给自己发豁免（实证 `NG-16` 被当作「微信登录留桩」的依据，而 spec 止于 NG-15） |
 
 `vima validate`：全部 error 通过 → exit 0 并把 `checklists.PLANNING.artifactsValidated=true` 写回
 lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规则。报告落盘 §6.8。
@@ -1474,7 +1585,7 @@ lifecycle（存在时）；否则 exit 2。`--artifact <path>` 只跑关联规�
 负责任务集为空（该契约无 backend 任务）时 V-INT-01 不报——那是 V-CON-03 的职责，
 converge 不重复报同一件事。
 
-**后端作用域守卫**：带 `@vima` 标注的后端文件数为 0 → V-INT-01/02/03 整族跳过，
+**后端作用域守卫**：带 `@vima` 标注的后端文件数为 0 → V-INT-01/02/03/06 整族跳过，
 报告标 `scope.skipped = "no-marked-backend"`（纯前端项目 / 未开工项目不假红）。
 
 | 规则 | 级别 | 判据 |
@@ -1484,6 +1595,7 @@ converge 不重复报同一件事。
 | V-INT-03 | error | **越界实现**：某接口的实现文件 `@vima` taskId 集合 ∩ 该接口负责任务集 = ∅。**仅当该契约下 ≥1 个 backend 任务声明了 `apis`** 时启用（否则责任田 = 契约全集，恒不越界） |
 | V-INT-04 | warn | **消费端调用缺失**：契约 api 的 `consumers` 含端 X，但端 X 的带标注代码中无任何该接口调用（单端项目退化为「无任何带标注前端调用」）。**仅当该端存在带 `@vima` 标注的文件**时判定 |
 | V-INT-05 | error | **缺收尾流水线**：存在 `layer=business` 任务却无任何 `layer=pipeline` 任务——收口的载体不存在，闸门形同虚设（设计期同一判据为 V-TASK-13 warn） |
+| V-INT-06 | warn | **被读的数据没人写（A42 D-A42-03）**：契约声明的响应字段，其同名 JPA `@Entity` 属性若在**全仓**（不限 `@vima` 作用域——底座写的一样让字段非空）无任何写入点 ⇒ 该字段恒空。写入点 = Lombok setter 调用（按变量声明解析接收者类型）/ `@Builder` 链 / `new T(...)` / 实体自身 `this.x=`·`x=`（`@PrePersist`）/ JPQL `update T t set t.x=`。**只对带 `@vima` 标注的实体报告**；整张表无生产者（既无 `new T(` 也无 `T.builder()`）时**按实体报一条**（修复单位是「指派一个任务负责写」，不是逐列补赋值），否则逐属性一条。四条零假阳性收窄：① 接收者类型解析不出的链式 setter（`repo.findById(id).get().setX()`）按**同名属性全局压制**；② `@RequestBody`/`@RequestPart`/`@ModelAttribute`/Jackson `readValue` 绑定的类型整类跳过（框架反射写入，源码里没有写入点属正常——sustain-v4 实测的唯一假阳性来源）；③ 框架托管列（`@Id`/`@GeneratedValue`/审计注解/`insertable=false`/字段有初始化值）不判；④ 无契约响应字段同名 ⇒ 没有「有人读」的证据，不判。定 warn 而非 error：判据是静态可达性、不排除运维/迁移侧写入 |
 
 `vima converge`：报告落盘 §6.13；退出码见 §6.13。`--json` 时报告同时输出 stdout；
 `--strict` 时 warn 也阻断。converge 是**只读命令**（报告文件除外），不改任何产物与状态。
@@ -1578,6 +1690,15 @@ converge 不重复报同一件事。
   vima:menus，链至 `#page-PAGE-xx`）。审计视图仍单文件：五视图内按端分组（角色×菜单
   矩阵按端分段、页面详情按端分章、流程泳道步骤加端徽标）——完整性产物一眼看全，
   体验产物按端分身。render-matrix 多端项目首列加「端」。approve 的 A12 新鲜度机检
+  <!-- A44 D-A44-01 -->
+  **render-matrix 输出两张表**：①「页面承接」`[端] 需求 / 接口 / 契约 / 任务`；
+  ②「业务规则承接」`规则 / 类型 / 实体 / 接口 / 承接任务`。第二张表的承接关系
+  **复用 `lib/commands/context.mjs` 的 `rulesForTask(rules, taskApis)`**，
+  任务接口集算法与 `vima context` 同源（`contract.apis`，任务声明 `apis` 时按其切片；
+  再并入 `page.apis`）——同一事实两套实现必然漂移。无 `apis` 的全局规则渲染为
+  `全局（注入全部任务上下文）`，按定义不构成缺口。表边界由**分隔行**识别
+  （紧邻分隔行之前的那一行即新表表头，见 D-A44-02），故每张表都必须带分隔行；
+  两张表之间是否留空行不影响切分（空行本就不参与 `|…|` 行的收集）。
   遍历各端原型产物。render-prototype 多端项目缺省渲染全部端；`--app <id>` 单端渲染
   （**只写该端 html，manifest 不重写**——全端 manifest 是 Verifier 对账基线，单端
   局部重渲不得让基线缺失其他端），`--output` 仅在单端产物语境（N=1 或配合 `--app`）
@@ -1592,7 +1713,8 @@ converge 不重复报同一件事。
   内容为常量文案，不依赖输入。
 - **区块标记对账约定**（§13.3 机械化路径的 hook 半，v2.1.0 提前）：前端页面根组件
   模板须含 `data-page="PAGE-xx"`；每个 layout 区块容器元素带 `data-block="<词>"`；
-  每个弹窗挂载点带 `data-modal="MODAL-xx"`。post-write.mjs 见 §14。
+  每个弹窗挂载点带 `data-modal="MODAL-xx"`。**合并页允许把区块与弹窗分散到壳页的子目录**
+  （A42 D-A42-01：pane 文件不自带 `data-page`，由 hook 按页聚合后对账）。post-write.mjs 见 §14。
 - `--check`：内存渲染与磁盘现有文件逐字节比较，不一致 → exit 2（不写盘）；文件缺失 → exit 2。
 - 成功渲染后写回 lifecycle `reviewRendered/prototypeRendered = true`（lifecycle 存在时）。
 
@@ -1842,6 +1964,19 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   V-SPEC-18 warn 角色可达性，§8）+ 审计视图第⑥视图「业务闭环」（§11）；
   渲染 model 增 tasks 切片（不含 status，D-A33-01）。不新建产物文件、
   不把 flows 塞进 prototype.manifest.json（无消费方即镀金）。
+- **A43 验收命令留痕**：§6.9 verifier 报告新增**可选** `commands: [{cmd, exitCode}]`；
+  `certify` 的 `pipeline-green` 判据加严到与 `implemented` 同级并额外要求
+  `commands` 非空且全 `exitCode === 0`（§6.19）——此前该级只看 frontmatter `status`，
+  是四级里唯一不要求任何报告的一级，阶梯在最顶端刚性倒挂。post-write hook 的
+  schema 校验接受可选 `commands`（形状不合 → 整条不记，同 `contractGaps` 口径），
+  **不折进 journal 事件的 `n`**（五键封顶不变）。**内核仍不执行任何命令**——
+  取的是「执行者留痕 + 机器校验形状与取值」这条路，不破零运行时依赖。
+- **A44 业务规则承接对账**：`render-matrix` 增第二张表「业务规则承接」
+  （复用 `context.mjs` 的 `rulesForTask`，§11）；`V-COV-01` 改逐表校验、
+  新增 `V-COV-02`（warn）点名未承接行（§8）。立项实证：`render-matrix` 引用 RULE 0 处、
+  `converge` 引用 rules 0 处——规则有 id/type/entity/apis 与两道格式机检，
+  却无任何一处对账「有没有人负责实现它」。不新开命令、不新增产物文件、
+  不给任务 frontmatter 加 `rules` 字段（`apis` 已是既有 join key，加字段是镀金）。
 
 ## 14. 命令行为裁定补遗（v2.0 实现层，设计文档相应节加注）
 
@@ -1898,14 +2033,27 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   /go 派发 Builder 前先跑本命令，Builder 把包列为第一必读（上游编译、下游不自由检索）。
 - **init 的 AGENTS.md（A8）**：workspace/AGENTS.project.md 存在时渲染为项目根
   `AGENTS.md`（managed）——agents.md 标准的指针文件；缺失时静默跳过（其他模板不受影响）。
-  **区块标记机械对账**（§13.3 v2.1.0 提前落地的 hook 半）：写入的 .vue 文件含
-  `data-page="PAGE-xx"` 时，读 docs/review/prototype.manifest.json 对账——
+  **区块标记机械对账**（§13.3 v2.1.0 提前落地的 hook 半；A42 D-A42-01 改为按页聚合）：
+  写入的 .vue 文件含 `data-page="PAGE-xx"` 时，读 docs/review/prototype.manifest.json 对账——
   ①PAGE-xx 必须存在于 manifest（否则提示 spec/原型未同步或标记拼错）；
-  ②manifest 该页 layout 的每个词都必须有对应 `data-block`，文件里多出的
-  layout 词表外 data-block 同样报错；③manifest 该页每个 modal id 必须有对应
-  `data-modal`。任一不符 → exit 2 反馈清单。manifest 缺失时静默跳过（原型未渲染
-  不阻塞）；文件不含 data-page 则不做本项检查（标记存在性由任务验收清单 +
-  Verifier 把关，hook 只机检已声明标记的页面根）。
+  ②manifest 该页 layout 的每个词都必须有对应 `data-block`；③manifest 该页每个 modal id
+  必须有对应 `data-modal`。任一不符 → exit 2 反馈清单。
+
+  **「缺」按页聚合，「多」按被写文件判**（A42 D-A42-01）。②③ 的「缺」不再逐文件判定，
+  而是把**被写文件 + 其所在目录树下全部「不自带 `data-page`」的片段文件**合起来算
+  ——合并页的物理形态是「壳页 + `panes/` 子目录」，区块与弹窗分散在多个 pane 文件里，
+  逐文件判定会让**编辑壳页必然 exit 2 而实现其实是完整的**（sustain-v4 实证：
+  PAGE-03 壳页只声明 4 个 data-block，另 6 个与 25 个 data-modal 都在九个 pane 里）。
+  片段判据取「不自带 `data-page`」而非「同目录一切文件」：自带页号的文件是独立页面单元，
+  并入会让同目录另一个完整实现的页面把本页缺失掩掉，检查就成了永真。
+  「多」（layout 词表外的 data-block）仍按被写文件判——越界标记的责任田是写它的那个文件，
+  聚合会把别人的越界记到本文件头上。
+  聚合作用域取目录树而非全项目扫描：hook 是每次写入的热路径，全树 IO 每写一次付一遍；
+  另加文件数硬顶并跳过 `node_modules/dist/build/vendor/miniprogram_npm`。
+  **已知代价**：壳页与 pane 分居两棵目录树时仍误报——该形态无实证，按防过度设计不预支持。
+
+  manifest 缺失时静默跳过（原型未渲染不阻塞）；文件不含 data-page 则不做本项检查
+  （标记存在性由任务验收清单 + Verifier 把关，hook 只机检已声明标记的页面根）。
 - **create**：`-i/--interactive` 强制进入交互选单（即使给了 `--template`）；
   无 `--template` 且非 TTY → usage exit 3；`--force` 允许在已存在目录中创建并
   覆盖同名文件，**不清空目录**。

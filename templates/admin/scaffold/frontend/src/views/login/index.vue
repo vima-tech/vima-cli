@@ -123,39 +123,11 @@ const handleLogin = async () => {
 
 <style scoped>
 /*
- * 登录页有四个只在本页出现的浅色调（页底、输入框描边/底色/hover 描边）。
- * 它们不进 tokens.css：令牌是全站契约，只为一个页面加四个全局变量，
- * 下一个人就分不清哪些是真通用的。集中声明在这里，本页要调色只改这四行。
+ * 本页只出现在登录屏的那批浅色调与光晕，定义在 styles/tokens.css 的「登录页专用」段
+ * （`--v-login-*`），这里只引用、不定义：骨架自己写死颜色，builder 就会照着写死。
+ * 要调登录页的色，改 tokens.css 那一段。
  */
 .login-page {
-  --login-canvas: #edf5fb;
-  --login-field-border: #d3e1ec;
-  --login-field-bg: #f9fbfd;
-  --login-field-border-hover: #9cbcd3;
-  /* 装饰层取值全部收编为局部令牌（A27 P21）：换品牌时只动定义区，规则区零裸值 */
-  --login-grid-line: rgba(76, 135, 184, 0.045);
-  --login-glow-a: rgba(124, 190, 223, 0.2);
-  --login-glow-b: rgba(80, 139, 188, 0.14);
-  --login-sheen: rgba(255, 255, 255, 0.7);
-  --login-vignette: rgba(45, 100, 142, 0.05);
-  --login-ring-border: rgba(77, 143, 194, 0.18);
-  --login-ring-border-soft: rgba(77, 143, 194, 0.15);
-  --login-ring-halo-1: rgba(103, 169, 211, 0.035);
-  --login-ring-halo-2: rgba(103, 169, 211, 0.025);
-  --login-ring-halo-3: rgba(103, 169, 211, 0.03);
-  --login-ring-halo-4: rgba(103, 169, 211, 0.02);
-  --login-card-border: rgba(179, 205, 225, 0.72);
-  --login-card-bg: rgba(250, 253, 255, 0.92);
-  --login-card-shadow: rgba(32, 78, 115, 0.45);
-  --login-card-shadow-soft: rgba(45, 91, 126, 0.05);
-  --login-highlight: rgba(255, 255, 255, 0.96);
-  --login-divider: rgba(184, 208, 226, 0.58);
-  --login-hero-wash: rgba(255, 255, 255, 0.92);
-  --login-hero-tint: rgba(226, 240, 250, 0.86);
-  --login-btn-shadow: rgba(42, 105, 157, 0.72);
-  --login-spot: rgba(255, 255, 255, 0.72);
-  --login-chip-bg: rgba(255, 255, 255, 0.9);
-  --login-focus-ring: rgba(67, 136, 199, 0.12);
   position: relative;
   display: grid;
   min-height: 100vh;
@@ -165,11 +137,11 @@ const handleLogin = async () => {
   color: var(--v-text-body);
   /* 登录页不走全局的页底纹：这里要更亮、带网格，与进入后台后的深色顶栏形成落差 */
   background:
-    linear-gradient(var(--login-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--login-grid-line) 1px, transparent 1px),
-    radial-gradient(circle at 12% 12%, var(--login-glow-a), transparent 30%),
-    radial-gradient(circle at 88% 88%, var(--login-glow-b), transparent 32%),
-    var(--login-canvas);
+    linear-gradient(var(--v-login-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--v-login-grid-line) 1px, transparent 1px),
+    radial-gradient(circle at 12% 12%, var(--v-login-glow-a), transparent 30%),
+    radial-gradient(circle at 88% 88%, var(--v-login-glow-b), transparent 32%),
+    var(--v-login-canvas);
   background-size: 32px 32px, 32px 32px, auto, auto, auto;
   place-items: center;
 }
@@ -179,8 +151,8 @@ const handleLogin = async () => {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(115deg, var(--login-sheen), transparent 32%),
-    radial-gradient(circle at 50% 50%, transparent 48%, var(--login-vignette) 100%);
+    linear-gradient(115deg, var(--v-login-sheen), transparent 32%),
+    radial-gradient(circle at 50% 50%, transparent 48%, var(--v-login-vignette) 100%);
   pointer-events: none;
 }
 
@@ -197,15 +169,15 @@ const handleLogin = async () => {
 .login-glow--top {
   top: -24vw;
   right: -8vw;
-  border: 1px solid var(--login-ring-border);
-  box-shadow: 0 0 0 70px var(--login-ring-halo-1), 0 0 0 140px var(--login-ring-halo-2);
+  border: 1px solid var(--v-login-ring-border);
+  box-shadow: 0 0 0 70px var(--v-login-ring-halo-1), 0 0 0 140px var(--v-login-ring-halo-2);
 }
 
 .login-glow--bottom {
   bottom: -28vw;
   left: -8vw;
-  border: 1px solid var(--login-ring-border-soft);
-  box-shadow: 0 0 0 70px var(--login-ring-halo-3), 0 0 0 140px var(--login-ring-halo-4);
+  border: 1px solid var(--v-login-ring-border-soft);
+  box-shadow: 0 0 0 70px var(--v-login-ring-halo-3), 0 0 0 140px var(--v-login-ring-halo-4);
 }
 
 .login-shell {
@@ -217,13 +189,13 @@ const handleLogin = async () => {
   height: min(720px, calc(100dvh - clamp(48px, 8vw, 104px)));
   min-height: 600px;
   overflow: hidden;
-  border: 1px solid var(--login-card-border);
-  border-radius: 28px;
-  background: var(--login-card-bg);
+  border: 1px solid var(--v-login-card-border);
+  border-radius: var(--v-radius-xl);
+  background: var(--v-login-card-bg);
   box-shadow:
-    0 34px 80px -42px var(--login-card-shadow),
-    0 2px 8px var(--login-card-shadow-soft),
-    inset 0 1px 0 var(--login-highlight);
+    0 34px 80px -42px var(--v-login-card-shadow),
+    0 2px 8px var(--v-login-card-shadow-soft),
+    inset 0 1px 0 var(--v-login-highlight);
 }
 
 /* ---------- 左半区 ---------- */
@@ -234,10 +206,10 @@ const handleLogin = async () => {
   min-width: 0;
   padding: clamp(30px, 3.2vw, 48px);
   overflow: hidden;
-  border-right: 1px solid var(--login-divider);
+  border-right: 1px solid var(--v-login-divider);
   background:
-    radial-gradient(circle at 53% 62%, var(--login-highlight) 0 18%, transparent 52%),
-    linear-gradient(145deg, var(--login-hero-wash), var(--login-hero-tint));
+    radial-gradient(circle at 53% 62%, var(--v-login-highlight) 0 18%, transparent 52%),
+    linear-gradient(145deg, var(--v-login-hero-wash), var(--v-login-hero-tint));
 }
 
 .login-brand {
@@ -253,10 +225,10 @@ const handleLogin = async () => {
   height: 44px;
   display: inline-grid;
   flex: none;
-  border-radius: 14px;
+  border-radius: var(--v-radius-ctl);
   color: var(--v-on-dark);
   background: var(--v-brand-grad);
-  box-shadow: 0 12px 24px -14px var(--login-btn-shadow);
+  box-shadow: 0 12px 24px -14px var(--v-login-btn-shadow);
   place-items: center;
 }
 
@@ -300,7 +272,7 @@ const handleLogin = async () => {
 .login-eyebrow span {
   width: 26px;
   height: 2px;
-  border-radius: 2px;
+  border-radius: var(--v-radius-xs);
   background: var(--v-primary);
 }
 
@@ -358,7 +330,7 @@ const handleLogin = async () => {
   width: 72%;
   height: 72%;
   border-color: color-mix(in srgb, var(--v-cyan) 22%, transparent);
-  background: radial-gradient(circle, var(--login-spot), transparent 70%);
+  background: radial-gradient(circle, var(--v-login-spot), transparent 70%);
 }
 
 .login-orbits span:nth-child(3) {
@@ -396,7 +368,7 @@ const handleLogin = async () => {
   flex-direction: column;
   min-width: 0;
   overflow: auto;
-  background: var(--login-chip-bg);
+  background: var(--v-login-chip-bg);
 }
 
 .login-panel-inner {
@@ -424,7 +396,7 @@ const handleLogin = async () => {
   height: 26px;
   display: grid;
   border: 1px solid color-mix(in srgb, var(--v-primary) 18%, var(--v-border));
-  border-radius: 8px;
+  border-radius: var(--v-radius-sm);
   color: var(--v-primary-strong);
   background: color-mix(in srgb, var(--v-primary) 7%, var(--v-surface));
   place-items: center;
@@ -465,9 +437,9 @@ const handleLogin = async () => {
 /* 登录页的输入框比后台内部更高更圆，是刻意的：这一屏只有两个字段，密度要低。 */
 .login-form :deep(.vui-input) {
   min-height: 52px;
-  border-color: var(--login-field-border);
-  border-radius: 12px;
-  background: var(--login-field-bg);
+  border-color: var(--v-login-field-border);
+  border-radius: var(--v-radius-ctl);
+  background: var(--v-login-field-bg);
   transition:
     border-color 0.2s var(--v-ease),
     background-color 0.2s var(--v-ease),
@@ -476,14 +448,14 @@ const handleLogin = async () => {
 }
 
 .login-form :deep(.vui-input:hover) {
-  border-color: var(--login-field-border-hover);
+  border-color: var(--v-login-field-border-hover);
   background: var(--v-surface);
 }
 
 .login-form :deep(.vui-input:focus-within) {
   border-color: var(--v-primary);
   background: var(--v-surface);
-  box-shadow: 0 0 0 4px var(--login-focus-ring);
+  box-shadow: 0 0 0 4px var(--v-login-focus-ring);
   transform: translateY(-1px);
 }
 
@@ -500,7 +472,7 @@ const handleLogin = async () => {
   width: 100%;
   height: 52px;
   margin-top: 6px;
-  border-radius: 12px;
+  border-radius: var(--v-radius-ctl);
   font-size: 14px;
   font-weight: var(--v-weight-semibold);
   letter-spacing: 0.35em;
@@ -532,7 +504,7 @@ const handleLogin = async () => {
 
   .login-visual {
     border-right: 0;
-    border-bottom: 1px solid var(--login-divider);
+    border-bottom: 1px solid var(--v-login-divider);
   }
 
   .login-orbits {

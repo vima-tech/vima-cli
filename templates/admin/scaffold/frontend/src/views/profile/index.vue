@@ -148,7 +148,7 @@ const handleResetPassword = () => {
   align-items: center;
   justify-content: center;
   flex: none;
-  border-radius: 16px;
+  border-radius: var(--v-radius-card);
   color: var(--v-on-dark);
   background: var(--v-brand-grad);
   box-shadow: var(--v-shadow-btn);

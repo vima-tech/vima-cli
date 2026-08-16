@@ -1,30 +1,58 @@
 # 需求覆盖矩阵（示例）
 
 <!--
-  本文件是 docs/coverage-matrix.md 的编写示例（设计文档 §13.1）。
-  作用：证明「没有需求被静默丢弃」——每条原始需求都能追到承接接口、契约与任务。
+  本文件是 docs/coverage-matrix.md 的形态示例（设计文档 §13.1）。
+  作用：证明「没有需求被静默丢弃」——每条需求都能追到承接接口、契约与任务。
+  真实矩阵**由 `vima render-matrix` 确定性生成，不要手写**；本示例只用于认形态。
   评审时用户核对本矩阵；存在缺口行时禁止 vima approve。
 -->
 
-## 对齐表（原始需求 → 接口 → 契约 → 任务）
+## 页面承接（口径：页面 → 接口 → 契约 → 承接任务）
 
-| 原始需求（来源 docs/raw/） | 承接接口 | 承接契约 | 承接任务 |
-|---------------------------|---------|---------|---------|
-| 设备可按名称/状态搜索并分页查看（需求纪要.md 第 1 条） | GET /api/device/list | docs/contracts/device-api.md | device-api-be, device-list-fe |
-| 支持新增设备，名称 2-50 字符（需求纪要.md 第 2 条） | POST /api/device | docs/contracts/device-api.md | device-api-be, device-list-fe |
-| 支持批量删除，一次最多 100 条（会议记录.md 第 3 节） | POST /api/device/batch-delete | docs/contracts/device-api.md | device-api-be, device-list-fe |
+多端项目首列追加「端」（A16）。
+
+| 需求 | 接口 | 契约 | 任务 |
+|---|---|---|---|
+| 设备列表（PAGE-01） | 3 个接口 | docs/contracts/device-api.md | device-api-be / device-list-fe |
+| 设备详情（PAGE-02） | 1 个接口 | docs/contracts/device-api.md | device-api-be |
+
+合计：2 个页面 / 4 条页面接口引用 / 1 份契约 / 4 个任务。
+
+## 业务规则承接（口径：规则 → 接口 → 承接任务）
+
+规则取自 spec 第五章 `vima:rules`。承接判定与 `vima context` 注入任务上下文用的是同一个
+判定：无 `apis` 的规则是**全局规则**，注入全部任务、按定义不构成缺口；声明了 `apis` 的
+规则须与某个任务的接口集有交集。
+
+| 规则 | 类型 | 实体 | 接口 | 承接任务 |
+|---|---|---|---|---|
+| 设备名称 2-50 字符，违者 40001（RULE-01） | validation | Device | 1 个接口 | device-api-be / device-list-fe |
+| 批量删除一次最多 100 条（RULE-03） | constraint | Device | 1 个接口 | device-api-be |
+| 任何删除均为软删除（RULE-06） | constraint | Device | 全局（不限接口） | 全局（注入全部任务上下文） |
+
+合计：3 条规则，其中全局规则 1 条。
 
 ## 缺口标记规则
 
-- **空单元格 = 缺口**：该需求在对应环节无承接（如只有接口没有任务）。
-- **`TODO` = 缺口**：占位待补，尚未落实。
-- 机检规则 **V-COV-01**（error）：表格 ≥3 列，任何数据行不得有空单元格或 `TODO`；
-  机检入口 `vima validate`。
-- 发现缺口的处置：回到 PLANNING 补齐对应契约/任务 → 更新本矩阵 → 重跑 `vima validate`。
-  不允许删行了事——删除需求行必须先获用户确认并在 spec 第八章记录决策。
+- **空单元格 / `TODO` = 缺口**：**V-COV-01**（error）——表格 ≥3 列，逐表比对列数，
+  任何数据行不得有空单元格或 `TODO`。
+- **末列以「—」开头 = 尚无任务承接**：**V-COV-02**（warn）——逐行点名。
+  恒 warn 不阻断（PLANNING 期还没派任务是正常中间态），但不许静默留着。
+- 机检入口 `vima validate`；产物漂移用 `vima render-matrix --check`。
+- 处置：回到 PLANNING 补齐对应契约/任务 → 重跑 `vima render-matrix` → 重跑 `vima validate`。
+  **不允许删行了事**——删除需求行必须先获用户确认并在 spec 第八章记录决策。
 
-### 缺口行示例（真实矩阵中出现即校验失败，仅供识别形态）
+### 缺口行示例（真实矩阵中出现即被点名，仅供识别形态）
 
-| 原始需求（来源 docs/raw/） | 承接接口 | 承接契约 | 承接任务 |
-|---------------------------|---------|---------|---------|
-| 设备导出 Excel（需求纪要.md 第 4 条） | TODO | TODO | TODO |
+| 需求 | 接口 | 契约 | 任务 |
+|---|---|---|---|
+| 设备导出 Excel（PAGE-09） | 1 个接口 | docs/contracts/device-api.md | —（尚无任务承接） |
+
+## 已知口径缺口：矩阵的「需求」目前等于页面，不是 `docs/raw/` 的原始需求
+
+本矩阵回答的是「**spec 里的页面与规则**有没有人承接」，**不回答**「`docs/raw/` 里的每条
+原始需求有没有进 spec」。后者需要给原始需求编稳定 ID 并逐条落盘，尚未立项。
+
+这不是本文件的疏漏，是如实记载的能力边界——**在它立项之前，「原始需求→spec」这一段仍靠
+人在评审时核对**（planning-guide 的里程碑 1 与 A12 原型先行节拍）。看到这段话就意味着：
+矩阵全绿不等于「需求一条没丢」，只等于「已经进了 spec 的那些，都有人负责」。

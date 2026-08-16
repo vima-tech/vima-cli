@@ -107,7 +107,7 @@ const today = computed(() =>
   padding: 13px 22px 13px 21px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--v-primary) 13%, var(--v-border));
-  border-radius: 16px;
+  border-radius: var(--v-radius-card);
   background:
     linear-gradient(105deg, color-mix(in srgb, var(--v-surface) 98%, transparent) 0 58%, transparent 82%),
     radial-gradient(circle at 88% 42%, color-mix(in srgb, var(--v-cyan) 16%, var(--v-surface)), var(--v-surface) 38%);
@@ -133,7 +133,7 @@ const today = computed(() =>
   justify-content: center;
   flex: none;
   border: 1px solid color-mix(in srgb, var(--v-primary) 16%, var(--v-border));
-  border-radius: 13px;
+  border-radius: var(--v-radius-ctl);
   color: var(--v-primary);
   background: color-mix(in srgb, var(--v-primary) 7%, var(--v-surface));
 }
@@ -211,7 +211,7 @@ const today = computed(() =>
   display: inline-grid;
   flex: none;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--v-border));
-  border-radius: 13px;
+  border-radius: var(--v-radius-ctl);
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, var(--v-surface));
   place-items: center;
@@ -308,7 +308,7 @@ const today = computed(() =>
   height: 40px;
   display: inline-grid;
   border: 1px solid color-mix(in srgb, var(--v-primary) 12%, var(--v-border));
-  border-radius: 13px;
+  border-radius: var(--v-radius-ctl);
   color: var(--v-primary-strong);
   background: color-mix(in srgb, var(--v-primary) 8%, var(--v-surface));
   place-items: center;

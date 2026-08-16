@@ -77,7 +77,11 @@ updatedAt: 2026-01-01T00:00:00Z
 
 1. 逐条执行「执行内容」，每步记录命令与结论；
 2. 全部结论写入 `.vima/reports/full-test-builder.json`（供 code-audit 读取与事后审计）；
-3. 回报主 Agent 的摘要 **≤ 15 行**（A18）：只写结论与失败项归属任务，明细留在报告里。
+3. Verifier 落盘 `.vima/reports/<taskId>-verifier.json` 时，**必须**把实际跑过的命令
+   逐条填进 `commands: [{cmd, exitCode}]`（契约 §6.9 / A43 D-A43-01）——
+   `vima certify` 的 `pipeline-green` 一级要求本字段非空且每条 `exitCode` 为 0，
+   缺了它这一级判不过。命令行原样记录，别人要能照着重跑复核；
+4. 回报主 Agent 的摘要 **≤ 15 行**（A18）：只写结论与失败项归属任务，明细留在报告里。
 
 ## 约束重申
 

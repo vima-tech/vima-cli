@@ -107,7 +107,7 @@ const current = computed({
   gap: 14px;
   padding: 14px;
   border: 1px solid var(--v-border);
-  border-radius: 14px;
+  border-radius: var(--v-radius-ctl);
   background: var(--v-surface);
   cursor: pointer;
   font: inherit;
@@ -181,7 +181,7 @@ const current = computed({
   flex: none;
   overflow: hidden;
   border: 1px solid var(--v-border);
-  border-radius: 8px;
+  border-radius: var(--v-radius-sm);
   background: var(--v-app-bg, var(--v-surface));
 }
 
@@ -199,7 +199,7 @@ const current = computed({
   width: 12px;
   height: 5px;
   flex: none;
-  border-radius: 2px;
+  border-radius: var(--v-radius-xs);
   background: color-mix(in srgb, var(--v-on-dark) 62%, transparent);
 }
 
@@ -207,7 +207,7 @@ const current = computed({
   width: 15px;
   height: 6px;
   flex: none;
-  border-radius: 2px;
+  border-radius: var(--v-radius-xs);
   background: var(--v-surface);
 }
 
@@ -258,7 +258,7 @@ const current = computed({
 .set-thumb-content {
   flex: 1;
   margin: 4px;
-  border-radius: 3px;
+  border-radius: var(--v-radius-xs);
   background: color-mix(in srgb, var(--v-primary) 7%, var(--v-surface));
 }
 </style>

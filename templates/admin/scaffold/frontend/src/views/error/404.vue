@@ -51,7 +51,7 @@ const goBack = () => {
   width: min(520px, 100%);
   padding: clamp(32px, 4vw, 52px);
   border: 1px solid color-mix(in srgb, var(--v-primary) 13%, var(--v-border));
-  border-radius: 22px;
+  border-radius: var(--v-radius-card);
   background:
     radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--v-cyan) 12%, var(--v-surface)), var(--v-surface) 52%);
   box-shadow: var(--v-shadow-card);
@@ -64,7 +64,7 @@ const goBack = () => {
   height: 76px;
   display: grid;
   border: 1px solid color-mix(in srgb, var(--v-primary) 16%, var(--v-border));
-  border-radius: 24px;
+  border-radius: var(--v-radius-xl);
   color: var(--v-primary);
   background: color-mix(in srgb, var(--v-primary) 6%, var(--v-surface));
   place-items: center;

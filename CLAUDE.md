@@ -5,7 +5,7 @@
 vima-cli 是 AI 开发脚手架：开发者用自然语言沟通需求，依托 Claude Code 完成
 需求拆解 → 规范生成 → 人机对齐评审 → 批次并行编码 → 机械验收的全流程。
 需求真源：`docs/design/vima-cli-design-v2.md`（章节号 §N 全仓通用引用格式）
-+ `docs/design/v2.1-amendments.md`（增补项 A1–A35：A1–A5 吸收自 PACT，A6–A8 吸收自
++ `docs/design/v2.1-amendments.md`（增补项 A1–A44，下文只导读到 A35：A1–A5 吸收自 PACT，A6–A8 吸收自
 AI-First 评估与市场对标，A9–A12 吸收自 mattpocock/skills 对标，A13 出自产品设计要素
 专题讨论，A14 出自 sustain-v3 分栏版面实战，A15 为命令语义对调，A16 为多端应用模型
 ——一后端 × 多前端，A17 为 /go 批间连续性——预算任务计数/提交授权/停点白名单，
@@ -34,7 +34,13 @@ A29 为 Claude Design 视觉真源工序——逐页高保真稿 → 1:1 开发 
 `docs/design/sustain-vima-visual-regression-{analysis,solution}.md`，A35 为过程轨迹——
 append-only `journal.jsonl`（内核出口 + post-write hook 双采集口）给 A21 反哺回路补上
 时间维，出自「能否增加 agent 那样的轨迹记录」用户提问
-`docs/design/process-journal-proposal.md`）。
+`docs/design/process-journal-proposal.md`；**A36 起的条目不在本段逐条展开**，
+以 `docs/design/v2.1-amendments.md` 自身的章节标题为准——本段是导读不是索引，
+逐条抄一遍必然与那份文件漂移）。
+需求真源之上还有一层量尺：`docs/design/vima-requirements-baseline.html`
+（需求基线 R1–R11 / 约束 C1–C4 / 明确排除 / 裁定台账 / 已接受风险 AR-1）。
+增补项回答「这次改动出自哪条实证」，需求基线回答「它服务于哪条需求」——
+**A# 能反查到 R#/C# 才算立住**（A43/A44 即由该基线的冷读比对立项）。
 内部实现契约：`docs/internal-contracts.md`（文件格式 / 模块接口 / 校验规则的唯一权威）。
 
 ## 硬约束

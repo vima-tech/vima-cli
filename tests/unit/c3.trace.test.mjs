@@ -38,7 +38,14 @@ test('黄金夹具：2 有效标注 / 0 野生 / 1 虚报（shared-base）→ wa
   const r = vima(root, 'trace');
   assert.equal(r.code, 0, `stderr: ${r.stderr}\nstdout: ${r.stdout}`);
   const report = await readReport(root);
-  assert.deepEqual(report.summary, { markers: 2, wildTaskIds: 0, doneWithoutMarker: 1 });
+  // A41 起 summary 并入追溯图维度——原有三项仍逐字锁死，新维度只断言存在。
+  // 不用 deepEqual 锁整个对象：那样每加一维就得改一次无关断言，
+  // 久了会训练出「改断言让它变绿」的习惯，而这条用例守的是前三项的口径。
+  assert.equal(report.summary.markers, 2);
+  assert.equal(report.summary.wildTaskIds, 0);
+  assert.equal(report.summary.doneWithoutMarker, 1);
+  assert.equal(typeof report.summary.tasksWithCode, 'number', 'A41 追溯图维度应并入 summary');
+  assert.equal(typeof report.summary.endpoints, 'number');
   assert.deepEqual(report.markers, [
     { taskId: 'device-api-be', file: 'backend/src/main/java/demo/DeviceController.java', line: 1 },
     { taskId: 'device-list-fe', file: 'src/api/device.ts', line: 1 },
@@ -91,4 +98,44 @@ test('排除目录：node_modules/dist/target/.vima 内的标注不参与对账'
   assert.equal(r.code, 0, `stdout: ${r.stdout}`);
   const report = await readReport(root);
   assert.deepEqual(report.wild, []);
+});
+
+test('A41 端形态覆盖：小程序三件套（.wxml/.wxss/.wxs）的标注同样参与对账（回归：曾整端扫不到）', async (t) => {
+  const root = await cloneGolden(t);
+  // A23 起 mp-native 是一等端，其页面产物是三件套而非 .vue/.ts
+  await mkdir(path.join(root, 'src/pages/followup'), { recursive: true });
+  await writeFile(path.join(root, 'src/pages/followup/index.wxml'),
+    '<!-- @vima shared-base -->\n<view class="vm-page" data-page="PAGE-51"></view>\n');
+  await writeFile(path.join(root, 'src/pages/followup/index.wxss'),
+    '/* @vima shared-base */\n.vm-page { padding: var(--vm-gap-md); }\n');
+  await writeFile(path.join(root, 'src/pages/followup/util.wxs'),
+    '// @vima shared-base\nmodule.exports = {};\n');
+
+  const r = vima(root, 'trace');
+  assert.equal(r.code, 0, r.stderr);
+  const rep = await readReport(root);
+  const files = rep.markers.map((m) => m.file);
+  assert.ok(files.some((f) => f.endsWith('index.wxml')), `wxml 标注应被收录：${files.join(', ')}`);
+  assert.ok(files.some((f) => f.endsWith('index.wxss')), 'wxss 标注应被收录');
+  assert.ok(files.some((f) => f.endsWith('util.wxs')), 'wxs 标注应被收录');
+});
+
+test('A41 端形态覆盖：产物全是 wxml/wxss 的 done 任务不再被误判「虚报嫌疑」', async (t) => {
+  const root = await cloneGolden(t);
+  // 黄金夹具里 shared-base 是 done 且无标注 → 基线为 1 条虚报嫌疑
+  const before = vima(root, 'trace');
+  const repBefore = await readReport(root);
+  assert.equal(before.code, 0);
+  const baseline = repBefore.summary.doneWithoutMarker;
+  assert.ok(baseline >= 1, '基线应有虚报嫌疑，否则本用例失去意义');
+
+  // 给它补一份「只有 wxml」的产物——扫得到就不该再算虚报
+  await mkdir(path.join(root, 'src/pages/mine'), { recursive: true });
+  await writeFile(path.join(root, 'src/pages/mine/index.wxml'),
+    '<!-- @vima shared-base -->\n<view class="vm-page"></view>\n');
+  const after = vima(root, 'trace');
+  assert.equal(after.code, 0, after.stderr);
+  const repAfter = await readReport(root);
+  assert.equal(repAfter.summary.doneWithoutMarker, baseline - 1,
+    'wxml 标注应把该任务从虚报嫌疑里摘掉');
 });

@@ -97,10 +97,17 @@
   --v-side-item-text: #253d59;
   --v-side-divider: rgba(35, 92, 155, 0.13);
 
-  /* ---------- 形状 ---------- */
-  --v-radius-card: 16px;
-  --v-radius-ctl: 13px;
+  /* ---------- 形状 ----------
+   * 圆角只有这一条阶梯：2 / 9 / 13 / 16 / 28 / 全圆。外壳与页面一律取这里的档，
+   * 不写第六个数——散落的 7/8/10/11/12/14 只会让「同一层级的两个元素」看着不同层级。
+   * 选档看元素身份，不看像素：图标块与小徽标 sm、按钮与页签等控件 ctl、卡片 card、
+   * 整屏承载面 xl、标签胶囊 pill、≤8px 的小标记块 xs。
+   * 正圆用 `border-radius: 50%`（几何形状，不属于这条阶梯）。 */
+  --v-radius-xs: 2px;
   --v-radius-sm: 9px;
+  --v-radius-ctl: 13px;
+  --v-radius-card: 16px;
+  --v-radius-xl: 28px;
   --v-radius-pill: 999px;
 
   /* ---------- 投影 ---------- */
@@ -108,6 +115,11 @@
   --v-shadow-btn: 0 12px 24px -14px rgba(35, 92, 155, 0.64), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   --v-shadow-layer: 0 24px 60px -30px rgba(23, 59, 95, 0.52);
   --v-shadow-hero-inset: inset 0 -1px 0 rgba(158, 215, 231, 0.2);
+  /* 侧栏右缘：1px 分隔线 + 一层几乎不可见的外扩投影，让工作区看着浮在侧栏之上 */
+  --v-shadow-side: inset -1px 0 0 var(--v-side-divider), 18px 0 42px -40px rgba(8, 38, 80, 0.46);
+  /* 滚动条滑块（base.css 用）：与正文弱色同色系，滚动条不该比内容显眼 */
+  --v-scrollbar-thumb: color-mix(in srgb, var(--v-text-weak) 35%, transparent);
+  --v-scrollbar-thumb-hover: color-mix(in srgb, var(--v-text-weak) 55%, transparent);
 
   /* ---------- 字阶 ---------- */
   /* 全是系统/预装字体，不下载 webfont：首屏不闪、离线可用。 */
@@ -139,6 +151,40 @@
   --v-shell-side-width: 272px;
   --v-shell-side-width-collapsed: 76px;
   --v-shell-bar-height: 46px;
+
+  /* ---------- 登录页专用 ----------
+   * 登录页是全站唯一一屏「亮底 + 网格 + 同心环」的视觉，它的浅色层和光晕在别处没有对应。
+   * 但它们仍然是令牌、仍然定义在这里：裸色值一旦散在 view 里，
+   * 骨架自己就在违反「禁止写死颜色」——而 builder 会照着骨架写。
+   * 命名统一带 `login` 段，一眼可辨「只此一页」；业务页不要引用。
+   * 纯白叠加层直接由 --v-surface 混出，不再重复写 #fff。 */
+  --v-login-canvas: #edf5fb;
+  --v-login-field-border: #d3e1ec;
+  --v-login-field-bg: #f9fbfd;
+  --v-login-field-border-hover: #9cbcd3;
+  --v-login-grid-line: rgba(76, 135, 184, 0.045);
+  --v-login-glow-a: rgba(124, 190, 223, 0.2);
+  --v-login-glow-b: rgba(80, 139, 188, 0.14);
+  --v-login-sheen: color-mix(in srgb, var(--v-surface) 70%, transparent);
+  --v-login-vignette: rgba(45, 100, 142, 0.05);
+  --v-login-ring-border: rgba(77, 143, 194, 0.18);
+  --v-login-ring-border-soft: rgba(77, 143, 194, 0.15);
+  --v-login-ring-halo-1: rgba(103, 169, 211, 0.035);
+  --v-login-ring-halo-2: rgba(103, 169, 211, 0.025);
+  --v-login-ring-halo-3: rgba(103, 169, 211, 0.03);
+  --v-login-ring-halo-4: rgba(103, 169, 211, 0.02);
+  --v-login-card-border: rgba(179, 205, 225, 0.72);
+  --v-login-card-bg: rgba(250, 253, 255, 0.92);
+  --v-login-card-shadow: rgba(32, 78, 115, 0.45);
+  --v-login-card-shadow-soft: rgba(45, 91, 126, 0.05);
+  --v-login-highlight: color-mix(in srgb, var(--v-surface) 96%, transparent);
+  --v-login-divider: rgba(184, 208, 226, 0.58);
+  --v-login-hero-wash: color-mix(in srgb, var(--v-surface) 92%, transparent);
+  --v-login-hero-tint: rgba(226, 240, 250, 0.86);
+  --v-login-btn-shadow: rgba(42, 105, 157, 0.72);
+  --v-login-spot: color-mix(in srgb, var(--v-surface) 72%, transparent);
+  --v-login-chip-bg: color-mix(in srgb, var(--v-surface) 90%, transparent);
+  --v-login-focus-ring: rgba(67, 136, 199, 0.12);
 
   /* ---------- 动效 ---------- */
   --v-ease: cubic-bezier(0.4, 0, 0.2, 1);

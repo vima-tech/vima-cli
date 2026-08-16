@@ -334,7 +334,12 @@ test('A20 收敛期：收口闸门 + 收尾流水线模板 + 规则镜像（v2.1
 
   // 1/3）规则镜像：checklist 逐条登记 V-INT 族与 V-TASK-13
   const checklist = await readFile(path.join(ADMIN, 'planning/validate.checklist.md'), 'utf8');
-  for (const rule of ['V-INT-01', 'V-INT-02', 'V-INT-03', 'V-INT-04', 'V-INT-05', 'V-TASK-13']) {
+  // A42：新规则一并纳入镜像断言——checklist 是 D1 资产，规则表加一条这里必须跟一条，
+  // 否则「机检有、清单没有」这类漂移正是 A42 要治的接缝。
+  for (const rule of [
+    'V-INT-01', 'V-INT-02', 'V-INT-03', 'V-INT-04', 'V-INT-05', 'V-INT-06', 'V-TASK-13',
+    'V-CODE-03', 'V-CODE-04', 'V-SRC-02',
+  ]) {
     assert.ok(checklist.includes(rule), `validate.checklist 须逐条镜像 ${rule}`);
   }
 });

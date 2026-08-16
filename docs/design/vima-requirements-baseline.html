@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vima 需求基线</title>
+<style>
+:root{
+  --paper:#faf9f6;--surface:#fff;--surface-2:#efece6;
+  --ink:#131211;--ink-2:#3d3a35;--ink-3:#6e6a63;
+  --rule:#d6d2ca;--rule-2:#e8e5de;
+  --id:#9c3d17;--id-soft:#f7ebe3;
+  --ok:#2c5c3c;--ok-soft:#e4eee7;
+  --wait:#7a6a3a;--wait-soft:#f3eedd;
+  --no:#8a8580;--no-soft:#eeece8;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"PingFang SC","Hiragino Sans GB","Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#111110;--surface:#191817;--surface-2:#21201d;
+  --ink:#eceae6;--ink-2:#b6b2ab;--ink-3:#827d75;
+  --rule:#2e2c28;--rule-2:#242220;
+  --id:#e08a5c;--id-soft:#2a1810;
+  --ok:#71ad85;--ok-soft:#16241a;
+  --wait:#c7ab5e;--wait-soft:#262112;
+  --no:#7d7871;--no-soft:#211f1d;
+}}
+:root[data-theme="dark"]{
+  --paper:#111110;--surface:#191817;--surface-2:#21201d;
+  --ink:#eceae6;--ink-2:#b6b2ab;--ink-3:#827d75;
+  --rule:#2e2c28;--rule-2:#242220;
+  --id:#e08a5c;--id-soft:#2a1810;
+  --ok:#71ad85;--ok-soft:#16241a;
+  --wait:#c7ab5e;--wait-soft:#262112;
+  --no:#7d7871;--no-soft:#211f1d;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.72;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
+.wrap{max-width:960px;margin:0 auto;padding:0 26px 100px}
+header.mast{padding:54px 0 22px;margin-bottom:34px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--id);margin:0 0 13px}
+h1{font-weight:800;font-size:clamp(31px,4.6vw,44px);line-height:1.1;letter-spacing:-.022em;margin:0 0 14px}
+.stand{font-size:16.5px;line-height:1.7;color:var(--ink-2);max-width:64ch;margin:0}
+.mm{margin-top:18px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);line-height:1.7}
+section{margin:0 0 48px}
+h2{font-size:22px;font-weight:750;letter-spacing:-.01em;margin:0 0 4px;padding-top:11px;border-top:1px solid var(--ink)}
+.h2n{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin:0 0 20px}
+p{margin:0 0 14px;max-width:70ch}
+ul,ol{margin:0 0 14px;padding-left:20px;max-width:70ch}
+li{margin:0 0 6px}
+code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding:1px 5px;border-radius:2px;word-break:break-word}
+strong{font-weight:700}
+
+.req{border:1px solid var(--rule);background:var(--surface);margin:0 0 14px}
+.req-h{display:flex;gap:14px;align-items:baseline;padding:13px 18px;border-bottom:1px solid var(--rule-2);background:var(--surface-2);flex-wrap:wrap}
+.req-h .id{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--id);letter-spacing:.03em;white-space:nowrap}
+.req-h .t{font-size:16.5px;font-weight:700;flex:1;min-width:200px}
+.req-b{padding:15px 18px}
+.req-b > :first-child{margin-top:0}
+.req-b > :last-child{margin-bottom:0}
+.req-b p{font-size:14.5px;margin:0 0 11px}
+.row{display:grid;grid-template-columns:58px 1fr;gap:2px 12px;font-size:13.5px;line-height:1.6;margin:0 0 8px}
+.row:last-child{margin-bottom:0}
+.row .lb{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding-top:4px;white-space:nowrap}
+.row .vl{color:var(--ink-2)}
+.row .vl strong{color:var(--ink)}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:2px;line-height:1.6;white-space:nowrap}
+.tag.top{background:var(--id-soft);color:var(--id);font-weight:700}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.wait{background:var(--wait-soft);color:var(--wait)}
+.tag.no{background:var(--no-soft);color:var(--no)}
+
+.merged{border:1px dashed var(--rule);background:transparent;padding:9px 18px;margin:0 0 14px;font-family:var(--mono);font-size:12.5px;color:var(--ink-3)}
+.merged b{color:var(--id);font-weight:700}
+
+.tw{overflow-x:auto;margin:0 0 18px;border:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:540px;background:var(--surface);font-size:13.5px}
+th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--ink-3);padding:9px 12px;border-bottom:2px solid var(--rule);background:var(--surface-2);white-space:nowrap;vertical-align:bottom}
+td{padding:9px 12px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;font-weight:700;color:var(--id)}
+
+.cons{display:grid;grid-template-columns:auto 1fr;gap:0 14px;border-top:1px solid var(--rule);padding:13px 0;align-items:start}
+.cons:last-of-type{border-bottom:1px solid var(--rule)}
+.cons .n{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--id);padding-top:3px}
+.cons p{margin:0 0 4px;font-size:15px}
+.cons .why{font-size:13px;color:var(--ink-3);margin:0}
+
+footer{border-top:2px solid var(--ink);margin-top:52px;padding-top:18px;font-family:var(--mono);font-size:11px;color:var(--ink-3);line-height:1.8}
+:focus-visible{outline:2px solid var(--id);outline-offset:2px}
+@media(max-width:620px){.wrap{padding:0 16px 66px}header.mast{padding-top:34px}.row{grid-template-columns:1fr;gap:1px}.cons{grid-template-columns:1fr;gap:3px}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Requirements Baseline</p>
+  <h1>vima 需求基线</h1>
+  <p class="stand">八条需求、四条约束、两项排除。每条附<strong>判据</strong>——怎么算满足，而不只是想要什么。此后所有设计必须能反查到这里的某一条；反查不到的即未授权复杂度。</p>
+  <p class="mm">创建日期 2026-08-16 · 更新 2026-08-16<br>编号稳定不重排，被合并的行保留并标注去向</p>
+</header>
+
+<section>
+  <h2>需求</h2>
+  <p class="h2n">Requirements</p>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R1</span><span class="t">从零散物料产出能跑的系统</span></div>
+    <div class="req-b">
+      <p>起点大概率什么都没有——只有截图、旧代码、SQL、零散文档，且它们互相矛盾、互相取代。要能整理成结构化需求，再一路做成系统。</p>
+      <div class="row"><span class="lb">判据</span><span class="vl"><strong>冷读通过</strong>——新起一个 agent，只给它规格，看它能否开工、有无追问</span></div>
+      <div class="row"><span class="lb">裁定</span><span class="vl">物料形式不限（PRD / SDD / PACT 皆可）· 不要求完整继承 PACT · <strong>冷读作度量不作闸门</strong>（跑、记分、展示，不拦）</span></div>
+      <div class="row"><span class="lb">边界</span><span class="vl">「这条需求对不对」<strong>不做程序化确认</strong>——它由人与 AI 讨论得出，默认人已审核。系统只<strong>记录出处</strong>（供 R6 回溯），不质疑内容</span></div>
+      <div class="row"><span class="lb">实证</span><span class="vl">上轮物料 112 文件 3.6MB，其中 76 张 PNG；SDD 只含 40/85 张表、API 覆盖 206/335 端点、原型覆盖 43/61 页且视觉与结构双失效</span></div>
+    </div>
+  </div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R2</span><span class="t">观测平台</span><span class="tag top">最高优先</span></div>
+    <div class="req-b">
+      <p>一个统一的观测面，回答五类问题。<strong>五类必须共用一个数据底座</strong>——分开做必然重演「事实散在五处、join 靠人脑」。</p>
+      <div class="tw">
+      <table>
+        <thead><tr><th style="min-width:170px">问的是</th><th>要看到</th></tr></thead>
+        <tbody>
+          <tr><td>这条做对了吗、凭什么</td><td>每条需求的证据与强度（分级——每条自己声明需要多强）</td></tr>
+          <tr><td>整体做到哪、能交付吗</td><td>真实进度（不把「自称做完」计入）与可交付性判定</td></tr>
+          <tr><td>过程怎么走的、谁做的</td><td>历史回放 + Agent 行为（跑多久、读什么、产出什么）</td></tr>
+          <tr><td>花了多少</td><td>token 与时长，分摊到环节 / 代理 / 任务</td></tr>
+          <tr><td>哪些是 AI 替我定的</td><td>裁定台账，含置信度与影响面，<strong>可二次裁决</strong></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="row"><span class="lb">判据</span><span class="vl">五类问题<strong>在同一个界面上</strong>都能回答，且数据同源可对账</span></div>
+      <div class="row"><span class="lb">裁定</span><span class="vl">形态 web trace UI · 受众为自己看 + 对外展示交接 · <strong>「每条需求必须有可执行的验收方式」归入本条</strong>（没有验收方式就产生不了证据，这一格永远是空）· 裁定须带置信度与影响面</span></div>
+      <div class="row"><span class="lb">范围</span><span class="vl"><strong>本轮证据阶梯止于「跑了命令且绿」</strong>——「真跑一遍界面」这一档不建采集设施（见「已接受的风险」）。视觉正确性改由实现阶段的设计稿事前约束，见 R7</span></div>
+      <div class="row"><span class="lb">实证</span><span class="vl">上轮走验收链路的 21 个任务通过率 100%，没走的 87 个是 18%，而唯一信号是 doctor 一条 warn</span></div>
+    </div>
+  </div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R3</span><span class="t">中途改需求，影响面是算出来的</span></div>
+    <div class="req-b">
+      <p>改一处，能拿到「还有哪些地方跟着失效」的清单，不靠人估。二次裁决走同一条链路。</p>
+      <div class="row"><span class="lb">判据</span><span class="vl">改完的标志是<strong>失效清单清空</strong>，不是人觉得改完了</span></div>
+    </div>
+  </div>
+
+  <div class="merged">R4 · 真实进度与可交付性 —— 已并入 <b>R2</b></div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R5</span><span class="t">并行加速</span></div>
+    <div class="req-b">
+      <div class="row"><span class="lb">判据</span><span class="vl">实际并发数<strong>可观测</strong>，且与计划并发数可对账</span></div>
+      <div class="row"><span class="lb">实证</span><span class="vl">上轮 20 个验收代理把 337 分钟压进 78 分钟（4.3×），但分波派发浪费约 3.5 倍——理论上限是 20×</span></div>
+    </div>
+  </div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R6</span><span class="t">出问题能定位到是哪一步错的</span></div>
+    <div class="req-b">
+      <div class="row"><span class="lb">判据</span><span class="vl">任意症状能回溯到<strong>第一条证据不足或与上游矛盾</strong>的地方</span></div>
+      <div class="row"><span class="lb">注意</span><span class="vl">R1 修正后，回溯链要一路通到「当初从物料里就理解错了」与「熔合门当时怎么裁的」</span></div>
+    </div>
+  </div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R7</span><span class="t">产出企业风格化产品，风格统一可控</span></div>
+    <div class="req-b">
+      <p><strong>骨相统一</strong>（结构与交互范式写死）、<strong>皮相可变</strong>（颜色字体圆角项目级可换）。四层全管：</p>
+      <div class="tw">
+      <table>
+        <thead><tr><th style="min-width:78px">层</th><th>骨/皮</th><th>约束形态</th></tr></thead>
+        <tbody>
+          <tr><td class="k">信息架构</td><td>骨</td><td>导航结构 · 页面间跳转必须显式声明 · 权限点↔菜单成对</td></tr>
+          <tr><td class="k">交互</td><td>骨</td><td><strong>范式词表</strong>：校验 / 错误反馈 / 空态 / 加载失败 / 行操作显隐，各若干种选一，不许自由发挥</td></tr>
+          <tr><td class="k">版面</td><td>骨</td><td>版面词表 + 区块词 + 骨架组件</td></tr>
+          <tr><td class="k">令牌</td><td><strong>皮</strong></td><td>阶梯定义 + 禁裸值；<strong>阶梯本身可整体替换</strong></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="row"><span class="lb">判据</span><span class="vl">四层各有<strong>封闭</strong>词表或阶梯 · <strong>骨架自身也满足</strong>，不得豁免自己</span></div>
+      <div class="row"><span class="lb">裁定</span><span class="vl">词表<strong>宁宽勿窄</strong>，尽量留足灵活性——风险不是词表大而是不封闭。<strong>支持持续扩展</strong>：缺词不阻塞，AI 可先用，但须记录进观测平台由人二次裁决收编。初值由既有项目实际写法归一化统计得出，不拍脑袋</span></div>
+      <div class="row"><span class="lb">视觉落地</span><span class="vl">实现阶段由 <strong>Claude Design</strong> 产出设计稿作为事前约束——把「做完再验」换成「照着稿做」，从验形挪到定形，成本低得多。两个档位：<strong>高保真稿</strong>（贵，视觉完整）与<strong>框线图</strong>（省，只管结构与信息层次）。框线图恰好对应骨相，皮相由令牌阶梯自动管，是默认档</span></div>
+      <div class="row"><span class="lb">实证</span><span class="vl">有词表的层可机检（区块对账成立），没词表的层不可机检：89.8% 页面错误提示静默、12/45 页校验形同虚设、同一契约缺口四种处置；反向代价也实测过——48 页里 19% 因词表不够被迫降级</span></div>
+    </div>
+  </div>
+
+  <div class="merged">R8 · 全过程可观测 + web trace UI —— 已并入 <b>R2</b></div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R9</span><span class="t">存量项目接管</span></div>
+    <div class="req-b">
+      <p>两种都要：接管<strong>从未用过 vima 的陌生代码库</strong> + 升级旧 vima 项目。</p>
+      <div class="row"><span class="lb">判据</span><span class="vl">陌生库接管后能产出完整命题图，且反推的命题<strong>来源可标最高档、验证强度不得自动继承</strong></span></div>
+      <div class="row"><span class="lb">理由</span><span class="vl">这个区分不做，接管等于<strong>把既有缺陷追认成规格</strong>——「读得到空数据」「规则零执行点」「契约字段恒空」全会被反推成「需求本来就这样」</span></div>
+    </div>
+  </div>
+
+  <div class="merged">R10 · 成本可观测 —— 已并入 <b>R2</b></div>
+
+  <div class="req">
+    <div class="req-h"><span class="id">R11</span><span class="t">可复用业务块库</span></div>
+    <div class="req-b">
+      <p>成套的业务功能块，按端分集，<strong>持续扩展</strong>。起点三类只是起点不是全集：后台管理（配置 / 角色 / 菜单 / 人员 / 部门 / 字典 / 日志）· 微信生态（登录 / 支付 / 分享 / 订阅消息）· 通用能力。</p>
+      <p><strong>它的价值不是省 token，是把这些问题从命题空间里整个移除</strong>——已经被验过的东西不需要再命题、再取证、再验收。</p>
+      <div class="row"><span class="lb">分层</span><span class="vl"><strong>L1 契约 · L2 后端 · L3 前端行为</strong>（纯逻辑无视觉）跨项目稳定；<strong>L4 视觉默认不提供</strong>——带了会与 UI 设计代理冲突</span></div>
+      <div class="row"><span class="lb">判据</span><span class="vl">加一个块<strong>不需要改内核</strong> · 块不含 L4 也能被完整消费 · 拿错端的块是机检项</span></div>
+      <div class="row"><span class="lb">收录</span><span class="vl">同时满足「语义跨项目稳定」+「实现有标准解」。反过来说更清楚：<em>两个不同行业的项目都会用到它、且用法基本一致</em>。业务特有的不进</span></div>
+      <div class="row"><span class="lb">裁定</span><span class="vl">L1–L3 是骨、L4 是皮——<strong>这是 R7 原则往上提了一层</strong>，不是新规则</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>约束</h2>
+  <p class="h2n">Constraints — 不是需求，但约束所有设计</p>
+
+  <div class="cons"><span class="n">C1</span><div>
+    <p><strong>执行者会偷懒、会自称完成。</strong></p>
+    <p class="why">机制必须假定这一点。上轮实证：43 个任务都写了「Service 层单元测试」验收项，实际覆盖 0/58，而 <code>mvn test</code> 恒绿</p>
+  </div></div>
+
+  <div class="cons"><span class="n">C2</span><div>
+    <p><strong>防过度设计。</strong>每处设计能反查到 R1–R11 的某一条。</p>
+    <p class="why">反查不到 = 未授权复杂度。约束别扩面 · 抽象别提前 · 字段表别镀金</p>
+  </div></div>
+
+  <div class="cons"><span class="n">C3</span><div>
+    <p><strong>文档可读、可 diff、可 code review。</strong></p>
+    <p class="why">现有形态最值得保的性质。任何索引/图都必须是可随时重建的派生物，不能反过来当真源</p>
+  </div></div>
+
+  <div class="cons"><span class="n">C4</span><div>
+    <p><strong>设计与开发阶段不阻塞。</strong>需要人裁定的一律先由 AI 定夺并记录，人事后推翻。</p>
+    <p class="why">前提是记录够硬：<strong>显式落盘</strong>（不能写在代码注释里）· <strong>可见</strong>（观测平台）· <strong>可推翻</strong>（触发失效传播）。上轮反面案例：builder 自行裁定设备状态枚举，理由写在 <code>types.ts</code> 注释里，导致三条写路径 100% 被拒——问题不在自行裁定，在<strong>斩了没奏</strong></p>
+  </div></div>
+</section>
+
+<section>
+  <h2>明确排除</h2>
+  <p class="h2n">Out of scope — 排除是决定，不是遗漏</p>
+  <div class="tw">
+  <table>
+    <thead><tr><th style="min-width:150px">项</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag no">排除</span> 多人多会话协作</td><td>当前范围是「一个人 + 一个会话内的多个子代理」。纳入会把并发控制升级成真正的分布式问题</td></tr>
+      <tr><td><span class="tag no">排除</span> 业务块的版本与兼容</td><td>「支持不断扩展」指的是注册表开放性；版本管理是另一件事，未提出即不做</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>裁定台账</h2>
+  <p class="h2n">Rulings — 对齐过程中做出的决定与理由</p>
+  <div class="tw">
+  <table>
+    <thead><tr><th style="min-width:52px">涉及</th><th style="min-width:150px">决定</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td class="k">R1</td><td>不要求完整继承 PACT</td><td>判据是「产出的物料能让 AI 稳定工作」，形式不限。PACT 已归档、继任者即 vima，本质是继承边界划定</td></tr>
+      <tr><td class="k">R1</td><td>熔合门自行定夺</td><td>多来源矛盾由 AI 裁定并记录，不停下来问人。配 C4 的三条硬要求</td></tr>
+      <tr><td class="k">R1</td><td>冷读门降为度量</td><td>与 C4 不阻塞冲突。跑、记分、展示，不拦</td></tr>
+      <tr><td class="k">R2</td><td>吸收原 R4 / R8 / R10</td><td>四者是同一件事的四个面，共用一个底座是需求而非优化</td></tr>
+      <tr><td class="k">R2</td><td>「需求必须有可执行验收」归入</td><td>它不是独立门禁，是观测平台的前置条件——没有验收方式就产生不了证据</td></tr>
+      <tr><td class="k">R2</td><td>裁定须带置信度与影响面</td><td>展示的必要精度。200 条流水账人不会看；同理于「永远消不掉的告警会训练人忽略整张表」</td></tr>
+      <tr><td class="k">R7</td><td>词表宁宽勿窄</td><td>风险不是词表大而是不封闭；10 个词和 40 个词可机检性相同，而窄词表会逼出逃生口</td></tr>
+      <tr><td class="k">R11</td><td>视觉层默认不提供</td><td>真实前端会与 UI 设计代理冲突。分层后设计代理消费 L3 行为契约、自产 L4</td></tr>
+      <tr><td class="k">R2 · R7</td><td>不做「真跑界面」这一档</td><td>本轮成本不划算。视觉转由 Claude Design 事前约束，框线图为默认档；行为仍靠跑测试覆盖。风险记为 AR-1</td></tr>
+      <tr><td class="k">R1</td><td>需求正确性不做程序确认</td><td>由人与 AI 讨论得出，默认已审核。系统只记录出处供回溯，不质疑内容</td></tr>
+      <tr><td class="k">R7</td><td>词表按推荐取宽</td><td>留足灵活性空间；持续扩展，新建议进观测由人二次裁决</td></tr>
+      <tr><td class="k">全局</td><td>两条生长通道：扩词 · 沉淀</td><td>形状相同——缺什么不拦路，但缺这件事必须留痕；累积的留痕就是该往哪长的证据</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>已接受的风险</h2>
+  <p class="h2n">Accepted risk — 裁定为不做，不等于问题消失</p>
+
+  <p>原「尚未解决」三条本轮全部有了处置，但性质不同：<strong>一条是风险接受，一条是范围排除，一条是已裁定</strong>。混为一谈会让下一轮的人以为问题解决了。</p>
+
+  <div class="req">
+    <div class="req-h"><span class="id">AR-1</span><span class="t">运行期行为正确性缺一档证据</span><span class="tag wait">已接受</span></div>
+    <div class="req-b">
+      <p>「真跑一遍界面」这一档本轮不建采集设施。视觉正确性改由 Claude Design 的设计稿<strong>事前约束</strong>覆盖——从验形挪到定形，成本低得多。</p>
+      <div class="row"><span class="lb">代价</span><span class="vl">设计稿约束的是「<strong>长得对不对</strong>」，管不了「<strong>行为对不对</strong>」。上轮那批缺陷设计稿一个都看不出来：12/45 页 <code>:rules</code> 写了不调 <code>validate()</code>（类型正确、语法正确、构建全绿、<em>行为</em>错误）· 89.8% 页面错误提示对用户静默 · 主入口因解包路径写错而打不开</span></div>
+      <div class="row"><span class="lb">缓解</span><span class="vl"><strong>E3 保留且必须加强</strong>——R7 交互层判据仍是「跑测试证明校验真的拦住提交」。放弃的是最上面那一档，不是所有运行时验证。若 E3 也不做，R7 交互层就落空了</span></div>
+      <div class="row"><span class="lb">复议</span><span class="vl">当出现「测试全绿但用户说用不了」的实例时，重新评估</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>本轮处置</h2>
+  <p class="h2n">Resolutions — 原未解三条的去向</p>
+  <div class="tw">
+  <table>
+    <thead><tr><th style="min-width:140px">原问题</th><th style="min-width:88px">处置</th><th>去向</th></tr></thead>
+    <tbody>
+      <tr><td>最强证据很贵</td><td><span class="tag wait">风险接受</span></td><td>本轮不做 → <strong>AR-1</strong>；视觉转由 Claude Design 事前约束（R7），行为仍靠 E3</td></tr>
+      <tr><td>需求对不对无机械证据</td><td><span class="tag no">范围排除</span></td><td>不做程序化确认 → 写入 <strong>R1 边界</strong>。人与 AI 讨论得出，默认已审核；系统只记录出处供回溯</td></tr>
+      <tr><td>词表初值</td><td><span class="tag ok">已裁定</span></td><td>宁宽勿窄、留足灵活性 → 写入 <strong>R7 裁定</strong>；支持持续扩展，新建议记录进观测由人二次裁决</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:14px;color:var(--ink-3)">三条各归其位后，<strong>当前无未决项</strong>。新出现的未决项应追加进上一节，而不是留在讨论里。</p>
+</section>
+
+<footer>
+  vima 需求基线 · 创建日期 2026-08-16<br>
+  实证依据：sustain-v4 全量实跑（111 任务 / 2458 点位 / 33 条发现）· PACT 归档调研 · vima-cli 落点清单实测<br>
+  此后所有设计须能反查到本文某一条；反查不到的即未授权复杂度（C2）<br>
+  来源 artifact：https://claude.ai/code/artifact/3e876414-0659-4393-ad6f-e650f3a2e2ef · 本地副本抓取于 2026-08-16
+</footer>
+
+</div>
+
+</body>
+</html>

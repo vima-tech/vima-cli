@@ -1,7 +1,7 @@
 // F 单测：lib/util/md.mjs —— frontmatter 拆分 / vima 数据块提取 / 章节清单 / 复选框
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitFrontmatter, extractBlocks, listChapters, hasCheckbox } from '../../lib/util/md.mjs';
+import { splitFrontmatter, extractBlocks, listChapters, hasCheckbox, splitMarkdownTables } from '../../lib/util/md.mjs';
 import { VimaError } from '../../lib/util/errors.mjs';
 
 // ---------------------------------------------------------------------------
@@ -159,4 +159,50 @@ test('hasCheckbox：识别未勾选与已勾选', () => {
   assert.equal(hasCheckbox('- [x] 已完成项'), true);
   assert.equal(hasCheckbox('- 普通列表项\n[链接](x)'), false);
   assert.equal(hasCheckbox(''), false);
+});
+
+// ---------------------------------------------------------------------------
+// splitMarkdownTables（A44 D-A44-02）
+// ---------------------------------------------------------------------------
+
+test('splitMarkdownTables：两张表各自独立，列数不同也不互相污染', () => {
+  const text = [
+    '## 甲', '',
+    '| A | B | C |', '|---|---|---|', '| 1 | 2 | 3 |', '| 4 | 5 | 6 |', '',
+    '合计：2 行。', '',
+    '## 乙', '',
+    '| X | Y |', '|---|---|', '| 7 | 8 |', '',
+  ].join('\n');
+  const tables = splitMarkdownTables(text);
+  assert.equal(tables.length, 2);
+  assert.deepEqual(tables[0].header, ['A', 'B', 'C']);
+  assert.deepEqual(tables[0].rows, [['1', '2', '3'], ['4', '5', '6']], '第二张表的表头不得混进第一张的数据行');
+  assert.deepEqual(tables[1].header, ['X', 'Y']);
+  assert.deepEqual(tables[1].rows, [['7', '8']]);
+});
+
+test('splitMarkdownTables：两表之间没有空行也能正确切分（边界靠分隔行识别）', () => {
+  const text = '| A | B |\n|---|---|\n| 1 | 2 |\n| X | Y |\n|---|---|\n| 7 | 8 |';
+  const tables = splitMarkdownTables(text);
+  assert.equal(tables.length, 2);
+  assert.deepEqual(tables[0].rows, [['1', '2']]);
+  assert.deepEqual(tables[1].header, ['X', 'Y']);
+  assert.deepEqual(tables[1].rows, [['7', '8']]);
+});
+
+test('splitMarkdownTables：转义竖线属于单元格内容，不当分隔符', () => {
+  const tables = splitMarkdownTables('| A | B |\n|---|---|\n| a \\| b | c |');
+  assert.deepEqual(tables[0].rows, [['a | b', 'c']]);
+});
+
+test('splitMarkdownTables：无分隔行的孤立管道行不构成表（宁可不判，不造假错误）', () => {
+  assert.deepEqual(splitMarkdownTables('| 只有一行 | 没有分隔行 |'), []);
+  assert.deepEqual(splitMarkdownTables('普通正文，没有表格'), []);
+  assert.deepEqual(splitMarkdownTables(''), []);
+});
+
+test('splitMarkdownTables：对齐语法的分隔行同样识别', () => {
+  const tables = splitMarkdownTables('| A | B |\n|:---|---:|\n| 1 | 2 |');
+  assert.equal(tables.length, 1);
+  assert.deepEqual(tables[0].rows, [['1', '2']]);
 });

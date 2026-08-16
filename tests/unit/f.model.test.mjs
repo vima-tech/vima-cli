@@ -678,6 +678,48 @@ test('journal.collectReports：verifier 点位分类（未过/豁免/NG 越界�
   assert.equal(agg.runtime.errors, 2, 'jsonl 空行不计');
 });
 
+test('journal.collectReports：contractGaps 与 contractViolations 分野（A42 D-A42-04）', async (t) => {
+  const root = await tempRoot(t);
+  const dir = path.join(root, '.vima', 'reports');
+  await mkdir(dir, { recursive: true });
+  // 实证形态（page-68-fe）：checklist/points 全过、missing 为空，只有契约缺口。
+  // 缺口条目两种写法都出现过——纯字符串与带 issue 字段的对象，都要认。
+  await writeFile(path.join(dir, 'gapful-verifier.json'), JSON.stringify({
+    taskId: 'gapful',
+    round: 1,
+    result: 'pass',
+    points: [{ point: '按钮：发送', passed: true }],
+    missing: [],
+    contractViolations: [],
+    contractGaps: [
+      '契约声明 attachmentId? 入参，但 33 个端点里没有任何上传端点',
+      { issue: '前端上传门面只放行 /mp/ 前缀且无 multipart 方法' },
+    ],
+  }));
+  // 存量报告不带该字段 → 必须向后兼容，且不产生缺口
+  await writeFile(path.join(dir, 'legacy-verifier.json'), JSON.stringify({
+    taskId: 'legacy',
+    round: 1,
+    points: [{ point: '字段：手机号', passed: false }],
+  }));
+
+  const agg = await collectReports(root);
+  assert.equal(agg.verification.contractGaps, 2, '两条缺口都要计（字符串 + 对象两种写法）');
+  assert.equal(
+    agg.verification.failedPoints, 1,
+    '缺口不计未过点位——只有 legacy 那条真未过；否则正确的工程处置会变成永久 fail',
+  );
+  const gaps = agg.details.openPoints.filter((p) => p.kind === 'contractGap');
+  assert.equal(gaps.length, 2);
+  assert.equal(gaps[0].taskId, 'gapful');
+  assert.match(gaps[0].point, /attachmentId/, '字符串条目原样入明细');
+  assert.match(gaps[1].point, /multipart/, '对象条目取 issue 字段');
+  assert.ok(
+    agg.details.openPoints.some((p) => p.kind === 'failed' && p.taskId === 'legacy'),
+    '不带 contractGaps 的存量报告照常工作',
+  );
+});
+
 test('journal.collectReports：convergence / batch-plan / planning-validation 三源聚合', async (t) => {
   const root = await tempRoot(t);
   const dir = path.join(root, '.vima', 'reports');

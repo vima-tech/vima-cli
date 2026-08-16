@@ -241,7 +241,7 @@ a:hover {
 .vui-table .vui-button-danger:hover:not(:disabled) {
   border-color: var(--v-danger);
   background: var(--v-danger);
-  color: #fff;
+  color: var(--v-on-dark);
 }
 
 /*
@@ -275,12 +275,12 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(122, 139, 162, 0.35);
+  background: var(--v-scrollbar-thumb);
   border-radius: var(--v-radius-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(122, 139, 162, 0.55);
+  background: var(--v-scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-track {

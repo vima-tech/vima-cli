@@ -20,9 +20,12 @@
 //        它在 App.vue 根上（全局反馈组件要在同一令牌作用域内）；.vue 禁裸色值
 //   4. VIcon 图标名机检（admin-web 专属：.vue 内 name/type 静态字面量 ∈ vendor ai-manifest；
 //      动态绑定 :name 不查；manifest 缺失时跳过）
-//   5. 区块标记机械对账（§13.3 hook 半，契约 §14）：.vue/.wxml 含 data-page="PAGE-xx" 时按
-//      docs/review/prototype.manifest.json 逐项比对 data-block / data-modal，
-//      缺失/多余 → exit 2；manifest 缺失或文件无 data-page 时跳过本项
+//   5. 区块标记机械对账（§13.3 hook 半，契约 §14；A42 D-A42-01 改为按页聚合）：
+//      .vue/.wxml 含 data-page="PAGE-xx" 时按 docs/review/prototype.manifest.json 比对
+//      data-block / data-modal，缺失/多余 → exit 2；manifest 缺失或文件无 data-page 时跳过。
+//      **「缺」按同页文件集合聚合判定**——合并页（壳页 + panes/ 子目录）是 vima 自己支持
+//      并鼓励的形态，逐文件判定会让「编辑壳页必 exit 2」，而这是永远无法清除的告警；
+//      「多」仍按被写文件判定（越界标记的责任田就是写它的那个文件）
 //   6. A27 版面纪律（业务页 = 带 data-page；admin .vue / h5 .vue / mp 按 sibling wxml 判定）：
 //      · 裸尺寸：gap/padding/margin/font-size 出现 px 数值 → 拦（--x: 定义行豁免；
 //        「再紧一点」的正确动作是换密度档，不是写 10px）
@@ -31,7 +34,7 @@
 //   **本 hook 不检查、也永远不会检查「是否使用了组件」**（A27 P17）：机检对象是风格合规
 //   与结构对账；组件是形态的一种实现，不是设计的单位——表达形式的选择权在页面。
 
-import { readFileSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /** 编辑距离（Levenshtein）：图标名拦截时给近似候选用（A8，确定性零依赖）。 */
@@ -115,6 +118,75 @@ function pageRootOverrides(text) {
     }
   }
   return out;
+}
+
+// ── A42 D-A42-01：区块对账的「同页文件集合」──────────────────────────────
+// 逐文件判定对「一页 = 一个文件」成立，对**合并页**不成立：sustain-v4 的 PAGE-03 壳页
+// 自身只声明 4 个 data-block，其余 6 个 block 与 25 个 data-modal 分散在九个 pane 文件里
+// ⇒ 只要有人编辑壳页就 exit 2，而实现其实是完整的。判据与 V-TASK-11 的 done 豁免同源：
+// **产生永远无法清除的告警，比不告警更有害**——它训练人忽略整张告警表。
+//
+// 聚合作用域取「被写文件所在目录树」，不取「全项目扫一遍找同 data-page 的文件」：
+// 本 hook 每次写文件都跑，全项目扫描（sustain-v4 admin 端 800+ 源文件）会把每次写入
+// 都压上一次全树 IO；而合并页的物理形态本来就是「壳页 + 其子目录」，目录树既覆盖实证
+// 形态又天然有界。代价是「壳页与 pane 分居两棵树」时仍会误报——该形态本轮无实证，
+// 按防过度设计不预先支持（真出现再扩，见 v2.1-amendments A42）。
+
+/** 同页文件集合的扫描硬顶：hook 是写入热路径，扫描面必须有确定上限。 */
+const PAGE_SET_MAX_FILES = 300;
+/** 递归时永不进入的目录：依赖/构建产物/共享层——页面片段不会落在这里。 */
+const PAGE_SET_SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'vendor', 'miniprogram_npm']);
+
+/** 把一段文本里的 data-block / data-modal 标记并入两个集合。 */
+function collectMarkers(text, blocks, modals) {
+  const reBlock = /data-block="([^"]+)"/g;
+  let m;
+  while ((m = reBlock.exec(text)) !== null) blocks.add(m[1]);
+  const reModal = /data-modal="([^"]+)"/g;
+  while ((m = reModal.exec(text)) !== null) modals.add(m[1]);
+}
+
+/**
+ * 收集被写文件所在目录树里**本页片段文件**的标记（不含被写文件自身）。
+ *
+ * 片段的判据是「不自带 data-page」：自带页号的文件是独立的页面单元，它的区块归它自己的
+ * 页对账——否则同目录下另一个完整实现的页面会把本页的缺失掩掉，检查就成了永真。
+ *
+ * @returns {number} 实际并入的片段文件数（用于 stderr 说明聚合面，便于人核对）
+ */
+function collectPageFragments(dirAbs, ext, selfAbs, blocks, modals) {
+  let budget = PAGE_SET_MAX_FILES;
+  let used = 0;
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // 读不到就当没有——hook「防误不防恶意」，扫描失败不得改变判定方向
+    }
+    for (const e of entries) {
+      if (budget <= 0) return;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (PAGE_SET_SKIP_DIRS.has(e.name) || e.name.startsWith('.')) continue;
+        walk(p);
+        continue;
+      }
+      if (!e.isFile() || !e.name.endsWith(ext) || p === selfAbs) continue;
+      budget -= 1;
+      let t;
+      try {
+        t = readFileSync(p, 'utf8');
+      } catch {
+        continue;
+      }
+      if (/data-page="PAGE-\d{2}"/.test(t)) continue; // 独立页面单元，不是本页片段
+      used += 1;
+      collectMarkers(t, blocks, modals);
+    }
+  };
+  walk(dirAbs);
+  return used;
 }
 
 // ── A35 过程轨迹采集（契约 §6.21）──────────────────────────────────────────
@@ -246,8 +318,26 @@ function reportEventOf(rep, taskId, role) {
   if (!Number.isInteger(rep.round) || rep.round < 1 || !['pass', 'fail'].includes(rep.result)) return null;
   if (!Array.isArray(rep.checklist) || !Array.isArray(rep.points)
     || !Array.isArray(rep.missing) || !Array.isArray(rep.contractViolations)) return null;
+  // D-A42-04：`contractGaps` 可选（缺省 []）——**存量报告不带该字段必须照常通过校验**；
+  // 带了就必须是数组（类型错等于协议没对齐，宁缺勿假，整条不记）。
+  if (rep.contractGaps !== undefined && !Array.isArray(rep.contractGaps)) return null;
+  // D-A43-01：`commands` 可选，口径同上——缺省照常通过；带了就必须是数组且逐条合形
+  //（`cmd` 非空字符串 / `exitCode` 整数）。取值判定（退出码是否为 0）不在这里做：
+  // 本函数只管形状，`pipeline-green` 的取值判据在 lib/commands/certify.mjs（§6.19）。
+  if (rep.commands !== undefined) {
+    if (!Array.isArray(rep.commands)) return null;
+    for (const c of rep.commands) {
+      if (!c || typeof c !== 'object') return null;
+      if (typeof c.cmd !== 'string' || c.cmd.trim() === '') return null;
+      if (!Number.isInteger(c.exitCode)) return null;
+    }
+  }
   const entries = [...rep.checklist, ...rep.points];
   if (entries.some((pt) => !pt || typeof pt !== 'object' || typeof pt.passed !== 'boolean')) return null;
+  // `contractGaps` **不计 fail**：它记的是「规格本身有缺口、实现侧已做合规处置」
+  //（page-68-fe 实证：契约声明 attachmentId? 入参，33 个端点里没有任何上传端点；
+  // builder 控件置灰 + 说明文案，不臆造端点、不绕过请求门面——处置恰当却被记 fail，
+  // 根因是 verifier 没有别的字段可填）。`contractViolations` 保持原义：真越界，计 fail。
   const failed = entries.filter((pt) => {
     if (pt.passed === true) return false;
     return !(pt.waived === true && typeof pt.reason === 'string' && pt.reason.trim() !== '');
@@ -256,6 +346,7 @@ function reportEventOf(rep, taskId, role) {
     round: rep.round,
     outcome: rep.result === 'pass' && failed === 0 ? 'pass' : 'fail',
     failed,
+    gaps: Array.isArray(rep.contractGaps) ? rep.contractGaps.length : 0,
   };
 }
 
@@ -311,6 +402,15 @@ process.stdin.on('end', () => {
       const rep = JSON.parse(readFileSync(absPath, 'utf8'));
       const event = reportEventOf(rep, repM[1], repM[2]);
       if (event) {
+        // `n` 严格保持契约 §6.21 的原义「未过 point 数」——**contractGaps 不并进来**。
+        // 三条硬约束把它挡在 journal 之外：① 事件五键封顶且 kind 是三元封闭集，加不了第六个
+        // 键、也加不了第四类事件；② `ref` 被 lib/model/{progress,journal}.mjs 用
+        // `^(.+)/(verifier|builder)/r(\d+)$` 逐条解析，加后缀会让整条事件掉出 tracked；
+        // ③ 把 gaps 折进 `n`，就会出现「outcome=pass 而 n=3」——journal 是给人看曲线的，
+        // 这一眼读起来就是「过了但有 3 个点没过」，是实打实的语义破坏。
+        // 缺口条数的下游通道是**报告文件本身**（D-A42-04 原文：「进 converge 的收口清单」）：
+        // `lib/model/journal.mjs` 的 collectReports 已逐个读 `-verifier.json`，
+        // 加一个 `contractGaps` 计数即可——那是内核侧的落点，不在本 hook 的责任田。
         journalAppend(root, {
           ts: new Date().toISOString(),
           kind: 'report',
@@ -318,6 +418,15 @@ process.stdin.on('end', () => {
           outcome: event.outcome,
           n: event.failed,
         });
+        // 缺口不计 fail，但**不能静默**：当场在 stderr 说清「记了几条、下一步归谁」，
+        // 与本 hook 既有纪律一致（失败给清楚提示；这里 exit 0，只提示不阻断）。
+        if (event.gaps > 0) {
+          console.error(
+            `契约缺口已登记（不计 fail）—— ${repM[1]} 第 ${event.round} 轮：contractGaps ${event.gaps} 条。\n` +
+              '  · contractGaps = 规格本身有缺口、实现侧已做合规处置（D-A42-04），与 contractViolations（真越界，计 fail）分开；\n' +
+              '  · 它不改变本轮验收结论，但必须进 converge 的收口清单——收口前不得当作「已解决」。',
+          );
+        }
       }
     } catch {
       /* 报告不可解析 → 不记（宁缺勿假） */
@@ -600,26 +709,35 @@ process.stdin.on('end', () => {
         );
         process.exit(2);
       }
-      const declared = [];
-      const reBlock = /data-block="([^"]+)"/g;
-      let mB;
-      while ((mB = reBlock.exec(text)) !== null) declared.push(mB[1]);
+      // D-A42-01：「缺」按同页文件集合聚合，「多」仍按被写文件——
+      // 越界标记的责任田就是写它的那个文件，聚合会让别的片段的越界标记记到本文件头上；
+      // 反过来「缺」只有聚合才成立（合并页的区块本就分散在壳页与 panes/ 里）。
+      const selfBlocks = new Set();
+      const selfModals = new Set();
+      collectMarkers(text, selfBlocks, selfModals);
+      const blocks = new Set(selfBlocks);
+      const modals = new Set(selfModals);
+      const ext = isWxml ? '.wxml' : '.vue';
+      const fragments = collectPageFragments(path.dirname(absPath), ext, absPath, blocks, modals);
       const layout = Array.isArray(page.layout) ? page.layout : [];
-      const missing = [...new Set(layout)].filter((w) => !declared.includes(w));
-      const extra = [...new Set(declared)].filter((w) => !layout.includes(w));
+      const missing = [...new Set(layout)].filter((w) => !blocks.has(w));
+      const extra = [...selfBlocks].filter((w) => !layout.includes(w));
       const modalIds = (Array.isArray(page.modals) ? page.modals : [])
         .map((mo) => (mo && typeof mo === 'object' ? mo.id : null))
         .filter(Boolean);
-      const missModals = modalIds.filter((id) => text.indexOf(`data-modal="${id}"`) < 0);
+      const missModals = modalIds.filter((id) => !modals.has(id));
       const issues = [];
       if (missing.length) issues.push(`缺区块标记 data-block：${missing.join('、')}`);
       if (extra.length) issues.push(`多出设计外区块标记 data-block：${extra.join('、')}（layout 词表见 manifest 该页）`);
       if (missModals.length) issues.push(`缺弹窗标记 data-modal：${missModals.join('、')}`);
       if (issues.length > 0) {
         journalGuards(root, [RULE.BLOCK_MARK]); // A35 采集口②-2
+        const scope = `${path.posix.dirname(rel)}/`;
         console.error(
           `区块标记对账未通过 —— ${rel}（${pageM[1]}，基线 prototype.manifest.json）\n` +
             issues.map((p) => `  · ${p}`).join('\n') +
+            `\n「缺」已按同页文件集合聚合判定：作用域 ${scope}（含 ${fragments} 个不自带 data-page 的片段 ${ext} 文件）。` +
+            `\n合并页把区块分散到 panes/ 等子目录是允许的——但整页合起来必须齐全；` +
             `\n页面结构以 spec/manifest 为唯一真源：结构确需变更时先改 spec 并重渲染，再改代码（§13.4）。`,
         );
         process.exit(2);
