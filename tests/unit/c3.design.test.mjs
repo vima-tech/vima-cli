@@ -116,7 +116,7 @@ test('design status --check 否定用例：手改 INDEX → 判漂移 exit 4（�
 
 test('design approve/verify 阶段守卫：不得在 PLANNING 提前写批准或验收汇总', async (t) => {
   const root = await cloneGolden(t);
-  const approve = vima(root, 'design', 'approve', 'direction', '--app', 'admin');
+  const approve = vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）');
   assert.equal(approve.code, 4);
   assert.match(approve.stderr, /PHASE_TRANSITION/);
   const verify = vima(root, 'design', 'verify');
@@ -146,7 +146,7 @@ test('design check：legacy 单端局部 scope 的无 app 页面归属唯一默�
   await gradePage01(root, 'D1');
   await freezeDirection(root, 'admin');
   await freezeDesign(root, 'PAGE-01', ['default.png', 'empty.png']);
-  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin').code, 0);
+  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）').code, 0);
   assert.equal(vima(root, 'design', 'approve', 'pages', '--page', 'PAGE-01').code, 0);
   const result = vima(root, 'design', 'check');
   assert.equal(result.code, 0, `${result.stdout}\n${result.stderr}`);
@@ -219,7 +219,7 @@ test('方向批准否定用例：方向目录或固定交付物缺失时不得�
   const root = await cloneGolden(t);
   await setPhase(root, 'DESIGNING');
   await gradePage01(root, 'D1');
-  const r = vima(root, 'design', 'approve', 'direction', '--app', 'admin');
+  const r = vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）');
   assert.equal(r.code, 4);
   assert.match(r.stderr, /DIRECTION_ARTIFACTS/);
   const lc = await readJson(root, 'docs/lifecycle.json');
@@ -232,7 +232,7 @@ test('方向摘要：批准后修改方向产物 → designApprovalFresh 自动�
   await gradePage01(root, 'D1');
   await freezeDirection(root);
   await freezeDesign(root, 'PAGE-01', ['default.png', 'empty.png']);
-  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin').code, 0);
+  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）').code, 0);
   assert.equal(vima(root, 'design', 'approve', 'pages').code, 0);
   await writeFile(path.join(root, 'docs/review/design/_shell/admin/direction-a.png'), 'changed\n');
   vima(root, 'design', 'check');
@@ -248,7 +248,7 @@ test('页面摘要：Stage A 或 interaction-language 改动 → 页面批准自
   await gradePage01(root, 'D1');
   await freezeDirection(root);
   await freezeDesign(root, 'PAGE-01', ['default.png', 'empty.png']);
-  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin').code, 0);
+  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）').code, 0);
   assert.equal(vima(root, 'design', 'approve', 'pages').code, 0);
   await writeFile(path.join(root, 'docs/interaction-language.md'), '# changed\n');
   vima(root, 'design', 'check');
@@ -488,7 +488,7 @@ test('design reconcile 否定用例：spec 引用不闭环时不得声称收口'
   const root = await cloneGolden(t);
   assert.equal(vima(root, 'approve', '--planning').code, 0);
   await freezeDirection(root);
-  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin').code, 0);
+  assert.equal(vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）').code, 0);
   const p = path.join(root, 'docs/spec.md');
   await writeFile(p, (await readFile(p, 'utf8')).replace('target: PAGE-02', 'target: PAGE-99'));
   const r = vima(root, 'design', 'reconcile');
@@ -570,4 +570,114 @@ test('design check：非 DESIGNING 阶段跑 → gateApplies=false 并显式标�
   const rep2 = await readJson(root, '.vima/reports/design-check.json');
   assert.equal(rep2.gateApplies, true, 'DESIGNING 出口才是真正的闸门判定');
   assert.doesNotMatch(gate.stdout, /预览/);
+});
+
+// ── A45：方向裁定的执行者（D-A45-01/03/04）─────────────────────────────────
+// 立项实证：sustain-v4 的 _shell/admin/selection.md 自述「由 Agent 推荐并先行冻结，
+// 以免设计闸门阻塞后续实现」而闸门放行。以下四条把「代选无痕」钉死。
+
+test('A45 否定用例：非交互环境批准方向且无豁免 → DIRECTION_SELECTOR exit 4（代选不得无痕）', async (t) => {
+  const root = await cloneGolden(t);
+  await setPhase(root, 'DESIGNING');
+  await gradePage01(root, 'D1');
+  await freezeDirection(root);
+  const r = vima(root, 'design', 'approve', 'direction', '--app', 'admin');
+  assert.equal(r.code, 4, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /DIRECTION_SELECTOR/);
+  // 关键：整条批准不得落盘——确认失败还写进 lifecycle 等于前置形同虚设
+  const lifecycle = await readJson(root, 'docs/lifecycle.json');
+  assert.equal(lifecycle.designApproval?.directions?.admin, undefined);
+});
+
+test('A45 否定用例：--agent-selected 缺 --reason → USAGE（代选必须写下理由给用户看）', async (t) => {
+  const root = await cloneGolden(t);
+  await setPhase(root, 'DESIGNING');
+  await gradePage01(root, 'D1');
+  await freezeDirection(root);
+  const r = vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected');
+  assert.equal(r.code, 3, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /USAGE/);
+  const blank = vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '   ');
+  assert.equal(blank.code, 3, '空白理由等同没写');
+});
+
+test('A45：显式记账后落 selectedBy/selectionWaiver，且 check 与 approve 逐次呈报但恒不阻断', async (t) => {
+  const root = await cloneGolden(t);
+  await setPhase(root, 'DESIGNING');
+  await gradePage01(root, 'D1');
+  await freezeDirection(root);
+  const r = vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '用户暂不可达');
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /Agent 代选/);
+
+  const rec = (await readJson(root, 'docs/lifecycle.json')).designApproval.directions.admin;
+  assert.equal(rec.selectedBy, 'agent');
+  assert.equal(rec.selectionWaiver.reason, '用户暂不可达');
+  assert.ok(typeof rec.selectionWaiver.approvedAt === 'string');
+
+  const check = vima(root, 'design', 'check');
+  assert.match(check.stdout, /方向裁定人不是用户/, '已发生的代选必须在闸门被念出来');
+  const report = await readJson(root, '.vima/reports/design-check.json');
+  assert.deepEqual(report.directionSelectors, [{ app: 'admin', selectedBy: 'agent', reason: '用户暂不可达' }]);
+  assert.equal(report.counts.directionSelectors, 1);
+  // 恒不阻断（D-A45-03）：升为 error 会让 --agent-selected 豁免口失去意义
+  assert.ok(!Object.values(report.derived).includes(false) || report.pass === false,
+    'directionSelectors 不得进 derived 把闸门判红');
+  assert.ok(!Object.keys(report.derived).includes('directionSelectors'));
+});
+
+test('A45 对偶用例（防永久噪声）：selectedBy=user 时 directionSelectors 必须为空', async (t) => {
+  const root = await cloneGolden(t);
+  await setPhase(root, 'DESIGNING');
+  await gradePage01(root, 'D1');
+  await freezeDirection(root);
+  assert.equal(
+    vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', 'x').code, 0,
+  );
+  // 模拟用户在交互终端确认过（TTY 路径在单测里不可达，直接改记录验呈报口径）
+  const rel = 'docs/lifecycle.json';
+  const lifecycle = await readJson(root, rel);
+  lifecycle.designApproval.directions.admin = {
+    approvedAt: lifecycle.designApproval.directions.admin.approvedAt,
+    digest: lifecycle.designApproval.directions.admin.digest,
+    selectedBy: 'user',
+  };
+  await writeFile(path.join(root, rel), `${JSON.stringify(lifecycle, null, 2)}\n`);
+  const check = vima(root, 'design', 'check');
+  assert.doesNotMatch(check.stdout, /方向裁定人不是用户/);
+  const report = await readJson(root, '.vima/reports/design-check.json');
+  assert.deepEqual(report.directionSelectors, []);
+});
+
+test('A45 存量兼容：A45 之前的批准（无 selectedBy）记为 unrecorded 并同样呈报', async (t) => {
+  const root = await cloneGolden(t);
+  await setPhase(root, 'DESIGNING');
+  await gradePage01(root, 'D1');
+  await freezeDirection(root);
+  assert.equal(
+    vima(root, 'design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', 'x').code, 0,
+  );
+  const rel = 'docs/lifecycle.json';
+  const lifecycle = await readJson(root, rel);
+  const { approvedAt, digest } = lifecycle.designApproval.directions.admin;
+  lifecycle.designApproval.directions.admin = { approvedAt, digest }; // 老形态
+  await writeFile(path.join(root, rel), `${JSON.stringify(lifecycle, null, 2)}\n`);
+  const report = (vima(root, 'design', 'check'), await readJson(root, '.vima/reports/design-check.json'));
+  assert.deepEqual(report.directionSelectors, [{ app: 'admin', selectedBy: 'unrecorded', reason: null }]);
+});
+
+test('A45 D-A45-04：pattern: workbench 进 suggestFidelity 判据（≥D1），form/detail 不扩面', async () => {
+  const { suggestFidelity } = await import('../../lib/commands/design.mjs');
+  // 病例还原：工作台被拍平成表格容器序列后，旧判据只从压扁后的结果取值 → 判 D0
+  const flattenedWorkbench = {
+    design: { pattern: 'workbench' },
+    components: [{ block: 'table', data: { shape: 'table' } }],
+  };
+  assert.equal(suggestFidelity(flattenedWorkbench), 'D1');
+  // 不扩面（C2 红线一）：登记型页面维持 D0
+  assert.equal(suggestFidelity({ design: { pattern: 'list' }, components: [] }), 'D0');
+  assert.equal(suggestFidelity({ design: { pattern: 'form' }, components: [] }), 'D0');
+  assert.equal(suggestFidelity({ design: { pattern: 'detail' }, components: [] }), 'D0');
+  // custom 仍优先判 D2，不被 workbench 分支抢走
+  assert.equal(suggestFidelity({ design: { pattern: 'custom' }, components: [] }), 'D2');
 });

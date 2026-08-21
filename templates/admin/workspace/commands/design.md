@@ -34,11 +34,21 @@ description: 执行 Vima DESIGNING 阶段的视觉设计、方向选择、页面
 
 派 `vima-designer` 产出三个方向 + **三方向差异矩阵** + 核心任务流 + 关键状态转换。
 
-**把三个方向摆给用户选。** 你可以解释、可以推荐，但不得代选——
+**把三个方向摆给用户选，然后结束回合等人。** 你可以解释、可以推荐，但不得代选——
 这是口味裁定，不是可推导的结论。用户也可以要第四轮，或要求融合。
 
-选定后 `vima design approve direction --app <id>`（多端逐端），
-并置 `checklists.DESIGNING.directionsExplored`。
+> 等在这里是**合法停点**（go.md 白名单第 ⑤ 项，`stopReason=design`），不是违反反停顿纪律。
+> 别为了「不阻塞后续实现」替用户把方向定了——那正是 A45 立项要治的病。
+
+用户选定后跑 `vima design approve direction --app <id>`（多端逐端），
+并置 `checklists.DESIGNING.directionsExplored`。该命令会**交互确认裁定人**
+（A45 D-A45-01）：确认后记 `selectedBy: 'user'`。
+
+**非交互环境**（无 TTY）它会抛 `DIRECTION_SELECTOR` 挡下。此时只有两条路：
+① 让用户在交互终端里跑一次；② 确实联系不到用户时用
+`--agent-selected --reason "<为什么现在必须由你代选>"` 显式记账——它会落
+`selectedBy: 'agent'` + `selectionWaiver`，并在此后**每次** `design check` 与
+`vima approve` 被逐端念出来，直到用户复核。**别把 ② 当默认路径**。
 
 每端方向冻结包固定落在 `docs/review/design/_shell/<appId>/`，且必须包含：
 `brief.md`、`direction-a.png`、`direction-b.png`、`direction-c.png`、`comparison.md`、

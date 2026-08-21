@@ -115,6 +115,7 @@ stderr 首行的 `<CODE>` 是稳定输出接口，新增/改名必须先改本�
 | DESIGN_INDEX_DRIFT | 4 | design status --check | 设计索引与当前 spec/设计目录推导结果不一致（A34） |
 | NO_APP | 4 | design approve direction | `--app` 指向端册外的端（A34） |
 | DIRECTION_ARTIFACTS | 4 | design approve direction | 方向冻结包缺失、不完整或包含不安全路径（A34） |
+| DIRECTION_SELECTOR | 4 | design approve direction | 非交互环境批准方向但未给 `--agent-selected --reason <非空>`（A45 D-A45-01：代选必须留痕） |
 | NO_PAGE | 4 | design approve pages | 指定页面不存在，或没有 D1/D2 页面可批准（A34） |
 | FIDELITY_DOWNGRADE | 4 | design approve pages | 已批准页面降级保真级但未显式豁免并留理由（A34） |
 | NO_DIRECTION | 4 | design reconcile | 尚无有效且新鲜的按端方向批准（A34） |
@@ -386,10 +387,16 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
   `directionApproved`、`signaturePagesApproved`、`fidelityClassified`（V-DSN-12）、
   `designArtifactsComplete`（V-DSN-09）、`designApprovalFresh`（digest）、`designSystemFrozen`。
   **落盘就会与 `designApproval` 表达同一事实，退回 A2 的双真源问题**——这是 A34 自己要治的病。
-- `designApproval`：`{ directions: { <appId>: {approvedAt, digest} },
+- `designApproval`：`{ directions: { <appId>: {approvedAt, digest, selectedBy, selectionWaiver?} },
   pages: { <pageId>: {approvedAt, fidelity, specDigest, designDigest, downgradeWaiver?} } }`
   ——**唯一持久化批准状态**。批准后的保真降级必须由用户显式给出 `--allow-downgrade`
   与非空 `--reason`，理由随页面批准留痕。
+  `selectedBy ∈ {'user','agent'}`（**A45 D-A45-01**）：TTY 下由 `design approve direction`
+  交互确认，用户确认自己已看过三稿并作出选择 ⇒ `'user'`；非交互环境或用户否认时
+  **必须**给 `--agent-selected --reason <非空>` ⇒ `'agent'` 且写
+  `selectionWaiver: {reason, approvedAt}`，否则抛 `DIRECTION_SELECTOR`（§3.1）。
+  **键缺失**（A45 之前的存量批准）按「未记录裁定人」处理，与 `'agent'` 同样呈报。
+  该键**不进方向 digest**——digest 只算冻结包内容，把批准记录算进去会让批准自我失效。
   按端存 `directions`（A0 已改按端发散，多端各选方向时单数键表达不了）。
   作废时另写 `designApprovalInvalidatedAt` / `designApprovalInvalidatedReason`（留痕，不许悄悄清空）。
 - `designScope.pages[]`：仅 legacy 项目使用的局部 A34 页面集合。`vima change apply` 遇到新增/修改
@@ -406,7 +413,7 @@ pipelineDone, testsPassed, codeAudited）、`taskStats{total,done,failed,blocked
 | 迁移 | 由谁推进 | 闸门 |
 |---|---|---|
 | PLANNING → DESIGNING | `vima approve --planning` | 独立校验 profile：spec/契约/权限/pendingConfirm + V-DSN-10/11/12，**不要求 V-TASK-\*/V-COV-01**（任务拆解发生在设计冻结之后）；同时建立 `.vima/changes/designing-baseline/` 快照 |
-| DESIGNING 内部 | `vima design approve direction` → `vima design reconcile`（仅当方向改了产品）→ `vima design approve pages` | 人工裁定 + 受控回写。**方向裁定按 A6 阶梯登记为〔L5·人审〕**：CLI 只能机检方向交付物齐全（`brief.md`/三稿/`comparison.md`/`selection.md`）与摘要一致，**分辨不出选择出自人还是 Agent**——「Agent 不得自行选定胜者」（D-A34-14）落不到 L1/L3，故显式登记 L5 而非留作无执行者的措辞 |
+| DESIGNING 内部 | `vima design approve direction` → `vima design reconcile`（仅当方向改了产品）→ `vima design approve pages` | 人工裁定 + 受控回写。**方向裁定按 A6 阶梯登记为〔L5·人审〕**：CLI 只能机检方向交付物齐全（`brief.md`/三稿/`comparison.md`/`selection.md`）与摘要一致，**分辨不出选择出自人还是 Agent**——「Agent 不得自行选定胜者」（D-A34-14）落不到 L1/L3，故显式登记 L5 而非留作无执行者的措辞。**A45 D-A45-01 给这条 L5 补上记账口**：CLI 仍判不出敲回车的是谁，但代选必须落 `selectedBy: 'agent'` + 非空 `selectionWaiver.reason`，非交互环境不给豁免即 `DIRECTION_SELECTOR` 挡下 |
 | DESIGNING → DEVELOPING | `vima approve` | 原三道前置 + **设计闸门六项派生全绿** |
 
 `currentPhase` 的消费方必须整体同步（漏一个即状态机分叉）：
@@ -726,7 +733,8 @@ admin-web 沿用桌面侧栏外壳；mp-native 为 375px 手机框 + 底部 tabb
 // builder（vima-builder.md 产出）
 { "taskId": "...", "status": "completed|failed",
   "files": ["..."], "acceptance": { "total": 0, "passed": 0 },
-  "sharedChangeRequest": null, "notes": "..." }
+  "sharedChangeRequest": null, "notes": "...",
+  "emergentDecisions": [ { "cls": "A", "what": "...", "why": "...", "where": "文件:行号" } ] }  // 可选，A46 D-A46-01
 
 // verifier（vima-verifier.md 产出；round 从 1 起）
 { "taskId": "...", "round": 1, "result": "pass|fail",
@@ -736,6 +744,25 @@ admin-web 沿用桌面侧栏外壳；mp-native 为 375px 手机框 + 底部 tabb
   "contractGaps": ["..."],    // 可选，A42 D-A42-04；缺省 []，不计 fail
   "commands": [{ "cmd": "./mvnw -o -q test", "exitCode": 0 }] }  // 可选，A43 D-A43-01
 ```
+
+**`emergentDecisions` 的语义（A46 D-A46-01）**：Builder 执行中做出的**规格外决策**留痕
+（「规格没说、我按方案 X 做了」）。**可选**——存量报告不带该字段照常通过校验。
+逐条 `{cls, what, why, where?}`：`cls` 封闭集 `A | B`，`what`/`why` 非空字符串，
+`where` 可选字符串（文件:行号）。分类判据（与 `vima-builder.md` 同源，两处必须一致）：
+
+- **A 类**（自决即可）：局部且可逆，不动契约 / 字段语义 / 权限 / 业务规则 / 验收清单
+  ——如组件内部结构、局部命名、页内交互细节。留痕后继续，不打扰任何人。
+- **B 类**（保守先行，待人校准）：存在多个合理方案、有轻度跨模块影响，但不触碰禁区
+  ——选**最保守可逆**的方案留痕继续；收敛期由人批量校准（converge 收口清单，D-A46-03）。
+- **禁区（不得填这里）**：契约/接口语义、权限、数据归属、共享层、范围红线——走既有通道
+  （`sharedChangeRequest` / `componentExtractionRequest` / verifier 的 `contractGaps` /
+  guard-shared 拦截）。再造一条通用通道 = 同一事实两套说法（A44 判据）。
+
+它回答的是需求基线 R2 第五问「哪些是 AI 替我定的」在 DEVELOPING 期的那一格
+（A45 只补了设计方向）。**不构成独立防伪**（报告仍由 Agent 产出，§6.21 口径）：
+消灭的是「无处可写」这个结构洞——沉默自决从零成本默认变成协议违反。
+采集侧口径同 `contractGaps`/`commands`：hook 接受可选字段，形状非法 → **整条不记**；
+B 类条数由 hook 当场 stderr 登记（exit 0 不阻断），**不折进 journal 事件的 `n`**。
 
 **`commands` 的语义（A43 D-A43-01）**：本轮验收**实际执行过的命令**及其退出码，
 `cmd` 为非空字符串（原样记录命令行，便于任何人照着重跑复核），`exitCode` 为整数。
@@ -918,7 +945,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
   "scope": { "markedBackendFiles": 12, "markedFrontendFiles": 30, "contractApis": 251,
              "skipped": null },
   "summary": { "errors": 2, "warnings": 1, "openPoints": 3, "runtimeErrors": 0,
-               "unmarkedDone": 0, "contractGaps": 0 },
+               "unmarkedDone": 0, "contractGaps": 0, "emergentDecisions": 0 },
   "findings": [
     { "rule": "V-INT-02", "level": "error", "key": "GET /api/food/list",
       "owners": ["food-api-be", "diet-api-be"],
@@ -927,6 +954,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
   ],
   "openPoints": [ { "taskId": "order-detail-fe", "point": "RULE-03 …", "kind": "failed" } ],
   "contractGaps": [ { "taskId": "page-68-fe", "gap": "契约缺口：… | 处置：…（文件:行号）| 依据：…" } ],
+  "emergentDecisions": [ { "taskId": "order-list-fe", "decision": "… | 理由：… | 位置：…" } ],
   "unmarkedDone": ["shared-base"],
   "byTask": { "food-api-be": ["V-INT-02 GET /api/food/list"],
               "diet-api-be": ["V-INT-02 GET /api/food/list"] } }
@@ -940,6 +968,8 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
 | `openPoints` | 聚合 `.vima/reports/<taskId>-verifier.json` 的 points：`kind` ∈ `failed`（未过）/ `ng`（A13 `NG-xx 越界`，不计豁免）。**豁免（waived）不计入** |
 | `contractGaps` | 聚合各 `<taskId>-verifier.json` 的 `contractGaps`（§6.9）：`{ taskId, gap }`，按 taskId → gap 升序（与 `openPoints` 同排序口径）。字符串条目直取，对象条目取 `.issue`，两者都取不到则 `gap` 为空串。**不并进 `openPoints`、不进 `byTask`、不计退出码**——它记的是「规格有缺口、实现侧已合规处置」，行动项是**回契约补齐或立 `vima change` 变更事务**，不是派回任务修。让它变成阻断项就是 A42 D-A42-04 立项要治的病（`page-68-fe` 实证：正确的工程处置被记成永久 fail） |
 | `summary.contractGaps` | 顶层 `contractGaps` 数组的长度；缺省 0 |
+| `emergentDecisions` | 聚合各 `<taskId>-builder.json` 的 `emergentDecisions` 中 **`cls: "B"`** 条目（A46 D-A46-03；A 类留在报告与 retro 计数，不进收口清单）：`{ taskId, decision }`，`decision` 为 `<what> | 理由：<why>[ | 位置：<where>]` 的确定性拼接，按 taskId → decision 升序。**不计退出码、不进 `byTask`、不并进 `openPoints`**——它记的是「规格未覆盖、Builder 已按保守可逆方案先行」，行动项是人批量校准：认可即结案，不认可立 `vima change` 或派修 |
+| `summary.emergentDecisions` | 顶层 `emergentDecisions` 数组的长度；缺省 0 |
 | `summary.runtimeErrors` | `runtime-errors.jsonl` 条数；**只报告不计退出码**（追加式历史含已修复旧条目） |
 | `summary.unmarkedDone` | 顶层 `unmarkedDone` 数组的长度 |
 | `unmarkedDone` | `status=done` 且 `layer ∈ {shared,business}` 却无任何 `@vima` 标注的 taskId（升序；§10 trace 同口径，内联计算不 shell out）。warn 语义，不计退出码 |
@@ -970,6 +1000,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
   "verification": { "reports": 40, "maxRound": 3, "points": 812, "failedPoints": 3,
                     "waived": 4, "ngViolations": 1 },
   "shared": { "changeRequests": 2 },
+  "decisions": { "emergentA": 4, "emergentB": 1 },
   "planning": { "pendingConfirm": 0, "ruleHits": { "V-TASK-07": 12, "V-CON-02": 3 } },
   "runtime": { "errors": 0 },
   "scale": { "pages": 48, "entities": 66, "rules": 31, "nonGoals": 7,
@@ -983,6 +1014,7 @@ export async function evaluateConvergence(root, { cliRoot })  // → 本节报�
 | `anonymized` | 默认 `true`：产物**只有计数与分布**，不含 taskId / 接口路径 / 页面 ID / 业务规则文本。`--with-ids` 置 `false` 并携带标识（自用仓库时用）。**安全默认值的方向是「泄露要显式」** |
 | `fingerprint.phases[].days` | 由 `phaseHistory` 的 `enteredAt`/`completedAt` 差值算出；缺时间戳记 `null`，不猜 |
 | `planning.ruleHits` | validate 报告里 error/warn **按规则 id 的命中分布**——哪条规则最常被违反 = 框架引导最缺的地方 |
+| `decisions` | 聚合 builder 报告 `emergentDecisions` 的**合形条目**计数（A46 D-A46-04；脱敏纪律：只取计数不取明细）。`emergentB > 0` 触发观察项 `OBS-emergent`——B 类涌现决策 = 规格未覆盖且有跨模块影响，数量高说明该类任务的规格深度或上下文包缺口大（外部规范 §7A.3「校准回路」的 vima 形态） |
 | `observations` | **阈值驱动的静态表**（条件 → 观察句 + 建议落点），命中才输出。每条 `target` 必须指向 **vima-cli 的框架资产**，不指向业务代码——反哺的是框架，不是项目 |
 
 `docs/retro/vima-feedback.md` 是同一份数据的 issue 正文投影（标题 + 指纹表 + 信号表 +
@@ -1223,10 +1255,19 @@ DEVELOPING 收口硬门，检查报告矩阵与 `implementationDigest`。
   "fidelitySuggestions": [           // A5 诚实分级：声明级与 spec 判据建议级不一致的页面
     { "id": "PAGE-01", "declared": "D0", "suggested": "D1" }
   ],
-  "counts": { "pages": 2, "graded": 2, "needArtifacts": 0, "fidelitySuggestions": 1 },
+  "directionSelectors": [            // A45 D-A45-03：裁定人不是 user 的端（含未记录）
+    { "app": "admin", "selectedBy": "agent", "reason": "用户暂不可达" }
+  ],
+  "counts": { "pages": 2, "graded": 2, "needArtifacts": 0, "fidelitySuggestions": 1, "directionSelectors": 1 },
   "d0Only": true, "note": null, "pass": true
 }
 ```
+
+**`directionSelectors` 恒不阻断**（A45 D-A45-03）。它只收录 `selectedBy !== 'user'` 的端——
+`selectedBy` 缺失的存量批准记为 `"unrecorded"`、`reason: null`。它是 D-A45-01 强制点的
+**附属可见性，不是替代**：本仓已有「呈报不阻断被忽略」的三连败实证（A45 立项依据 4），
+故真正的执行者是 `design approve direction` 那一刻的 TTY 确认与 `DIRECTION_SELECTOR` 前置，
+本项只负责让已发生的代选在每道闸门被念出来。升为 error 会使 `--agent-selected` 豁免口失去意义。
 
 **`fidelitySuggestions` 恒不阻断**（D-A34-03「首次裁定时人可选任意级别，机器建议仅供参考」——
 升为 error 会直接违反该决策）。它存在的理由是 A5 诚实分级：`suggestFidelity` 的判据本就
@@ -1971,12 +2012,34 @@ A36 立项理由里的「retro 是脱敏统计，本视图是带标识明细」�
   schema 校验接受可选 `commands`（形状不合 → 整条不记，同 `contractGaps` 口径），
   **不折进 journal 事件的 `n`**（五键封顶不变）。**内核仍不执行任何命令**——
   取的是「执行者留痕 + 机器校验形状与取值」这条路，不破零运行时依赖。
+- **A45 设计裁定的执行者**：`designApproval.directions[<appId>]` 增 `selectedBy` /
+  `selectionWaiver` 两键（§6.2）；`design approve direction` 在 TTY 下交互确认裁定人、
+  非 TTY 无 `--agent-selected --reason` 时抛 `DIRECTION_SELECTOR`（§3.1）；
+  `deriveStates` 产出 `directionSelectors`（**恒不阻断**，与 `fidelitySuggestions` 同口径），
+  进 `design-check.json` 与 `vima approve` 闸门输出；`suggestFidelity` 增
+  `pattern === 'workbench'` ⇒ ≥ D1。立项实证：sustain-v4 的 `_shell/admin/selection.md`
+  自述「由 Agent 推荐并先行冻结，以免设计闸门阻塞后续实现」而闸门放行——
+  `commands/design.md` 两处明写「不得代选」，**措辞不缺、执行者缺**（A6）。
+  给 `C-A34-03` 已登记的 L5 补上「机器该把这件事记成什么」那一半：
+  **不新增命令、不新增产物文件、不改 `PHASES`**。
 - **A44 业务规则承接对账**：`render-matrix` 增第二张表「业务规则承接」
   （复用 `context.mjs` 的 `rulesForTask`，§11）；`V-COV-01` 改逐表校验、
   新增 `V-COV-02`（warn）点名未承接行（§8）。立项实证：`render-matrix` 引用 RULE 0 处、
   `converge` 引用 rules 0 处——规则有 id/type/entity/apis 与两道格式机检，
   却无任何一处对账「有没有人负责实现它」。不新开命令、不新增产物文件、
   不给任务 frontmatter 加 `rules` 字段（`apis` 已是既有 join key，加字段是镀金）。
+- **A46 涌现决策留痕**（吸收自外部规范《AI 原生软件创业团队组织与交付运行规范》v1.1
+  §7A，取舍台账见 `docs/design/ai-native-team-ops-spec-assessment.md`）：§6.9 builder
+  报告新增**可选** `emergentDecisions: [{cls: A|B, what, why, where?}]`——Builder 的
+  规格外决策留痕，补需求基线 R2 第五问「哪些是 AI 替我定的」在 DEVELOPING 期的空格
+  （A45 只补了设计方向）。A 类（局部可逆）留痕即可；B 类（多方案、轻度跨模块影响）
+  保守先行、进 converge 收口清单（§6.13，不计退出码不进 byTask）待人批量校准；
+  **不设 C 类通道**——契约/权限/数据归属/共享层/范围红线走既有四条通道
+  （sharedChangeRequest / componentExtractionRequest / contractGaps / guard-shared）。
+  retro 聚合计数 `decisions`（§6.14）+ `OBS-emergent` 观察项（校准回路 = A21 既有职责）。
+  hook 口径同 `contractGaps`/`commands`：可选、形状非法整条不记、B 类 stderr 登记、
+  不折进 journal `n`。不做 E1/E2/E3 任务分级、不做估算门、不动 render-journal 视图、
+  不新增错误码。
 
 ## 14. 命令行为裁定补遗（v2.0 实现层，设计文档相应节加注）
 

@@ -304,7 +304,7 @@ test('⑪A34 D1 实质链路：DESIGNING 双闸门 + DEVELOPING 收口硬门（�
   await writeFile(path.join(pageDir, 'manifest.json'),
     `${JSON.stringify({ schemaVersion: '1', pageId: 'PAGE-01', fidelity: 'D1', files: ['default.png', 'empty.png'] }, null, 2)}\n`);
 
-  assert.equal(d(['design', 'approve', 'direction', '--app', 'admin']).code, 0);
+  assert.equal(d(['design', 'approve', 'direction', '--app', 'admin', '--agent-selected', '--reason', '测试夹具无 TTY（A45 D-A45-01）']).code, 0);
   assert.equal(d(['design', 'approve', 'pages']).code, 0);
   const passed = d(['design', 'check']);
   assert.equal(passed.code, 0, passed.out);

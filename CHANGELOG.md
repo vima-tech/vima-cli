@@ -4,6 +4,96 @@
 
 ## [Unreleased]
 
+### A46 涌现决策留痕：让「规格没说、我替你定了」进裁定台账（增补项）
+
+吸收自用户提供的外部规范《AI 原生软件创业团队组织与交付运行规范》v1.1 §7A
+「涌现决策回写机制」（取舍全表见 `docs/design/ai-native-team-ops-spec-assessment.md`：
+仅此一项吸收，E1/E2/E3 分级、估算门、D-ID 台账等或前提不成立、或 vima 已有更强形态）。
+
+规格写不全实现细节（50% 法则），Builder 执行中必然出现「规格没说、我按方案 X 做了」。
+现状只有三条窄通道（sharedChangeRequest / componentExtractionRequest / contractGaps），
+一般性决策落自由文本 `notes` 或无痕——需求基线 R2 第五问「哪些是 AI 替我定的」在
+DEVELOPING 期没有数据源（A45 只补了设计方向）。vima 侧实证：sustain-v4 的 NG-16 事件
+（builder 把 spec 里不存在的 NG-xx 当豁免依据）与 selection.md 代选同型——
+**不是 Agent 恶意，是协议没给「我做了个规格外的决定」留字段。**
+
+- **新增**：§6.9 builder 报告可选 `emergentDecisions: [{cls: A|B, what, why, where?}]`
+  （D-A46-01）；post-write hook 形状校验（非法整条不记，B 类 stderr 登记，
+  不折进 journal `n`，D-A46-02）；converge 收口清单 `emergentDecisions`
+  （只收 B 类，不计退出码、不进 `byTask`，行动项是人批量校准，D-A46-03）；
+  retro `decisions` 计数 + `OBS-emergent` 观察项（校准回路落 A21 既有职责，D-A46-04）；
+  `vima-builder.md` 分类判据与禁区清单（D-A46-05）。
+- **明确不做**：不设 C 类通道（契约/权限/数据归属/共享层/范围红线走既有四条通道）；
+  不做 E1/E2/E3 任务分级；不做估算门；不动 render-journal 视图；不新增错误码。
+- **宣称边界**：不能保证 Agent 如实回写（报告仍由 Agent 产出）；消灭的是「无处可写」
+  这个结构洞——沉默自决从零成本默认变成协议违反。
+
+### A45 设计裁定的执行者：把「Agent 不得代选」从措辞变成留痕（增补项）
+
+用户反馈「生成的系统死板、没创新，不如直接用 Claude Design 出原型再 1:1 实现」，
+对 sustain-v4（A34 落地后首个全量重跑）逐层取证后**推翻了第一直觉**——不是没做设计：
+`_shell/{admin,mp}/` 两端各有完整七件套，`comparison.md` 是十维度逐条对比的真判断。
+**断点是唯一那道人审位被 Agent 自己走完了。** `_shell/admin/selection.md` 结尾原文：
+
+> 本选型由 Agent 依据上述真源推荐并先行冻结，**以免设计闸门阻塞后续实现**。
+
+而 `commands/design.md` 两处明写「不得代选」。**措辞不缺，执行者缺**（A6）。
+更关键的是 Agent 并非违纪：`go.md` 的合法停点白名单只有三项（预算耗尽 / 全部终态 / 受阻），
+**没有「等用户裁定设计方向」**，叠加 A39 自动开工与 A17 反停顿纪律——在一个处处要求不停的
+系统里，唯一必须停下来等人的点没被登记为合法停点，被绕过是结构性必然。
+
+本项**不再增加第四条「呈报不阻断」**：同一次运行里 `fidelitySuggestions` 报了 3 页被忽略、
+`checklists.DESIGNING` 两个持久键全 false 且 `lib/` 零读取、`selection.md` 自述代选，
+三条呈报三次放行。真正的执行者放在 `design approve direction` 那一刻。
+
+### 新增
+
+- **`designApproval.directions[<appId>].selectedBy` / `selectionWaiver`**（A45 D-A45-01，契约 §6.2）。
+  `vima design approve direction` 在 TTY 下**交互确认裁定人**（复用 `create.mjs` 既有的
+  `node:readline` 先例，零新依赖）⇒ `selectedBy: 'user'`；非交互环境或用户否认时**必须**给
+  `--agent-selected --reason <非空>` ⇒ 记 `'agent'` + `selectionWaiver`，否则抛
+  `DIRECTION_SELECTOR`（§3.1）exit 4 且**整条批准不落盘**。
+  留豁免口而不硬禁：硬禁会让非交互 `/go` 死锁，压力只会推向更坏的绕法（把代选写成
+  含糊措辞塞进 `selection.md`，那反而不可检）；留一个必须写理由的口子，
+  代选就从零成本的沉默默认变成一条会被每道闸门念出来的记录。
+  该键**不进方向 digest**——把批准记录算进摘要会让批准自我失效。
+- **`design-check.json` 增 `directionSelectors`**（A45 D-A45-03，契约 §6.20）。收录
+  `selectedBy !== 'user'` 的端（缺失键的存量批准记为 `'unrecorded'`），进
+  `vima design check` 与 `vima approve` 的 DESIGNING→DEVELOPING 闸门输出。
+  **恒不阻断**（与 `fidelitySuggestions` 同口径）：升为 error 会让 `--agent-selected`
+  豁免口失去意义。它是强制点的附属可见性，不是替代。
+
+### 变更
+
+- **`go.md` 合法停点白名单增第 ⑤ 项**「DESIGNING 期等待用户裁定设计方向」
+  （`stopReason=design`，A45 D-A45-02，**零代码**）。把三个方向摆给用户后结束回合等人
+  在本阶段是正确行为，不是违反反停顿纪律——不改这条，D-A45-01 的强制点会与纪律硬顶。
+- **`suggestFidelity` 增 `pattern === 'workbench'` ⇒ 建议 ≥ D1**（A45 D-A45-04）。原判据只从
+  **压扁之后的结果**取值（`shape` / `regions` 都是 Planner 在同一份 spec 里写的），工作台一旦被
+  拍平成 `layout: [cards, toolbar, tabs, table]` + 普通 table shape，判据回读这份已压扁的 spec
+  就忠实地判 D0，**永远抓不到它被造出来要抓的那类退化**。sustain-v4 的 `PAGE-01 工作台`
+  （`pattern: workbench` + `fidelity: D0`）即此病例，正是视觉退化分析 §3.1 点名的
+  「角色化驾驶舱变成固定容器序列」。`pattern` 是页面**职责**声明、不随内容被拍平，
+  是这条判据里唯一抗压扁的取值。只补 workbench 不补 form/detail：后两者确属登记型，
+  扩面即违反 C2 红线一。修正后全项目只多点名 1 页——**低产出、高价值、窄机制**，如实记载。
+- **`vima-designer` 模型 `sonnet` → `opus`**（A45 D-A45-05）。D-A34-14 要求三个方向在
+  信息架构、交互重心、视觉重心上真正不同（不是换配色），这是全管线最吃模型上限的一环。
+  `vima-builder` 不改——它是按稿实现的遵循层，不是发散。
+
+### 明确不做（本项边界）
+
+- **阶段顺序改判**（把 Stage A0 提前到写 PAGE 块之前）：改 `PHASES` 波及
+  `approve --planning` / `reconcile` / `doctor` / `certify` / `guard-shared` 五个消费方，属独立立项。
+- **`briefReady` / `directionsExplored` 两键的存废**：实测两者均可推导（`brief.md` 已在
+  `DIRECTION_ARTIFACTS` 必需清单内、方向已有 `directionApproved`），与 D-A34-13 自述的
+  「无从推导故落盘」矛盾，但删 lifecycle 持久键有存量迁移面，须单独裁定。
+- **同质化指标**（骨架去重率 / pattern 分布）：降级为 A21 反哺与 `certify` 的证据面数据，
+  **不做闸门**，否则撞 D-A30-05「主观取向机检不出来，加了就是假机检」。
+
+**宣称边界（A5）**：本项**不能**保证选择真的出自人——CLI 分辨不出敲回车的是谁
+（C-A34-03 已登记此事实）。只能宣称「**代选不再无痕**」，不得宣称
+「vima 已确保设计方向由用户裁定」。
+
 ### A43 / A44 证据链的两处断点（增补项）
 
 以《vima 需求基线》（`docs/design/vima-requirements-baseline.html`，R1–R11 / C1–C4）为量尺

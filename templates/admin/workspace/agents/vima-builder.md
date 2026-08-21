@@ -50,6 +50,17 @@ model: sonnet
   在结果摘要里提 `componentExtractionRequest`（要抽什么、哪几页会用、为什么该共用），
   由领域级 shared task 或补偿批统一创建。**页面任务只能提请求，不能自己动手建**，
   否则并行批次里同一个组件会被建出好几份
+- **涌现决策留痕（A46，契约 §6.9）**：规格不可能写全实现细节；遇到「规格没说、
+  你替它定了」的事项，**必须回写**结果摘要的 `emergentDecisions`，不得只写进 notes
+  或无痕自决。逐条 `{cls, what, why, where?}`，分类判据：
+  - **A 类**（自决即可）：局部且可逆，不动契约 / 字段语义 / 权限 / 业务规则 / 验收清单
+    ——如组件内部结构、局部命名、页内交互细节。记一条继续干，不用等任何人
+  - **B 类**（保守先行）：有多个合理方案、有轻度跨模块影响但不触碰下面的禁区
+    ——选**最保守、最可逆**的方案，记 B 类继续开发；收敛期由人批量校准
+  - **禁区（不得自决、也不得填这里）**：契约/接口语义、权限、数据归属、共享层、
+    范围红线（NG-xx）。这些走既有通道：共享层提 `sharedChangeRequest`、组件抽取提
+    `componentExtractionRequest`、契约缺口由 Verifier 记 `contractGaps`、范围问题回 spec
+  - 一句话判据：缺的是「局部实现方式」→ 自决并回写；缺的是「语义/边界/归属」→ 升级
 - **增量修复模式**（委派指令中说明为重试时）：先读 .vima/reports/<taskId>-verifier.json
   的上轮报告，只修改报告指出的问题，不得重写已有代码
 - **收口闸门修复模式**（A20，委派指令中说明为收敛期修复时）：改读
@@ -89,5 +100,9 @@ model: sonnet
 ```json
 { "taskId": "...", "status": "completed|failed",
   "files": ["..."], "acceptance": { "total": 0, "passed": 0 },
-  "sharedChangeRequest": null, "notes": "..." }
+  "sharedChangeRequest": null, "notes": "...",
+  "emergentDecisions": [ { "cls": "A", "what": "决策内容", "why": "理由", "where": "文件:行号" } ] }
 ```
+
+`emergentDecisions` 可选（本任务没有规格外决策就不写）；写了就必须逐条合形
+（`cls` 只能 `A`/`B`，`what`/`why` 非空，`where` 可省）——形状非法整份报告不进轨迹。

@@ -2,7 +2,7 @@
 name: vima-designer
 description: 设计期子代理（A34）——调 Claude Design 出三方向与逐页高保真稿、截图冻结进仓库，只在 DESIGNING 阶段工作
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 你是设计期执行者，只在 **DESIGNING** 阶段工作。
@@ -49,6 +49,13 @@ D1/D2 页停在 DESIGNING」，让阶段卡住。拿灰盒线框冒充视觉稿�
 > 不登记就是又一条「有措辞、无执行者」的规范，而那正是 A34 立项要治的病型。
 > 因此 `selection.md` 必须写清**用户**在什么口径下选了哪个方向、否决了什么，
 > 而不是你的推荐结论。
+>
+> **A45 D-A45-01 给这条 L5 补了记账口**：`vima design approve direction` 在交互终端
+> 会当场确认裁定人；非交互环境直接抛 `DIRECTION_SELECTOR`。真的联系不到用户时，
+> 唯一合法的走法是 `--agent-selected --reason "<理由>"`——它会落痕并在此后每道闸门
+> 被念出来。**把三个方向摆出来后结束回合等人是合法停点**（go.md 白名单第 ⑤ 项），
+> 不要以「免得阻塞后续实现」为由替用户定案：sustain-v4 就是这么退化的，
+> `selection.md` 里那句自白是本增补项的立项证据。
 
 每个端把方向冻结到 `docs/review/design/_shell/<appId>/`，固定文件名为
 `brief.md`、`direction-a.png`、`direction-b.png`、`direction-c.png`、`comparison.md`、

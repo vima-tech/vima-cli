@@ -134,6 +134,24 @@ test('A34 designer 资产：MCP 与浏览器只在 workspace 层，且 serve_url
   assert.ok(cmd.includes('vima design check'), '/design 须收口到确定性闸门');
 });
 
+test('A45 方向裁定的执行者：停点白名单 + 非交互豁免口径 + designer 模型档位（防漂移）', async () => {
+  // D-A45-02：等用户裁定必须是**合法停点**，否则反停顿纪律会逼出代选
+  const goMd = await readFile(path.join(ADMIN, 'workspace/commands/go.md'), 'utf8');
+  assert.ok(goMd.includes('stopReason=design'), 'go.md 白名单须给设计裁定一个停因');
+  assert.ok(goMd.includes('等待用户裁定设计方向'), 'go.md 须写明该停点');
+
+  // D-A45-01：两条路都必须写在资产里，且不得把豁免当默认
+  const cmd = await readFile(path.join(ADMIN, 'workspace/commands/design.md'), 'utf8');
+  assert.ok(cmd.includes('DIRECTION_SELECTOR'), '/design 须写明非交互环境会被挡下');
+  assert.ok(cmd.includes('--agent-selected'), '/design 须写明唯一合法的记账旁路');
+  assert.ok(cmd.includes('别把 ② 当默认路径'), '豁免口必须显式标注为非默认');
+
+  const d = await readFile(path.join(ADMIN, 'workspace/agents/vima-designer.md'), 'utf8');
+  assert.ok(d.includes('--agent-selected'), 'designer 须知道代选要记账');
+  // D-A45-05：三方向发散是全管线最吃模型上限的一环，规范与执行者档位必须匹配
+  assert.match(d, /^model:\s*opus\s*$/m, 'vima-designer 须跑在 opus');
+});
+
 test('A34 内核分层边界：lib/ 零 MCP 工具名与浏览器依赖（硬约束回归）', async () => {
   const r = spawnSync(
     'grep',

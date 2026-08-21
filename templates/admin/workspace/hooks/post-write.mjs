@@ -305,6 +305,22 @@ function reportEventOf(rep, taskId, role) {
   if (!rep || typeof rep !== 'object' || rep.taskId !== taskId) return null;
   if (role === 'builder') {
     if (!['completed', 'failed'].includes(rep.status)) return null;
+    // D-A46-01/02：`emergentDecisions` 可选（缺省照常通过，存量报告向后兼容）；
+    // 带了就必须数组且逐条合形（cls 封闭集 A|B / what、why 非空字符串 / where 缺省或字符串），
+    // 非法即整条不记——口径同 `commands`（A43）。取值消费不在这里：
+    // B 类进收口清单在 lib/commands/converge.mjs，计数聚合在 lib/model/journal.mjs。
+    let edB = 0;
+    if (rep.emergentDecisions !== undefined) {
+      if (!Array.isArray(rep.emergentDecisions)) return null;
+      for (const d of rep.emergentDecisions) {
+        if (!d || typeof d !== 'object') return null;
+        if (!['A', 'B'].includes(d.cls)) return null;
+        if (typeof d.what !== 'string' || d.what.trim() === '') return null;
+        if (typeof d.why !== 'string' || d.why.trim() === '') return null;
+        if (d.where !== undefined && typeof d.where !== 'string') return null;
+        if (d.cls === 'B') edB += 1;
+      }
+    }
     const acceptance = rep.acceptance && typeof rep.acceptance === 'object' ? rep.acceptance : {};
     const total = Number.isFinite(acceptance.total) ? acceptance.total : 0;
     const passed = Number.isFinite(acceptance.passed) ? acceptance.passed : 0;
@@ -312,6 +328,7 @@ function reportEventOf(rep, taskId, role) {
       round: 1,
       outcome: rep.status === 'completed' ? 'pass' : 'fail',
       failed: Math.max(0, total - passed),
+      edB,
     };
   }
 
@@ -425,6 +442,15 @@ process.stdin.on('end', () => {
             `契约缺口已登记（不计 fail）—— ${repM[1]} 第 ${event.round} 轮：contractGaps ${event.gaps} 条。\n` +
               '  · contractGaps = 规格本身有缺口、实现侧已做合规处置（D-A42-04），与 contractViolations（真越界，计 fail）分开；\n' +
               '  · 它不改变本轮验收结论，但必须进 converge 的收口清单——收口前不得当作「已解决」。',
+          );
+        }
+        // A46 D-A46-02：B 类涌现决策不计 fail，但不能静默——当场说清「记了几条、下一步归谁」。
+        // A 类（局部可逆）不提示：数据在报告里，retro 会聚合；逐条播报只会制造告警疲劳。
+        if (event.edB > 0) {
+          console.error(
+            `涌现决策已登记（不计 fail）—— ${repM[1]}：B 类 ${event.edB} 条（规格未覆盖、已按保守可逆方案先行）。\n` +
+              '  · 它不改变本轮结论，但必须进 converge 的收口清单，由人批量校准（认可即结案，不认可立 vima change 或派修）；\n' +
+              '  · 契约/权限/数据归属/共享层/范围红线不属于涌现决策——那些走 sharedChangeRequest 等既有通道。',
           );
         }
       }
